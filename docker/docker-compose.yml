@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:latest
+    container_name: mysql
+    restart: always
+    volumes:
+      - dbbase:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: financialbudgetdb
+      MYSQL_USER: financialbudgetuser
+      MYSQL_PASSWORD: cadI1fzFK3t#El%I
+    ports:
+      - "3306:3306"
+
+volumes:
+  dbbase:
