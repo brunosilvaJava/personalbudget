@@ -1,4 +1,4 @@
-create table FINANCIAL_MOVEMENT(
+create table if not exists FINANCIAL_MOVEMENT(
     id INTEGER PRIMARY KEY AUTO_INCREMENT COMMENT 'chave primária',
     operation_type VARCHAR(20) NOT NULL COMMENT 'tipo da operação financeira (CREDIT; DEBIT)',
     description VARCHAR(50) NOT NULL COMMENT 'descrição da movimentação financeira',
@@ -9,3 +9,4 @@ create table FINANCIAL_MOVEMENT(
     pay_date DATETIME COMMENT 'data do pagamento da movimentação financeira',
     status VARCHAR(20) NOT NULL COMMENT 'situação da movimentação financeira',
     flag_active TINYINT(1) NOT NULL COMMENT 'flag de exclusão lógica'
+)
