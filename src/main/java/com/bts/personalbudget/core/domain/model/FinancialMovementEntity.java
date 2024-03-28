@@ -9,7 +9,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
@@ -25,7 +27,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @Entity
 @Table(name = "financial_movement")
-public class FinancialMovementModel {
+public class FinancialMovementEntity extends AuditingEntity implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -59,6 +61,11 @@ public class FinancialMovementModel {
     private FinancialMovementStatus status;
 
     @Column(name = "flag_active", nullable = false)
-    private Boolean flagActive = Boolean.TRUE;
+    private Boolean flagActive;
+
+    @PrePersist
+    public void prePersist() {
+        flagActive = Boolean.TRUE;
+    }
 
 }

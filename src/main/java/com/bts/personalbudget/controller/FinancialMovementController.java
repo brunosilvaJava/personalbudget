@@ -1,6 +1,6 @@
 package com.bts.personalbudget.controller;
 
-import com.bts.personalbudget.core.domain.model.FinancialMovementModel;
+import com.bts.personalbudget.core.domain.model.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.repository.FinancialMovementRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -16,12 +16,12 @@ public class FinancialMovementController {
     private final FinancialMovementRepository repository;
 
     @GetMapping
-    public List<FinancialMovementModel> get() {
+    public List<FinancialMovementEntity> get() {
         return repository.findAll();
     }
 
     @PostMapping
-    public void post(@RequestBody FinancialMovementModel model) {
+    public void post(@RequestBody FinancialMovementEntity model) {
         repository.save(model);
     }
 
