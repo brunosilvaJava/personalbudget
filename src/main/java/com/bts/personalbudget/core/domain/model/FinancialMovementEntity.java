@@ -14,11 +14,14 @@ import jakarta.persistence.Table;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.GenericGenerator;
 
 @Getter
 @Setter
@@ -33,6 +36,10 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column
     private Long id;
+
+    @GenericGenerator(name = "uuid2")
+    @Column(nullable = false)
+    private UUID code;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "operation_type", nullable = false)
@@ -65,7 +72,20 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
 
     @PrePersist
     public void prePersist() {
+        code = UUID.randomUUID();
         flagActive = Boolean.TRUE;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        FinancialMovementEntity that = (FinancialMovementEntity) o;
+        return Objects.equals(id, that.id) && Objects.equals(code, that.code);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, code);
+    }
 }
