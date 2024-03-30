@@ -9,7 +9,7 @@ public class FinancialMovementEntityFactory {
 
     public static FinancialMovementEntity build() {
         final LocalDateTime now = LocalDateTime.now();
-        return FinancialMovementEntity.builder()
+        FinancialMovementEntity financialMovementEntity = FinancialMovementEntity.builder()
                 .operationType(OperationType.DEBIT)
                 .description("Testando")
                 .amount(BigDecimal.ONE)
@@ -19,6 +19,8 @@ public class FinancialMovementEntityFactory {
                 .payDate(now)
                 .status(FinancialMovementStatus.PAID_OUT)
                 .build();
+        financialMovementEntity.prePersist();
+        return financialMovementEntity;
     }
 
 }
