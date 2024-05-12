@@ -30,7 +30,7 @@ import org.hibernate.annotations.GenericGenerator;
 @AllArgsConstructor
 @Entity
 @Table(name = "financial_movement")
-public class FinancialMovementEntity extends AuditingEntity implements Serializable {
+public class FinancialMovementModel extends AuditingEntity implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -80,7 +80,7 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        FinancialMovementEntity that = (FinancialMovementEntity) o;
+        FinancialMovementModel that = (FinancialMovementModel) o;
         return Objects.equals(id, that.id) && Objects.equals(code, that.code);
     }
 

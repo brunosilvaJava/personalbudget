@@ -1,28 +1,30 @@
 package com.bts.personalbudget.controller;
 
-import com.bts.personalbudget.core.domain.model.FinancialMovementEntity;
-import com.bts.personalbudget.core.domain.repository.FinancialMovementRepository;
-import java.util.List;
+import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.mapper.FinancialMovementMapper;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @RequiredArgsConstructor
+@RequestMapping("/financial_movement")
 @RestController
 public class FinancialMovementController {
 
-    private final FinancialMovementRepository repository;
-
-    @GetMapping
-    public List<FinancialMovementEntity> get() {
-        return repository.findAll();
-    }
+    private final FinancialMovementService service;
+    private final FinancialMovementMapper mapper;
 
     @PostMapping
-    public void post(@RequestBody FinancialMovementEntity model) {
-        repository.save(model);
+    public ResponseEntity create(@RequestBody @Valid final FinancialMovementRequest request) {
+        log.info("m=create, request={}", request);
+        service.save(mapper.toEntity(request));
+        return ResponseEntity.ok().build();
     }
 
 }
