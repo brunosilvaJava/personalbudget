@@ -6,3 +6,12 @@
     password: cadI1fzFK3t#El%I
     hikari:
       connection-timeout: 30000
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    properties:
+      hibernate:
+        show_sql: true
+
+logging:
+  level:
+    sql: debug

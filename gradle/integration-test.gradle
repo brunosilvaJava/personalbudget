@@ -1,0 +1,45 @@
+sourceSets {
+    test_integration {
+        java {
+            srcDirs("src/testIntegration")
+            compileClasspath += main.output + test.output
+            runtimeClasspath += main.output + test.output
+        }
+        resources {
+            srcDirs("src/testIntegration/resources")
+        }
+    }
+}
+
+ext {
+    set('flywayVersion', "10.10.0")
+}
+
+configurations {
+    test_integrationImplementation.extendsFrom(testImplementation)
+    test_integrationRuntimeOnly.extendsFrom(testRuntimeOnly)
+}
+
+dependencies {
+
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-mysql'
+
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly "org.flywaydb:flyway-gradle-plugin:${flywayVersion}"
+
+    testImplementation "org.testcontainers:testcontainers:${testcontainersVersion}"
+    testImplementation "org.testcontainers:mysql:${testcontainersVersion}"
+    testImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
+}
+
+tasks.register('integrationTest', Test) {
+    description = "Run integration tests"
+    group = "verification"
+    testClassesDirs = sourceSets.test_integration.output.classesDirs
+    classpath = sourceSets.test_integration.runtimeClasspath
+}
+
+tasks.named('integrationTest') {
+    useJUnitPlatform()
+}
