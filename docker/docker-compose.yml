@@ -13,7 +13,7 @@ services:
       MYSQL_USER: financialbudgetuser
       MYSQL_PASSWORD: cadI1fzFK3t#El%I
     ports:
-      - "3306:3306"
+      - "3306:3306"docc
 
 volumes:
   dbbase:
