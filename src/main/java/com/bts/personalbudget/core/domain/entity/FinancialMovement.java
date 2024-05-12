@@ -1,2 +1,23 @@
-package com.bts.personalbudget.core.domain.entity;public class FinancialMovement {
+package com.bts.personalbudget.core.domain.entity;
+
+import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
+import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+public record FinancialMovement(
+        UUID code,
+        @NotNull
+        OperationType operationType,
+        String description,
+        BigDecimal amount,
+        BigDecimal amountPaid,
+        LocalDateTime movementDate,
+        LocalDateTime dueDate,
+        LocalDateTime payDate,
+        FinancialMovementStatus status,
+        Boolean flagActive
+) {
 }

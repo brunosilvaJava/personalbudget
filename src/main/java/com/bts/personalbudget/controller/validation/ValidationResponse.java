@@ -1,4 +1,4 @@
-package com.bts.personalbudget.exception;
+package com.bts.personalbudget.controller.validation;
 
 import java.util.Map;
 
