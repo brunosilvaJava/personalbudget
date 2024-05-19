@@ -4,11 +4,12 @@ package com.bts.personalbudget.controller;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public record FinancialMovementResponse (
+        UUID code,
         @JsonProperty("operation_type")
         OperationType operationType,
         String description,

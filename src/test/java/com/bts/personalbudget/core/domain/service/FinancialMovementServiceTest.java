@@ -10,12 +10,14 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.when;
 
@@ -29,7 +31,7 @@ class FinancialMovementServiceTest {
     private FinancialMovementRepository repository;
 
     @Spy
-    private FinancialMovementMapper mapper;
+    private FinancialMovementMapper mapper = FinancialMovementMapper.INSTANCE;
 
     @Test
     void shouldFindFinancialMovements() {
@@ -41,7 +43,7 @@ class FinancialMovementServiceTest {
         final LocalDate endDate = LocalDate.now();
 
         when(repository.findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetween(
-                        description, Arrays.stream(OperationType.values()).toList(),
+                description, Arrays.stream(OperationType.values()).toList(),
                 Arrays.stream(FinancialMovementStatus.values()).toList(),
                 startDate.atStartOfDay(), endDate.atStartOfDay().plusDays(1)))
                 .thenReturn(Optional.of(List.of(FinancialMovementEntityFactory.build())));
@@ -50,7 +52,16 @@ class FinancialMovementServiceTest {
                 financialMovementService.find(description, operationTypes, statuses, startDate, endDate);
 
         assertNotNull(financialMovements);
+        assertFalse(financialMovements.isEmpty());
 
+    }
+
+    @Test
+    void shouldFindFinancialMovement() {
+        final UUID code = UUID.randomUUID();
+        when(repository.findByCode(code)).thenReturn(FinancialMovementEntityFactory.build());
+        final FinancialMovement financialMovement = financialMovementService.find(code);
+        assertNotNull(financialMovement);
     }
 
 }

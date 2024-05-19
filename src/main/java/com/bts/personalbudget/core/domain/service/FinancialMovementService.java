@@ -8,6 +8,7 @@ import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -47,5 +48,10 @@ public class FinancialMovementService {
                                 startDate.atStartOfDay(),
                                 endDate.atStartOfDay().plusDays(1))
                         .orElseThrow());
+    }
+
+    public FinancialMovement find(final UUID code) {
+        log.info("m=find, code={}", code);
+        return mapper.toEntity(repository.findByCode(code));
     }
 }

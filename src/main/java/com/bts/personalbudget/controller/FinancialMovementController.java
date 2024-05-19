@@ -5,14 +5,13 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,7 +20,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
-@Validated
 @RequiredArgsConstructor
 @RequestMapping("/financial_movement")
 @RestController
@@ -51,6 +49,13 @@ public class FinancialMovementController {
         log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}",
                 description, operationTypes, statuses, startDate, endDate);
         return ResponseEntity.ok(mapper.toResponse(service.find(description, operationTypes, statuses, startDate, endDate)));
+    }
+
+    @GetMapping("/code")
+    public ResponseEntity<FinancialMovementResponse> find(@RequestParam
+                                                          UUID code) {
+        log.info("m=find, code={}", code);
+        return ResponseEntity.ok(mapper.toResponse(service.find(code)));
     }
 
 }
