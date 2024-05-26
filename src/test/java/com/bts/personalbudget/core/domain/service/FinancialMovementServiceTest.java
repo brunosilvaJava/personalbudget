@@ -5,6 +5,7 @@ import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovementFactory;
 import com.bts.personalbudget.core.domain.model.FinancialMovementFactory.FinancialMovementProperty;
+import com.bts.personalbudget.core.domain.model.FinancialMovementModel;
 import com.bts.personalbudget.core.domain.repository.FinancialMovementRepository;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.math.BigDecimal;
@@ -111,5 +112,13 @@ class FinancialMovementServiceTest {
         assertEquals(now, updatedFinancialMovement.dueDate());
         assertEquals(now, updatedFinancialMovement.payDate());
         assertEquals(status, updatedFinancialMovement.status());
+    }
+
+    @Test
+    void shouldDeleteFinancialMovement() throws NotFoundException {
+        FinancialMovementModel financialMovementModel = FinancialMovementFactory.buildModel();
+        when(repository.findByCode(financialMovementModel.getCode())).thenReturn(Optional.of(financialMovementModel));
+        financialMovementService.delete(financialMovementModel.getCode());
+        assertFalse(financialMovementModel.getFlagActive());
     }
 }

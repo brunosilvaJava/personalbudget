@@ -111,4 +111,12 @@ public class FinancialMovementService {
             financialMovementModel.setStatus(financialMovement.status());
         }
     }
+
+    @Transactional
+    public void delete(final UUID code) throws NotFoundException {
+        log.info("m=delete, code={}", code);
+        final FinancialMovementModel financialMovementModel = findModel(code);
+        financialMovementModel.delete();
+    }
+
 }

@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -65,6 +66,13 @@ public class FinancialMovementController {
                                     @RequestBody @Valid final FinancialMovementUpdateRequest updateRequest) throws NotFoundException {
         log.info("m=update, updateRequest={}", updateRequest);
         return ResponseEntity.ok(mapper.toResponse(service.update(mapper.toEntity(updateRequest, code))));
+    }
+
+    @DeleteMapping("/{code}")
+    public ResponseEntity<Void> delete(@PathVariable UUID code) throws NotFoundException {
+        log.info("m=delete, code={}", code);
+        service.delete(code);
+        return ResponseEntity.noContent().build();
     }
 
 }

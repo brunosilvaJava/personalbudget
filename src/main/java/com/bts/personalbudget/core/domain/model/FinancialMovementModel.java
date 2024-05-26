@@ -88,4 +88,10 @@ public class FinancialMovementModel extends AuditingEntity implements Serializab
     public int hashCode() {
         return Objects.hash(id, code);
     }
+
+    public void delete() {
+        if (flagActive) {
+            flagActive = false;
+        }
+    }
 }
