@@ -10,9 +10,12 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -51,11 +54,17 @@ public class FinancialMovementController {
         return ResponseEntity.ok(mapper.toResponse(service.find(description, operationTypes, statuses, startDate, endDate)));
     }
 
-    @GetMapping("/code")
-    public ResponseEntity<FinancialMovementResponse> find(@RequestParam
-                                                          UUID code) {
+    @GetMapping("/{code}")
+    public ResponseEntity<FinancialMovementResponse> find(@PathVariable UUID code) throws NotFoundException {
         log.info("m=find, code={}", code);
         return ResponseEntity.ok(mapper.toResponse(service.find(code)));
+    }
+
+    @PatchMapping("/{code}")
+    public ResponseEntity<?> update(@PathVariable UUID code,
+                                    @RequestBody @Valid final FinancialMovementUpdateRequest updateRequest) throws NotFoundException {
+        log.info("m=update, updateRequest={}", updateRequest);
+        return ResponseEntity.ok(mapper.toResponse(service.update(mapper.toEntity(updateRequest, code))));
     }
 
 }

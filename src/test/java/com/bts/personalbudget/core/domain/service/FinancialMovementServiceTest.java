@@ -3,12 +3,17 @@ package com.bts.personalbudget.core.domain.service;
 import com.bts.personalbudget.core.domain.entity.FinancialMovement;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import com.bts.personalbudget.core.domain.model.FinancialMovementEntityFactory;
+import com.bts.personalbudget.core.domain.model.FinancialMovementFactory;
+import com.bts.personalbudget.core.domain.model.FinancialMovementFactory.FinancialMovementProperty;
 import com.bts.personalbudget.core.domain.repository.FinancialMovementRepository;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -17,6 +22,16 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
+import static com.bts.personalbudget.core.domain.model.FinancialMovementFactory.FinancialMovementProperty.AMOUNT;
+import static com.bts.personalbudget.core.domain.model.FinancialMovementFactory.FinancialMovementProperty.AMOUNT_PAID;
+import static com.bts.personalbudget.core.domain.model.FinancialMovementFactory.FinancialMovementProperty.DESCRIPTION;
+import static com.bts.personalbudget.core.domain.model.FinancialMovementFactory.FinancialMovementProperty.MOVEMENT_DATE;
+import static com.bts.personalbudget.core.domain.model.FinancialMovementFactory.FinancialMovementProperty.MOVEMENT_DUE_DATE;
+import static com.bts.personalbudget.core.domain.model.FinancialMovementFactory.FinancialMovementProperty.OPERATION_TYPE;
+import static com.bts.personalbudget.core.domain.model.FinancialMovementFactory.FinancialMovementProperty.PAY_DATE;
+import static com.bts.personalbudget.core.domain.model.FinancialMovementFactory.FinancialMovementProperty.STATUS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.when;
@@ -46,7 +61,7 @@ class FinancialMovementServiceTest {
                 description, Arrays.stream(OperationType.values()).toList(),
                 Arrays.stream(FinancialMovementStatus.values()).toList(),
                 startDate.atStartOfDay(), endDate.atStartOfDay().plusDays(1)))
-                .thenReturn(Optional.of(List.of(FinancialMovementEntityFactory.build())));
+                .thenReturn(Optional.of(List.of(FinancialMovementFactory.buildModel())));
 
         final List<FinancialMovement> financialMovements =
                 financialMovementService.find(description, operationTypes, statuses, startDate, endDate);
@@ -57,11 +72,44 @@ class FinancialMovementServiceTest {
     }
 
     @Test
-    void shouldFindFinancialMovement() {
+    void shouldFindFinancialMovement() throws NotFoundException {
         final UUID code = UUID.randomUUID();
-        when(repository.findByCode(code)).thenReturn(FinancialMovementEntityFactory.build());
+        when(repository.findByCode(code)).thenReturn(Optional.of(FinancialMovementFactory.buildModel()));
         final FinancialMovement financialMovement = financialMovementService.find(code);
         assertNotNull(financialMovement);
     }
 
+    @Test
+    void shouldUpdateFinancialMovement() throws NotFoundException {
+        String description = "descricao alterada";
+        OperationType operationType = OperationType.CREDIT;
+        BigDecimal amount = BigDecimal.valueOf(100L);
+        LocalDateTime now = LocalDateTime.now();
+        FinancialMovementStatus status = FinancialMovementStatus.PAID_OUT;
+        Map<FinancialMovementProperty, String> data = new HashMap<>(FinancialMovementFactory.data());
+
+        data.put(OPERATION_TYPE, operationType.name());
+        data.put(DESCRIPTION, description);
+        data.put(AMOUNT, amount.toString());
+        data.put(AMOUNT_PAID, amount.toString());
+        data.put(MOVEMENT_DATE, now.toString());
+        data.put(MOVEMENT_DUE_DATE, now.toString());
+        data.put(PAY_DATE, now.toString());
+        data.put(STATUS, status.name());
+
+        FinancialMovement financialMovementToUpdate = FinancialMovementFactory.buildEntity(data);
+
+        when(repository.findByCode(financialMovementToUpdate.code())).thenReturn(Optional.of(FinancialMovementFactory.buildModel()));
+
+        FinancialMovement updatedFinancialMovement = financialMovementService.update(financialMovementToUpdate);
+
+        assertEquals(operationType, updatedFinancialMovement.operationType());
+        assertEquals(description, updatedFinancialMovement.description());
+        assertEquals(amount, updatedFinancialMovement.amount());
+        assertEquals(amount, updatedFinancialMovement.amountPaid());
+        assertEquals(now, updatedFinancialMovement.movementDate());
+        assertEquals(now, updatedFinancialMovement.dueDate());
+        assertEquals(now, updatedFinancialMovement.payDate());
+        assertEquals(status, updatedFinancialMovement.status());
+    }
 }

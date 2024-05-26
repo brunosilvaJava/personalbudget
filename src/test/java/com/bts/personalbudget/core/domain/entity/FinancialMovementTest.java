@@ -7,10 +7,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FinancialMovementTest {
 
@@ -34,9 +34,9 @@ class FinancialMovementTest {
         Map<String, String> validations = exception.getValidations();
 
         assertEquals(FinancialMovement.class, exception.getAClass());
-        Assertions.assertTrue(validations.containsKey("amountPaid"));
+        assertTrue(validations.containsKey("amountPaid"));
         assertEquals("deve ser informado quando o status for PAID_OUT", validations.get("amountPaid"));
-        Assertions.assertTrue(validations.containsKey("payDate"));
+        assertTrue(validations.containsKey("payDate"));
         assertEquals("deve ser informado quando o status for PAID_OUT", validations.get("payDate"));
     }
 
@@ -60,7 +60,7 @@ class FinancialMovementTest {
         Map<String, String> validations = exception.getValidations();
 
         assertEquals(FinancialMovement.class, exception.getAClass());
-        Assertions.assertTrue(validations.containsKey("dueDate"));
+        assertTrue(validations.containsKey("dueDate"));
         assertEquals("deve ser informado quando o status for LATE", validations.get("dueDate"));
     }
 
@@ -84,7 +84,7 @@ class FinancialMovementTest {
         Map<String, String> validations = exception.getValidations();
 
         assertEquals(FinancialMovement.class, exception.getAClass());
-        Assertions.assertTrue(validations.containsKey("dueDate"));
+        assertTrue(validations.containsKey("dueDate"));
         assertEquals("a data de vencimento deve ser anterior à data atual", validations.get("dueDate"));
     }
 }

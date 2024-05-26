@@ -3,6 +3,7 @@ package com.bts.personalbudget.core.domain.service;
 import com.bts.personalbudget.core.domain.entity.FinancialMovement;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.model.FinancialMovementModel;
 import com.bts.personalbudget.core.domain.repository.FinancialMovementRepository;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.time.LocalDate;
@@ -11,7 +12,9 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -50,8 +53,62 @@ public class FinancialMovementService {
                         .orElseThrow());
     }
 
-    public FinancialMovement find(final UUID code) {
+    public FinancialMovement find(final UUID code) throws NotFoundException {
         log.info("m=find, code={}", code);
-        return mapper.toEntity(repository.findByCode(code));
+        return mapper.toEntity(findModel(code));
+    }
+
+    @Transactional
+    public FinancialMovement update(final FinancialMovement financialMovement) throws NotFoundException {
+        log.info("m=update, financialMovement={}", financialMovement);
+        final FinancialMovementModel financialMovementModel = findModel(financialMovement.code());
+        update(financialMovement, financialMovementModel);
+        return mapper.toEntity(financialMovementModel);
+    }
+
+    private FinancialMovementModel findModel(final UUID code) throws NotFoundException {
+        return repository.findByCode(code).orElseThrow(NotFoundException::new);
+    }
+
+    private void update(final FinancialMovement financialMovement, final FinancialMovementModel financialMovementModel) {
+        if (financialMovement.operationType() != null &&
+                financialMovement.operationType() != financialMovementModel.getOperationType()) {
+            financialMovementModel.setOperationType(financialMovement.operationType());
+        }
+
+        if (financialMovement.description() != null && !financialMovement.description().isEmpty() &&
+                !financialMovement.description().equals(financialMovementModel.getDescription())) {
+            financialMovementModel.setDescription(financialMovement.description());
+        }
+
+        if (financialMovement.amount() != null &&
+                !financialMovement.amount().equals(financialMovementModel.getAmount())) {
+            financialMovementModel.setAmount(financialMovement.amount());
+        }
+
+        if (financialMovement.amountPaid() != null &&
+                !financialMovement.amountPaid().equals(financialMovementModel.getAmountPaid())) {
+            financialMovementModel.setAmountPaid(financialMovement.amountPaid());
+        }
+
+        if (financialMovement.movementDate() != null &&
+                !financialMovement.movementDate().equals(financialMovementModel.getMovementDate())) {
+            financialMovementModel.setMovementDate(financialMovement.movementDate());
+        }
+
+        if (financialMovement.dueDate() != null &&
+                !financialMovement.dueDate().equals(financialMovementModel.getDueDate())) {
+            financialMovementModel.setDueDate(financialMovement.dueDate());
+        }
+
+        if (financialMovement.payDate() != null &&
+                !financialMovement.payDate().equals(financialMovementModel.getPayDate())) {
+            financialMovementModel.setPayDate(financialMovement.payDate());
+        }
+
+        if (financialMovement.status() != null &&
+                !financialMovement.status().equals(financialMovementModel.getStatus())) {
+            financialMovementModel.setStatus(financialMovement.status());
+        }
     }
 }

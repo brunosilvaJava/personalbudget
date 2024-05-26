@@ -11,7 +11,7 @@ class FinancialMovementModelTest {
 
     @Test
     void shouldContainCodeAndFlagActiveTrue() {
-        final FinancialMovementModel financialMovementModel = FinancialMovementEntityFactory.build();
+        final FinancialMovementModel financialMovementModel = FinancialMovementFactory.buildModel();
         financialMovementModel.prePersist();
         assertNotNull(financialMovementModel.getCode());
         assertNotNull(financialMovementModel.getFlagActive());

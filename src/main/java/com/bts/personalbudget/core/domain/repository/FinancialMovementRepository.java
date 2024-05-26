@@ -13,9 +13,9 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface FinancialMovementRepository extends JpaRepository<FinancialMovementModel, Long> {
 
-    FinancialMovementModel findByCode(UUID code);
+    Optional<FinancialMovementModel> findByCode(UUID code);
 
     Optional<List<FinancialMovementModel>> findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetween(
-            String description,
-            List<OperationType> operationTypes, List<FinancialMovementStatus> statuses, LocalDateTime startDate, LocalDateTime endDate);
+            String description, List<OperationType> operationTypes, List<FinancialMovementStatus> statuses,
+            LocalDateTime startDate, LocalDateTime endDate);
 }

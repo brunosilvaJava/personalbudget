@@ -8,11 +8,13 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.LATE;
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.PAID_OUT;
 import static java.math.BigDecimal.ZERO;
 
+@Builder
 @Slf4j
 public record FinancialMovement(
         UUID code,
@@ -30,10 +32,16 @@ public record FinancialMovement(
     private static final String MSG_FIELD_NULL_OR_EMPTY = "deve ser informado quando o status for ";
 
     public FinancialMovement {
-
+        validations(status, dueDate, payDate, amountPaid);
         if (code == null) {
             code = UUID.randomUUID();
         }
+    }
+
+    private void validations(FinancialMovementStatus status,
+                                    LocalDateTime dueDate,
+                                    LocalDateTime payDate,
+                                    BigDecimal amountPaid) {
 
         final Map<String, String> errorsMsg = new HashMap<>();
 
