@@ -20,9 +20,12 @@ repositories {
 }
 
 ext {
-    set('springCloudVersion', "2023.0.0")
-    set('log4jVersion', "2.23.1")
-    set('testcontainersVersion', "1.19.7")
+    springCloudVersion = "2023.0.0"
+    log4jVersion = "2.23.1"
+    testcontainersVersion = "1.19.7"
+    lombokVersion = "1.18.32"
+    mapstructVersion = "1.5.5.Final"
+    lombokMapstructVersion = "0.2.0"
 }
 
 configurations {
@@ -42,12 +45,19 @@ dependencies {
 
     implementation "org.apache.logging.log4j:log4j:${log4jVersion}"
 
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+
+    implementation "org.mapstruct:mapstruct:${mapstructVersion}"
+    annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
+    annotationProcessor "org.projectlombok:lombok-mapstruct-binding:${lombokMapstructVersion}"
 
     runtimeOnly 'com.h2database:h2'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 
 }
 

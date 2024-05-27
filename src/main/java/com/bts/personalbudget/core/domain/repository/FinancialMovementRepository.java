@@ -1,13 +1,21 @@
 package com.bts.personalbudget.core.domain.repository;
 
-import com.bts.personalbudget.core.domain.model.FinancialMovementEntity;
+import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
+import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.model.FinancialMovementModel;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface FinancialMovementRepository extends JpaRepository<FinancialMovementEntity, Long> {
+public interface FinancialMovementRepository extends JpaRepository<FinancialMovementModel, Long> {
 
-    FinancialMovementEntity findByCode(UUID code);
+    Optional<FinancialMovementModel> findByCode(UUID code);
 
+    Optional<List<FinancialMovementModel>> findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetween(
+            String description, List<OperationType> operationTypes, List<FinancialMovementStatus> statuses,
+            LocalDateTime startDate, LocalDateTime endDate);
 }
