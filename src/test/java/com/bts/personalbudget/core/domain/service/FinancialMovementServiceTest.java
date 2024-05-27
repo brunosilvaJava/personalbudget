@@ -35,6 +35,7 @@ import static com.bts.personalbudget.core.domain.model.FinancialMovementFactory.
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +49,14 @@ class FinancialMovementServiceTest {
 
     @Spy
     private FinancialMovementMapper mapper = FinancialMovementMapper.INSTANCE;
+
+    @Test
+    void shouldSaveFinancialMovement() {
+        Map<FinancialMovementProperty, String> data = new HashMap<>(FinancialMovementFactory.data());
+        FinancialMovement financialMovement = FinancialMovementFactory.buildEntity(data);
+        financialMovementService.save(financialMovement);
+        verify(repository).save(FinancialMovementFactory.buildModel(data));
+    }
 
     @Test
     void shouldFindFinancialMovements() {

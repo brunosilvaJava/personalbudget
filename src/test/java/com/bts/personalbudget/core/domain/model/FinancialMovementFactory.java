@@ -36,7 +36,12 @@ public class FinancialMovementFactory {
     }
 
     public static FinancialMovementModel buildModel() {
+        return buildModel(data());
+    }
+
+    public static FinancialMovementModel buildModel(Map<FinancialMovementProperty, String> data) {
         FinancialMovementModel financialMovementModel = FinancialMovementModel.builder()
+                .code(UUID.fromString(data.get(CODE)))
                 .operationType(OperationType.valueOf(data().get(OPERATION_TYPE)))
                 .description(data().get(DESCRIPTION))
                 .amount(new BigDecimal(data().get(AMOUNT)))
@@ -56,6 +61,7 @@ public class FinancialMovementFactory {
 
     public static FinancialMovement buildEntity(Map<FinancialMovementProperty, String> data) {
         return FinancialMovement.builder()
+                .code(UUID.fromString(data.get(CODE)))
                 .operationType(OperationType.valueOf(data.get(OPERATION_TYPE)))
                 .description(data.get(DESCRIPTION))
                 .amount(new BigDecimal(data.get(AMOUNT)))

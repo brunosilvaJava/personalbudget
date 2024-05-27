@@ -33,7 +33,7 @@ public class FinancialMovementController {
     private final FinancialMovementMapper mapper;
 
     @PostMapping
-    public ResponseEntity create(@RequestBody @Valid final FinancialMovementRequest request) {
+    public ResponseEntity<Void> create(@RequestBody @Valid final FinancialMovementRequest request) {
         log.info("m=create, request={}", request);
         service.save(mapper.toEntity(request));
         return ResponseEntity.status(HttpStatus.CREATED).build();
@@ -74,5 +74,4 @@ public class FinancialMovementController {
         service.delete(code);
         return ResponseEntity.noContent().build();
     }
-
 }

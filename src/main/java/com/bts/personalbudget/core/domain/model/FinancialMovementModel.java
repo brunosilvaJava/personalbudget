@@ -72,7 +72,9 @@ public class FinancialMovementModel extends AuditingEntity implements Serializab
 
     @PrePersist
     public void prePersist() {
-        code = UUID.randomUUID();
+        if (code == null) {
+            code = UUID.randomUUID();
+        }
         flagActive = Boolean.TRUE;
     }
 

@@ -24,6 +24,7 @@ public class FinancialMovementService {
     private final FinancialMovementRepository repository;
     private final FinancialMovementMapper mapper;
 
+    @Transactional
     public void save(final FinancialMovement financialMovement) {
         log.info("m=create, financialMovement={}", financialMovement);
         repository.save(mapper.toModel(financialMovement));
