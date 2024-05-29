@@ -1,8 +1,8 @@
 version: '3.8'
 
 services:
-  mysql_test:
-    container_name: mysql_test
+  mysql:
+    container_name: mysql
     image: mysql:latest
     restart: always
     environment:
@@ -21,14 +21,14 @@ services:
     restart: always
     environment:
       SPRING_PROFILES_ACTIVE: local
-      DB_HOST: mysql_test
+      DB_HOST: mysql
       DB_DATABASE: financialbudgetdb
       DB_USERNAME: financialbudgetuser
       DB_PASSWORD: cadI1fzFK3t#El%I
     ports:
       - "8080:8080"
     depends_on:
-      - mysql_test
+      - mysql
     networks:
       - personalbudget-network
 
