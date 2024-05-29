@@ -1,12 +1,10 @@
 version: '3.8'
 
 services:
-  mysql:
+  mysql_test:
+    container_name: mysql_test
     image: mysql:latest
-    container_name: mysql
     restart: always
-    volumes:
-      - dbbase:/var/lib/mysql
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: financialbudgetdb
@@ -14,6 +12,29 @@ services:
       MYSQL_PASSWORD: cadI1fzFK3t#El%I
     ports:
       - "3306:3306"
+    networks:
+      - personalbudget-network
+
+  personal_budget:
+    image: brunodev1988/personalbudget
+    container_name: personal_budget
+    restart: always
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_HOST: mysql_test
+      DB_DATABASE: financialbudgetdb
+      DB_USERNAME: financialbudgetuser
+      DB_PASSWORD: cadI1fzFK3t#El%I
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql_test
+    networks:
+      - personalbudget-network
 
 volumes:
   dbbase:
+
+networks:
+  personalbudget-network:
+    driver: bridge
