@@ -14,7 +14,7 @@ services:
       - personalbudget-network
 
   personal_budget:
-    image: brunodev1988/personalbudget
+    image: brunodev1988/personalbudget:eclipse
     build:
       context: .
       dockerfile: Dockerfile

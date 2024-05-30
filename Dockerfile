@@ -1,6 +1,6 @@
-FROM openjdk:21-jdk
+FROM eclipse-temurin:21-jre-alpine
 LABEL maintainer="Bruno Silva"
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+RUN apk add --no-cache shadow && groupadd -r appgroup && useradd -r -g appgroup appuser
 USER appuser
 WORKDIR /app
 COPY --chown=appuser:appuser --chmod=400  build/libs/*.jar /app/app.jar
