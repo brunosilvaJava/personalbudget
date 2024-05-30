@@ -1,0 +1,38 @@
+# Diretórios do IntelliJ IDEA
+.idea
+*.iml
+
+# Diretórios do Visual Studio Code
+.vscode
+
+# Diretórios de compilação
+.gradle
+gradle/
+bin/
+build/classes
+build/generated
+build/resources
+build/tmp
+.gradle/
+
+# Diretórios temporários
+tmp/
+temp/
+
+# Arquivos de log
+*.log
+
+# Arquivos de configuração do sistema
+*.swp
+*.swo
+
+# Arquivos de documentação
+*.md
+
+# Diretório Git
+.git
+.gitignore
+
+# Arquivos de configuração do Docker
+docker-compose.yml
+.dockerignore

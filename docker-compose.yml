@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mysql:
     container_name: mysql
@@ -17,6 +15,9 @@ services:
 
   personal_budget:
     image: brunodev1988/personalbudget
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: personal_budget
     restart: always
     environment:
