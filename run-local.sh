@@ -11,7 +11,7 @@ docker compose up --remove-orphans -d
 
 container_status=$(docker inspect -f '{{.State.Running}}' mysql)
 if [ "$container_status" != "true" ]; then
-  echo "Contêiner MySQL não está em execução. Verifique se o nome do contêiner está correto e se o MySQL está sendo iniciado corretamente."
+  echo "Container MySQL não está em execução. Verifique se o nome do contêiner está correto e se o MySQL está sendo iniciado corretamente."
   exit 1
 fi
 

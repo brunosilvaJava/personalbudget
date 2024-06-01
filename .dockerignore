@@ -7,7 +7,7 @@
 
 # Diretórios de compilação
 .gradle
-gradle/
+gradle/wrapper
 bin/
 build/classes
 build/generated

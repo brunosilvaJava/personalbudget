@@ -1,6 +1,7 @@
 services:
   mysql:
     container_name: mysql
+    profiles: [app, dependents]
     image: mysql:latest
     restart: always
     environment:
@@ -14,7 +15,8 @@ services:
       - personalbudget-network
 
   personal_budget:
-    image: brunodev1988/personalbudget:eclipse
+    image: test
+    profiles: [app]
     build:
       context: .
       dockerfile: Dockerfile
