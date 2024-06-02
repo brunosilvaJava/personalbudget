@@ -15,7 +15,7 @@ services:
       - personalbudget-network
 
   personal_budget:
-    image: test
+    image: brunodev1988/personalbudget
     profiles: [app]
     build:
       context: .
