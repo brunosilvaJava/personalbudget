@@ -1,7 +1,6 @@
 package com.bts.personalbudget.exception;
 
 import com.bts.personalbudget.controller.validation.ValidationResponse;
-import com.bts.personalbudget.core.domain.repository.InvalidFieldsException;
 import com.bts.personalbudget.util.StringUtils;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonMappingException.Reference;

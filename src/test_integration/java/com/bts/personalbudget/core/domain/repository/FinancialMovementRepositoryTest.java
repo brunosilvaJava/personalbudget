@@ -1,7 +1,7 @@
 package com.bts.personalbudget.core.domain.repository;
 
-import com.bts.personalbudget.core.domain.model.FinancialMovementFactory;
-import com.bts.personalbudget.core.domain.model.FinancialMovementModel;
+import com.bts.personalbudget.core.domain.entity.FinancialMovementFactory;
+import com.bts.personalbudget.core.domain.entity.FinancialMovementModel;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

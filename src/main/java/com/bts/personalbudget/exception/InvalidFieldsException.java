@@ -1,4 +1,4 @@
-package com.bts.personalbudget.core.domain.repository;
+package com.bts.personalbudget.exception;
 
 import java.util.Map;
 import lombok.Getter;

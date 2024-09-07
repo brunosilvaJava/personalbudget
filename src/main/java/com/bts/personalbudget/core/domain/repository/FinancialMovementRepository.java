@@ -2,7 +2,7 @@ package com.bts.personalbudget.core.domain.repository;
 
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import com.bts.personalbudget.core.domain.model.FinancialMovementModel;
+import com.bts.personalbudget.core.domain.entity.FinancialMovementModel;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
