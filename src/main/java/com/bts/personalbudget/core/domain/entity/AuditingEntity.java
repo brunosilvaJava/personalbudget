@@ -1,4 +1,4 @@
-package com.bts.personalbudget.core.domain.model;
+package com.bts.personalbudget.core.domain.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
@@ -18,10 +18,10 @@ public abstract class AuditingEntity {
 
     @CreatedDate
     @Column(name = "created_date", nullable = false, updatable = false)
-    private Instant createdDate;
+    protected Instant createdDate;
 
     @LastModifiedDate
     @Column(name = "last_modified_date")
-    private Instant lastModifiedDate;
+    protected Instant lastModifiedDate;
 
 }

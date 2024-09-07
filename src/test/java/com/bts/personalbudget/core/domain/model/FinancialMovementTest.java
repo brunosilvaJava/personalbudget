@@ -1,8 +1,8 @@
-package com.bts.personalbudget.core.domain.entity;
+package com.bts.personalbudget.core.domain.model;
 
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import com.bts.personalbudget.core.domain.repository.InvalidFieldsException;
+import com.bts.personalbudget.exception.InvalidFieldsException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;

@@ -1,4 +1,4 @@
-package com.bts.personalbudget.core.domain.model;
+package com.bts.personalbudget.core.domain.entity;
 
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
@@ -41,6 +41,9 @@ public class FinancialMovementModel extends AuditingEntity implements Serializab
     @Column(nullable = false)
     private UUID code;
 
+    @Column(name = "flag_active", nullable = false)
+    protected Boolean flagActive;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "operation_type", nullable = false)
     private OperationType operationType;
@@ -66,9 +69,6 @@ public class FinancialMovementModel extends AuditingEntity implements Serializab
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private FinancialMovementStatus status;
-
-    @Column(name = "flag_active", nullable = false)
-    private Boolean flagActive;
 
     @PrePersist
     public void prePersist() {

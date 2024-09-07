@@ -1,9 +1,9 @@
 package com.bts.personalbudget.core.domain.service;
 
-import com.bts.personalbudget.core.domain.entity.FinancialMovement;
+import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import com.bts.personalbudget.core.domain.model.FinancialMovementModel;
+import com.bts.personalbudget.core.domain.entity.FinancialMovementModel;
 import com.bts.personalbudget.core.domain.repository.FinancialMovementRepository;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.time.LocalDate;
