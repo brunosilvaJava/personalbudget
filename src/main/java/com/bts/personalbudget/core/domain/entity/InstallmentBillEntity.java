@@ -43,7 +43,7 @@ public class InstallmentBillEntity extends AuditingEntity implements Serializabl
     protected Boolean flagActive;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "journal_entry_type", nullable = false)
+    @Column(name = "journal_entry_type", nullable = false, columnDefinition = "varchar")
     private OperationType journalEntryType;
 
     @Column(nullable = false)
@@ -53,13 +53,13 @@ public class InstallmentBillEntity extends AuditingEntity implements Serializabl
     private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "varchar")
     private InstallmentBillStatus status;
 
     @Column(name = "bill_date", nullable = false)
     private LocalDateTime billDate;
 
-    @Column(name = "installment_count", nullable = false)
+    @Column(name = "installment_count", nullable = false, columnDefinition = "SMALLINT")
     private Integer installmentCount;
 
     @Column(name = "next_installment_date", nullable = false)

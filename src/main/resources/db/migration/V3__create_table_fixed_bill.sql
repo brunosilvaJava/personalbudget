@@ -1,5 +1,5 @@
 create table if not exists fixed_bill (
-    id                      INTEGER         PRIMARY KEY AUTO_INCREMENT          COMMENT 'Primary key',
+    id                      BIGINT          PRIMARY KEY AUTO_INCREMENT          COMMENT 'Primary key',
     code                    BINARY(16)      NOT NULL                            COMMENT 'Unique identifier of the fixed account',
     description             VARCHAR(50)     NOT NULL                            COMMENT 'Description of the fixed account',
     amount                  DECIMAL(10,2)   NOT NULL                            COMMENT 'Amount of the fixed account',

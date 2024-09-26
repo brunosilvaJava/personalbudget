@@ -1,5 +1,5 @@
 create table if not exists installment_bill (
-    id                      INTEGER         PRIMARY KEY AUTO_INCREMENT          COMMENT 'Primary key',
+    id                      BIGINT          PRIMARY KEY AUTO_INCREMENT          COMMENT 'Primary key',
     code                    BINARY(16)      NOT NULL                            COMMENT 'Unique identifier of the installment account',
     description             VARCHAR(50)     NOT NULL                            COMMENT 'Description of the installment account',
     amount                  DECIMAL(10,2)   NOT NULL                            COMMENT 'Amount of the installment account',

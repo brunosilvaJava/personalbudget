@@ -44,7 +44,7 @@ public class FixedBillEntity extends AuditingEntity implements Serializable {
     protected Boolean flagActive;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "journal_entry_type", nullable = false)
+    @Column(name = "journal_entry_type", nullable = false, columnDefinition = "varchar")
     private OperationType journalEntryType;
 
     @Column(nullable = false)
@@ -54,7 +54,7 @@ public class FixedBillEntity extends AuditingEntity implements Serializable {
     private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "varchar")
     private FixedBillStatus status;
 
     @Column(name = "start_date", nullable = false)
@@ -64,7 +64,7 @@ public class FixedBillEntity extends AuditingEntity implements Serializable {
     private LocalDateTime endDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "recurrence_type", nullable = false)
+    @Column(name = "recurrence_type", nullable = false, columnDefinition = "varchar")
     private RecurrenceType recurrenceType;
 
 }
