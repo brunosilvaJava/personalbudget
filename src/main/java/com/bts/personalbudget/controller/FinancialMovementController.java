@@ -35,7 +35,7 @@ public class FinancialMovementController {
     @PostMapping
     public ResponseEntity<Void> create(@RequestBody @Valid final FinancialMovementRequest request) {
         log.info("m=create, request={}", request);
-        service.save(mapper.toEntity(request));
+        service.save(mapper.toModel(request));
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
@@ -65,7 +65,7 @@ public class FinancialMovementController {
     public ResponseEntity<?> update(@PathVariable UUID code,
                                     @RequestBody @Valid final FinancialMovementUpdateRequest updateRequest) throws NotFoundException {
         log.info("m=update, updateRequest={}", updateRequest);
-        return ResponseEntity.ok(mapper.toResponse(service.update(mapper.toEntity(updateRequest, code))));
+        return ResponseEntity.ok(mapper.toResponse(service.update(mapper.toModel(updateRequest, code))));
     }
 
     @DeleteMapping("/{code}")

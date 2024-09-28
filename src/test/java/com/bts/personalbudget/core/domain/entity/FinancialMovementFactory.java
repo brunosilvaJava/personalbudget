@@ -35,12 +35,12 @@ public class FinancialMovementFactory {
                 STATUS, FinancialMovementStatus.PENDING.name());
     }
 
-    public static FinancialMovementModel buildModel() {
+    public static FinancialMovementEntity buildModel() {
         return buildModel(data());
     }
 
-    public static FinancialMovementModel buildModel(Map<FinancialMovementProperty, String> data) {
-        FinancialMovementModel financialMovementModel = FinancialMovementModel.builder()
+    public static FinancialMovementEntity buildModel(Map<FinancialMovementProperty, String> data) {
+        FinancialMovementEntity financialMovementEntity = FinancialMovementEntity.builder()
                 .code(UUID.fromString(data.get(CODE)))
                 .operationType(OperationType.valueOf(data().get(OPERATION_TYPE)))
                 .description(data().get(DESCRIPTION))
@@ -51,8 +51,8 @@ public class FinancialMovementFactory {
                 .payDate(LocalDateTime.parse(data().get(PAY_DATE)))
                 .status(FinancialMovementStatus.valueOf(data().get(STATUS)))
                 .build();
-        financialMovementModel.prePersist();
-        return financialMovementModel;
+        financialMovementEntity.prePersist();
+        return financialMovementEntity;
     }
 
     public static FinancialMovement buildEntity() {
