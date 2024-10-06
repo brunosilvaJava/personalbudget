@@ -1,10 +1,10 @@
 package com.bts.personalbudget.core.domain.service;
 
+import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import com.bts.personalbudget.core.domain.entity.FinancialMovementModel;
-import com.bts.personalbudget.core.domain.repository.FinancialMovementRepository;
+import com.bts.personalbudget.repository.FinancialMovementRepository;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.time.LocalDate;
 import java.util.Arrays;
@@ -27,7 +27,7 @@ public class FinancialMovementService {
     @Transactional
     public void save(final FinancialMovement financialMovement) {
         log.info("m=create, financialMovement={}", financialMovement);
-        repository.save(mapper.toModel(financialMovement));
+        repository.save(mapper.toEntity(financialMovement));
     }
 
     public List<FinancialMovement> find(
@@ -44,7 +44,7 @@ public class FinancialMovementService {
         final List<FinancialMovementStatus> filterStatuses = statuses != null && !statuses.isEmpty() ?
                 statuses : Arrays.stream(FinancialMovementStatus.values()).toList();
 
-        return mapper.toEntity(
+        return mapper.toModel(
                 repository.findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetween(
                                 description,
                                 filterOperationTypes,
@@ -56,68 +56,68 @@ public class FinancialMovementService {
 
     public FinancialMovement find(final UUID code) throws NotFoundException {
         log.info("m=find, code={}", code);
-        return mapper.toEntity(findModel(code));
+        return mapper.toModel(findModel(code));
     }
 
     @Transactional
     public FinancialMovement update(final FinancialMovement financialMovement) throws NotFoundException {
         log.info("m=update, financialMovement={}", financialMovement);
-        final FinancialMovementModel financialMovementModel = findModel(financialMovement.code());
-        update(financialMovement, financialMovementModel);
-        return mapper.toEntity(financialMovementModel);
+        final FinancialMovementEntity financialMovementEntity = findModel(financialMovement.code());
+        update(financialMovement, financialMovementEntity);
+        return mapper.toModel(financialMovementEntity);
     }
 
-    private FinancialMovementModel findModel(final UUID code) throws NotFoundException {
+    private FinancialMovementEntity findModel(final UUID code) throws NotFoundException {
         return repository.findByCode(code).orElseThrow(NotFoundException::new);
     }
 
-    private void update(final FinancialMovement financialMovement, final FinancialMovementModel financialMovementModel) {
+    private void update(final FinancialMovement financialMovement, final FinancialMovementEntity financialMovementEntity) {
         if (financialMovement.operationType() != null &&
-                financialMovement.operationType() != financialMovementModel.getOperationType()) {
-            financialMovementModel.setOperationType(financialMovement.operationType());
+                financialMovement.operationType() != financialMovementEntity.getOperationType()) {
+            financialMovementEntity.setOperationType(financialMovement.operationType());
         }
 
         if (financialMovement.description() != null && !financialMovement.description().isEmpty() &&
-                !financialMovement.description().equals(financialMovementModel.getDescription())) {
-            financialMovementModel.setDescription(financialMovement.description());
+                !financialMovement.description().equals(financialMovementEntity.getDescription())) {
+            financialMovementEntity.setDescription(financialMovement.description());
         }
 
         if (financialMovement.amount() != null &&
-                !financialMovement.amount().equals(financialMovementModel.getAmount())) {
-            financialMovementModel.setAmount(financialMovement.amount());
+                !financialMovement.amount().equals(financialMovementEntity.getAmount())) {
+            financialMovementEntity.setAmount(financialMovement.amount());
         }
 
         if (financialMovement.amountPaid() != null &&
-                !financialMovement.amountPaid().equals(financialMovementModel.getAmountPaid())) {
-            financialMovementModel.setAmountPaid(financialMovement.amountPaid());
+                !financialMovement.amountPaid().equals(financialMovementEntity.getAmountPaid())) {
+            financialMovementEntity.setAmountPaid(financialMovement.amountPaid());
         }
 
         if (financialMovement.movementDate() != null &&
-                !financialMovement.movementDate().equals(financialMovementModel.getMovementDate())) {
-            financialMovementModel.setMovementDate(financialMovement.movementDate());
+                !financialMovement.movementDate().equals(financialMovementEntity.getMovementDate())) {
+            financialMovementEntity.setMovementDate(financialMovement.movementDate());
         }
 
         if (financialMovement.dueDate() != null &&
-                !financialMovement.dueDate().equals(financialMovementModel.getDueDate())) {
-            financialMovementModel.setDueDate(financialMovement.dueDate());
+                !financialMovement.dueDate().equals(financialMovementEntity.getDueDate())) {
+            financialMovementEntity.setDueDate(financialMovement.dueDate());
         }
 
         if (financialMovement.payDate() != null &&
-                !financialMovement.payDate().equals(financialMovementModel.getPayDate())) {
-            financialMovementModel.setPayDate(financialMovement.payDate());
+                !financialMovement.payDate().equals(financialMovementEntity.getPayDate())) {
+            financialMovementEntity.setPayDate(financialMovement.payDate());
         }
 
         if (financialMovement.status() != null &&
-                !financialMovement.status().equals(financialMovementModel.getStatus())) {
-            financialMovementModel.setStatus(financialMovement.status());
+                !financialMovement.status().equals(financialMovementEntity.getStatus())) {
+            financialMovementEntity.setStatus(financialMovement.status());
         }
     }
 
     @Transactional
     public void delete(final UUID code) throws NotFoundException {
         log.info("m=delete, code={}", code);
-        final FinancialMovementModel financialMovementModel = findModel(code);
-        financialMovementModel.delete();
+        final FinancialMovementEntity financialMovementEntity = findModel(code);
+        financialMovementEntity.delete();
     }
 
 }

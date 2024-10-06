@@ -43,7 +43,7 @@ public class InstallmentBillEntity extends AuditingEntity implements Serializabl
     protected Boolean flagActive;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "journal_entry_type", nullable = false, columnDefinition = "varchar")
+    @Column(name = "operation_type", nullable = false, columnDefinition = "varchar")
     private OperationType journalEntryType;
 
     @Column(nullable = false)

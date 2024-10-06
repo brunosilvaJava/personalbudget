@@ -1,7 +1,8 @@
-package com.bts.personalbudget.controller;
+package com.bts.personalbudget.controller.financialmovement;
 
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import jakarta.validation.Valid;
@@ -35,7 +36,7 @@ public class FinancialMovementController {
     @PostMapping
     public ResponseEntity<Void> create(@RequestBody @Valid final FinancialMovementRequest request) {
         log.info("m=create, request={}", request);
-        service.save(mapper.toEntity(request));
+        service.save(mapper.toModel(request));
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
@@ -58,14 +59,16 @@ public class FinancialMovementController {
     @GetMapping("/{code}")
     public ResponseEntity<FinancialMovementResponse> find(@PathVariable UUID code) throws NotFoundException {
         log.info("m=find, code={}", code);
-        return ResponseEntity.ok(mapper.toResponse(service.find(code)));
+        FinancialMovement financialMovement = service.find(code);
+        FinancialMovementResponse response = mapper.toResponse(financialMovement);
+        return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/{code}")
     public ResponseEntity<?> update(@PathVariable UUID code,
                                     @RequestBody @Valid final FinancialMovementUpdateRequest updateRequest) throws NotFoundException {
         log.info("m=update, updateRequest={}", updateRequest);
-        return ResponseEntity.ok(mapper.toResponse(service.update(mapper.toEntity(updateRequest, code))));
+        return ResponseEntity.ok(mapper.toResponse(service.update(mapper.toModel(updateRequest, code))));
     }
 
     @DeleteMapping("/{code}")
