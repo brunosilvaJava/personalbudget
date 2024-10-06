@@ -4,7 +4,7 @@ import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import com.bts.personalbudget.core.domain.repository.FinancialMovementRepository;
+import com.bts.personalbudget.repository.FinancialMovementRepository;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.time.LocalDate;
 import java.util.Arrays;

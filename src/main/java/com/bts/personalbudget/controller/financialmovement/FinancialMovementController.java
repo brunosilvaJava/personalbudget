@@ -1,7 +1,8 @@
-package com.bts.personalbudget.controller;
+package com.bts.personalbudget.controller.financialmovement;
 
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import jakarta.validation.Valid;
@@ -58,7 +59,9 @@ public class FinancialMovementController {
     @GetMapping("/{code}")
     public ResponseEntity<FinancialMovementResponse> find(@PathVariable UUID code) throws NotFoundException {
         log.info("m=find, code={}", code);
-        return ResponseEntity.ok(mapper.toResponse(service.find(code)));
+        FinancialMovement financialMovement = service.find(code);
+        FinancialMovementResponse response = mapper.toResponse(financialMovement);
+        return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/{code}")

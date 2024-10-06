@@ -1,8 +1,8 @@
 package com.bts.personalbudget.mapper;
 
-import com.bts.personalbudget.controller.FinancialMovementRequest;
-import com.bts.personalbudget.controller.FinancialMovementResponse;
-import com.bts.personalbudget.controller.FinancialMovementUpdateRequest;
+import com.bts.personalbudget.controller.financialmovement.FinancialMovementRequest;
+import com.bts.personalbudget.controller.financialmovement.FinancialMovementResponse;
+import com.bts.personalbudget.controller.financialmovement.FinancialMovementUpdateRequest;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import java.util.List;

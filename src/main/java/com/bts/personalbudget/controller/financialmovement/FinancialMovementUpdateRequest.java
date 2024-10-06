@@ -1,4 +1,4 @@
-package com.bts.personalbudget.controller;
+package com.bts.personalbudget.controller.financialmovement;
 
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
