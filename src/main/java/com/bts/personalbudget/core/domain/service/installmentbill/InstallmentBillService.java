@@ -1,9 +1,7 @@
 package com.bts.personalbudget.core.domain.service.installmentbill;
 
-import com.bts.personalbudget.core.domain.entity.InstallmentBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import com.bts.personalbudget.core.domain.repository.InstallmentBillRepository;
-import com.bts.personalbudget.mapper.InstallmentBillMapper;
+import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -18,27 +16,24 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class InstallmentBillService {
 
-    private final InstallmentBillRepository installmentBillRepository;
-    private final InstallmentBillMapper mapper;
+    private final InstallmentBillRepository repository;
 
     @Transactional
     public void create(final InstallmentBill installmentBill) {
         log.info("m=create installmentBill={}", installmentBill);
-        installmentBillRepository.save(mapper.toEntity(installmentBill));
+        repository.save(installmentBill);
     }
 
     public List<InstallmentBill> findAll() {
         log.info("m=findAll");
-        return mapper.toModel(installmentBillRepository.findAll());
+        return repository.findAll();
     }
 
-    @Transactional(readOnly = true)
     public InstallmentBill findByCode(final UUID code) {
         log.info("m=findByCode code={}", code);
-        return mapper.toModel(findEntityByCode(code));
+        return repository.findByCode(code);
     }
 
-    @Transactional
     public InstallmentBill update(final UUID code,
                                   final OperationType operationType,
                                   final String description,
@@ -49,31 +44,17 @@ public class InstallmentBillService {
                 code, operationType, description, amount, purchaseDate, installmentTotal);
         final InstallmentBill updateInstallmentBill = findByCode(code);
         updateInstallmentBill.update(operationType, description, amount, purchaseDate, installmentTotal);
-        installmentBillRepository.save(mapper.toEntity(updateInstallmentBill, updateInstallmentBill.getId()));
+        repository.save(updateInstallmentBill);
         return updateInstallmentBill;
     }
 
-    private InstallmentBillEntity findEntityByCode(UUID code) {
-        return installmentBillRepository.findByCodeAndFlagActive(code, Boolean.TRUE)
-                .orElseThrow(() -> {
-                    log.info("m=findByCode code={} error=not_found_exception", code);
-                    return new RuntimeException("InstallmentBill NotFoundException by code=" + code);
-                });
-    }
-
-    @Transactional
     public void delete(final UUID code) {
         log.info("m=delete code={}", code);
         try {
-            final InstallmentBill installmentBill = findByCode(code);
-            if (!installmentBill.isActive()) {
-                log.info("m=delete code={} msg=installmentBill_already_deleted", code);
-                return;
-            }
-            installmentBill.delete();
-            installmentBillRepository.save(mapper.toEntity(installmentBill, installmentBill.getId()));
-        } catch (RuntimeException ignored){
+            repository.delete(code);
+        } catch (InstallmentBillAlreadyDeletedException ex) {
+            log.info("m=delete code={} msg=installmentBill_already_deleted", code);
         }
     }
-}
 
+}

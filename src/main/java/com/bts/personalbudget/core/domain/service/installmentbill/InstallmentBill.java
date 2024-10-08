@@ -6,18 +6,19 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@EqualsAndHashCode
 @ToString
 @Getter
 public class InstallmentBill {
 
-    private final Long id;
+    private Long id;
     private UUID code;
-    private Boolean flagActive;
     private OperationType operationType;
     private String description;
     private BigDecimal amount;
@@ -31,12 +32,11 @@ public class InstallmentBill {
     private static final int INITIAL_INSTALLMENT_COUNT = 0;
     private static final int DAYS_TO_NEXT_INSTALLMENT = 30;
 
-    public InstallmentBill(Long id, UUID code, Boolean flagActive, OperationType operationType, String description,
+    public InstallmentBill(Long id, UUID code, OperationType operationType, String description,
                            BigDecimal amount, InstallmentBillStatus status, LocalDate purchaseDate, Integer installmentTotal,
                            Integer installmentCount, LocalDate lastInstallmentDate, LocalDate nextInstallmentDate) {
         this.id = id;
         this.code = code;
-        this.flagActive = flagActive;
         this.operationType = operationType;
         this.description = description;
         this.amount = amount;
@@ -53,7 +53,6 @@ public class InstallmentBill {
         boolean isNew = code == null;
         if (isNew) {
             this.code = UUID.randomUUID();
-            this.flagActive = Boolean.TRUE;
             this.status = InstallmentBillStatus.PENDING;
             this.installmentCount = INITIAL_INSTALLMENT_COUNT;
             if (purchaseDate == null) {
@@ -65,20 +64,11 @@ public class InstallmentBill {
         log.info("m=init isNew={} code={}", isNew, this.code);
     }
 
-    public boolean isActive() {
-        return flagActive;
-    }
-
-    protected void delete() {
-        this.flagActive = Boolean.FALSE;
-    }
-
-    protected void update(OperationType operationType,
-                          String description,
-                          BigDecimal amount,
-                          LocalDate purchaseDate,
-                          Integer installmentTotal) {
-        validateActiveStatus("update");
+    protected void update(final OperationType operationType,
+                          final String description,
+                          final BigDecimal amount,
+                          final LocalDate purchaseDate,
+                          final Integer installmentTotal) {
         if (installmentCount > 0 &&
                 (operationType != null || amount != null || installmentTotal != null)) {
             log.error("m=update msg=update_not_allowed code={}", code);
@@ -92,7 +82,6 @@ public class InstallmentBill {
     }
 
     protected void updateInstallment() {
-        validateActiveStatus("updateInstallment");
         if (!containsNextInstallment()) {
             log.error("m=updateInstallment msg=does_not_contains_next_installment code={}", code);
             throw new RuntimeException("Installment concluded, code=" + code);
@@ -104,7 +93,10 @@ public class InstallmentBill {
     }
 
     protected void conclude() {
-        validateActiveStatus("conclude");
+        if (status == InstallmentBillStatus.DONE) {
+            log.info("m=conclude code={} msg=InstallmentBill_already_done", code);
+            return;
+        }
         status = InstallmentBillStatus.DONE;
         nextInstallmentDate = null;
     }
@@ -120,19 +112,19 @@ public class InstallmentBill {
         return Optional.of(lastInstallmentDate.plusDays(DAYS_TO_NEXT_INSTALLMENT));
     }
 
-    private boolean containsNextInstallment() {
-        return isActive() && installmentCount < installmentTotal;
-    }
-
-    private void validateActiveStatus(final String method) {
-        if (!isActive()) {
-            log.error("m={} msg=inactive_installmentBill, code={}", method, code);
-            throw new RuntimeException("Inactive installment bill, code=" + code);
-        }
-    }
-
     protected Long getId() {
         return id;
     }
+
+    private boolean containsNextInstallment() {
+        return installmentCount < installmentTotal;
+    }
+
+//    private void validateActiveStatus(final String method) {
+//        if (!isActive()) {
+//            log.error("m={} msg=inactive_installmentBill, code={}", method, code);
+//            throw new RuntimeException("Inactive installment bill, code=" + code);
+//        }
+//    }
 
 }
