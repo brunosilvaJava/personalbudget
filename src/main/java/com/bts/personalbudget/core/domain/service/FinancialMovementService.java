@@ -25,7 +25,7 @@ public class FinancialMovementService {
     private final FinancialMovementMapper mapper;
 
     @Transactional
-    public void save(final FinancialMovement financialMovement) {
+    public void create(final FinancialMovement financialMovement) {
         log.info("m=create, financialMovement={}", financialMovement);
         repository.save(mapper.toEntity(financialMovement));
     }

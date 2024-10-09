@@ -3,7 +3,7 @@ create table if not exists fixed_bill (
     code                    BINARY(16)      NOT NULL                            COMMENT 'Unique identifier of the fixed account',
     description             VARCHAR(50)     NOT NULL                            COMMENT 'Description of the fixed account',
     amount                  DECIMAL(10,2)   NOT NULL                            COMMENT 'Amount of the fixed account',
-    operation_type      VARCHAR(20)     NOT NULL                            COMMENT 'Transaction type of the fixed account',
+    operation_type          VARCHAR(20)     NOT NULL                            COMMENT 'Transaction type of the fixed account',
     status                  VARCHAR(20)                                         COMMENT 'Status of the fixed account',
     start_date              DATE                                                COMMENT 'Start date of the fixed account',
     end_date                DATE                                                COMMENT 'End date of the fixed account',

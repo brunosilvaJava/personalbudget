@@ -18,7 +18,7 @@ public interface FinancialMovementMapper {
 
     FinancialMovement toModel(FinancialMovementRequest request);
     FinancialMovement toModel(FinancialMovementUpdateRequest updateRequest, UUID code);
-    FinancialMovement toModel(FinancialMovementEntity model);
+    FinancialMovement toModel(FinancialMovementEntity entity);
     List<FinancialMovement> toModel(List<FinancialMovementEntity> financialMovementEntities);
     FinancialMovementEntity toEntity(FinancialMovement financialMovement);
     List<FinancialMovementResponse> toResponse(List<FinancialMovement> financialMovement);

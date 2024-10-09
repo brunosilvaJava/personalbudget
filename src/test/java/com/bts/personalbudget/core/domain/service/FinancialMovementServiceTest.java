@@ -51,10 +51,10 @@ class FinancialMovementServiceTest {
     private FinancialMovementMapper mapper = FinancialMovementMapper.INSTANCE;
 
     @Test
-    void shouldSaveFinancialMovement() {
+    void shouldCreateFinancialMovement() {
         Map<FinancialMovementProperty, String> data = new HashMap<>(FinancialMovementFactory.data());
         FinancialMovement financialMovement = FinancialMovementFactory.buildEntity(data);
-        financialMovementService.save(financialMovement);
+        financialMovementService.create(financialMovement);
         verify(repository).save(FinancialMovementFactory.buildModel(data));
     }
 

@@ -12,7 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -40,11 +40,11 @@ public class InstallmentBillEntity extends AuditingEntity implements Serializabl
     private UUID code;
 
     @Column(name = "flag_active", nullable = false)
-    protected Boolean flagActive;
+    private Boolean flagActive;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "operation_type", nullable = false, columnDefinition = "varchar")
-    private OperationType journalEntryType;
+    private OperationType operationType;
 
     @Column(nullable = false)
     private String description;
@@ -56,13 +56,19 @@ public class InstallmentBillEntity extends AuditingEntity implements Serializabl
     @Column(nullable = false, columnDefinition = "varchar")
     private InstallmentBillStatus status;
 
-    @Column(name = "bill_date", nullable = false)
-    private LocalDateTime billDate;
+    @Column(name = "purchase_date")
+    private LocalDate purchaseDate;
+
+    @Column(name = "installment_total", nullable = false, columnDefinition = "SMALLINT")
+    private Integer installmentTotal;
 
     @Column(name = "installment_count", nullable = false, columnDefinition = "SMALLINT")
     private Integer installmentCount;
 
+    @Column(name = "last_installment_date", nullable = false)
+    private LocalDate lastInstallmentDate;
+
     @Column(name = "next_installment_date", nullable = false)
-    private LocalDateTime nextInstallmentDate;
+    private LocalDate nextInstallmentDate;
 
 }
