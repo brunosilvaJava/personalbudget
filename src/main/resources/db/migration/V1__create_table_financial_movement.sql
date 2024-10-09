@@ -1,5 +1,5 @@
 create table if not exists financial_movement(
-    id                  INTEGER         PRIMARY KEY AUTO_INCREMENT          COMMENT 'Primary key',
+    id                  BIGINT          PRIMARY KEY AUTO_INCREMENT          COMMENT 'Primary key',
     code                BINARY(16)      NOT NULL                            COMMENT 'Financial transaction uuid code',
     operation_type      VARCHAR(20)     NOT NULL                            COMMENT 'Type of transaction in the financial transaction (CREDIT; DEBIT)',
     description         VARCHAR(50)     NOT NULL                            COMMENT 'Financial transaction description',

@@ -2,6 +2,7 @@ package com.bts.personalbudget.core.domain.repository;
 
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementFactory;
+import com.bts.personalbudget.repository.FinancialMovementRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,9 +26,9 @@ public class FinancialMovementRepositoryTest {
     void shouldSaveFinancialMovement() {
         final FinancialMovementEntity financialMovementEntityMock = FinancialMovementFactory.buildModel();
         financialMovementRepository.save(financialMovementEntityMock);
-        final Optional<FinancialMovementEntity> financialMovementEntity =
+        final Optional<FinancialMovementEntity> financialMovementModel =
                 financialMovementRepository.findByCode(financialMovementEntityMock.getCode());
-        assertTrue(financialMovementEntity.isPresent());
+        assertTrue(financialMovementModel.isPresent());
     }
 
 }

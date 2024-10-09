@@ -8,9 +8,10 @@
       connection-timeout: 30000
   jpa:
     database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: validate
     properties:
       hibernate:
-        show_sql: true
         format_sql: true
 
 logging:

@@ -6,7 +6,7 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementFactory;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementFactory.FinancialMovementProperty;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
-import com.bts.personalbudget.core.domain.repository.FinancialMovementRepository;
+import com.bts.personalbudget.repository.FinancialMovementRepository;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;

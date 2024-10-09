@@ -45,7 +45,7 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
     protected Boolean flagActive;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "operation_type", nullable = false)
+    @Column(name = "operation_type", nullable = false, columnDefinition = "varchar")
     private OperationType operationType;
 
     @Column(nullable = false)
@@ -67,7 +67,7 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
     private LocalDateTime payDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "varchar")
     private FinancialMovementStatus status;
 
     @PrePersist
