@@ -2,14 +2,15 @@ package com.bts.personalbudget.core.domain.service.installmentbill;
 
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -44,8 +45,7 @@ public class InstallmentBillService {
                 code, operationType, description, amount, purchaseDate, installmentTotal);
         final InstallmentBill updateInstallmentBill = findByCode(code);
         updateInstallmentBill.update(operationType, description, amount, purchaseDate, installmentTotal);
-        repository.save(updateInstallmentBill);
-        return updateInstallmentBill;
+        return repository.update(updateInstallmentBill);
     }
 
     public void delete(final UUID code) {

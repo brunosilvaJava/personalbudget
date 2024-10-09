@@ -1,4 +1,4 @@
-package com.bts.personalbudget.controller;
+package com.bts.personalbudget.controller.installmentbill;
 
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;

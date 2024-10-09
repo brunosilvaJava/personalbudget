@@ -1,7 +1,7 @@
 package com.bts.personalbudget.mapper;
 
-import com.bts.personalbudget.controller.InstallmentBillRequest;
-import com.bts.personalbudget.controller.InstallmentBillResponse;
+import com.bts.personalbudget.controller.installmentbill.InstallmentBillRequest;
+import com.bts.personalbudget.controller.installmentbill.InstallmentBillResponse;
 import com.bts.personalbudget.core.domain.entity.InstallmentBillEntity;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import java.util.List;

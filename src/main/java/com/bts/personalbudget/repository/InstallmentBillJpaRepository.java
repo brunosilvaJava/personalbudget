@@ -1,4 +1,4 @@
-package com.bts.personalbudget.core.domain.repository;
+package com.bts.personalbudget.repository;
 
 import com.bts.personalbudget.core.domain.entity.InstallmentBillEntity;
 import java.util.List;

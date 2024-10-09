@@ -2,7 +2,7 @@ package com.bts.personalbudget.core.domain.service.installmentbill;
 
 import com.bts.personalbudget.core.domain.entity.InstallmentBillEntity;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
-import com.bts.personalbudget.core.domain.repository.InstallmentBillJpaRepository;
+import com.bts.personalbudget.repository.InstallmentBillJpaRepository;
 import com.bts.personalbudget.mapper.InstallmentBillMapper;
 import java.util.List;
 import java.util.UUID;

@@ -1,21 +1,24 @@
 package com.bts.personalbudget.core.domain.service.installmentbill;
 
-
-import com.bts.personalbudget.core.domain.entity.InstallmentBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.UUID;
+import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -73,7 +76,7 @@ public class InstallmentBillServiceTest {
 
         ArgumentCaptor<InstallmentBill> argumentCaptor = ArgumentCaptor.forClass(InstallmentBill.class);
 
-        verify(repository).save(argumentCaptor.capture());
+        verify(repository).update(argumentCaptor.capture());
 
         InstallmentBill savedInstallmentBill = argumentCaptor.getValue();
 
@@ -94,26 +97,16 @@ public class InstallmentBillServiceTest {
 
     @Test
     void shouldNotDoAnythingIfAlreadyDeletedInstallmentBill() {
-        UUID code = installmentBillEntity.getCode();
-        when(repository.delete(code)).thenThrow(() -> new RuntimeException());
+        UUID code = UUID.randomUUID();
+        doThrow(new InstallmentBillAlreadyDeletedException(code)).when(repository).delete(code);
         service.delete(code);
-        verify(repository, never()).save(any());
     }
 
-//    @Test
-//    public void shouldThrowsExceptionWhenNotFoundInstallmentBillByCode() {
-//        when(repository.findByCode(any())).thenReturn(Optional.empty());
-//        assertThrows(RuntimeException.class, () -> service.findByCode(UUID.randomUUID()));
-//    }
-
-    private void testEquals(InstallmentBill installmentBill, InstallmentBillEntity entity) {
-        assertEquals(installmentBill.getCode(), entity.getCode());
-        assertEquals(installmentBill.getDescription(), entity.getDescription());
-        assertEquals(installmentBill.getAmount(), entity.getAmount());
-        assertEquals(installmentBill.getPurchaseDate(), entity.getPurchaseDate());
-        assertEquals(installmentBill.getInstallmentTotal(), entity.getInstallmentTotal());
-        assertEquals(installmentBill.getLastInstallmentDate(), entity.getLastInstallmentDate());
-        assertEquals(installmentBill.getNextInstallmentDate(), entity.getNextInstallmentDate());
+    @Test
+    public void shouldThrowsExceptionWhenNotFoundInstallmentBillByCode() {
+        UUID code = UUID.randomUUID();
+        doThrow(new RuntimeException()).when(repository).delete(code);
+        assertThrows(RuntimeException.class, () -> service.delete(code));
     }
 
 }
