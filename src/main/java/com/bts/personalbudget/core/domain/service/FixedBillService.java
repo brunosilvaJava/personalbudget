@@ -24,28 +24,42 @@ public class FixedBillService {
     private final FixedBillMapper fixedBillMapper;
 
     public void save(FixedBill fixedBill) {
+        log.info("m=save fixedBill={}", fixedBill);
+        validationMandatoryFields(fixedBill);
+        validationDays(fixedBill);
+        FixedBillEntity fixedBillEntity = buildFixedBillEntity(fixedBill);
+        List<CalendarFixedBillEntity> calendarFixedBillEntityList = buildCalendarFixedBillEntityList(fixedBill, fixedBillEntity);
+        fixedBillEntity.setCalendarFixedBillEntityList(calendarFixedBillEntityList);
+        fixedBillRepository.save(fixedBillEntity);
+    }
 
-        if (fixedBill.getOperationType() == null ||
-                fixedBill.getDescription() == null ||
-                fixedBill.getAmount() == null ||
-                fixedBill.getRecurrenceType() == null ||
-                fixedBill.getDays() == null ||
-                fixedBill.getAmount().compareTo(BigDecimal.ZERO) < 1 ||
-                fixedBill.getDays().isEmpty() ||
-                fixedBill.getDescription().isBlank()
-        ) {
-            throw new RuntimeException();
+    private List<CalendarFixedBillEntity> buildCalendarFixedBillEntityList(FixedBill fixedBill, FixedBillEntity fixedBillEntity) {
+        log.info("m=buildCalendarFixedBillEntityList fixedBillDays={} fixedBillCode={}", fixedBill.getDays(), fixedBillEntity.getCode());
+        List<CalendarFixedBillEntity> calendarFixedBillEntityList = new ArrayList<>();
+
+        for (Integer day : fixedBill.getDays()) {
+            CalendarFixedBillEntity calendarFixedBillEntity = new CalendarFixedBillEntity();
+            calendarFixedBillEntity.setDayLaunch(day);
+            calendarFixedBillEntity.setFlgLeapYear(fixedBill.getFlgLeapYear());
+            calendarFixedBillEntity.setFlgActive(Boolean.TRUE);
+            calendarFixedBillEntity.setFixedBill(fixedBillEntity);
+            calendarFixedBillEntityList.add(calendarFixedBillEntity);
         }
+        return calendarFixedBillEntityList;
+    }
 
+    private FixedBillEntity buildFixedBillEntity(FixedBill fixedBill) {
         FixedBillEntity fixedBillEntity = fixedBillMapper.toEntity(fixedBill);
         fixedBillEntity.setCode(UUID.randomUUID());
         fixedBillEntity.setFlagActive(true);
         fixedBillEntity.setStatus(FixedBillStatus.ACTIVE);
+        return fixedBillEntity;
+    }
 
-        List<Integer> days = fixedBill.getDays();
-
+    private void validationDays(FixedBill fixedBill) {
+        log.info("m=validationDays fixedBillDays={}", fixedBill.getDays());
         List<Integer> enabledDays = defineEnableDays(fixedBill.getRecurrenceType());
-        for (Integer day : days) {
+        for (Integer day : fixedBill.getDays()) {
             boolean isValid = false;
             for (Integer enabledDay : enabledDays) {
                 if (day.equals(enabledDay)) {
@@ -55,46 +69,40 @@ public class FixedBillService {
             }
             if (!isValid) {
                 if (RecurrenceType.WEEKLY == fixedBill.getRecurrenceType()) {
+                    log.error("m=validationDays error=DayOfWeekInvalid RecorrenceType={}", fixedBill.getRecurrenceType());
                     throw new RuntimeException("Dia da semana inválido");
                 } else if (RecurrenceType.MONTHLY == fixedBill.getRecurrenceType()) {
+                    log.error("m=validationDays error=DayOfMonthInvalid RecorrenceType={}", fixedBill.getRecurrenceType());
                     throw new RuntimeException("Dia do mês inválido");
                 } else {
+                    log.error("m=validationDays error=DayOfYearInvalid RecorrenceType={}", fixedBill.getRecurrenceType());
                     throw new RuntimeException("Dia do ano inválido");
                 }
             }
         }
-
-        List<CalendarFixedBillEntity> calendarFixedBillEntityList = new ArrayList<>();
-
-        for (Integer day : days) {
-            CalendarFixedBillEntity calendarFixedBillEntity = new CalendarFixedBillEntity();
-            calendarFixedBillEntity.setDayLaunch(day);
-            calendarFixedBillEntity.setFlgLeapYear(fixedBill.getFlgLeapYear());
-            calendarFixedBillEntity.setFlgActive(Boolean.TRUE);
-            calendarFixedBillEntity.setFixedBill(fixedBillEntity);
-            calendarFixedBillEntityList.add(calendarFixedBillEntity);
-        }
-
-        fixedBillEntity.setCalendarFixedBillEntityList(calendarFixedBillEntityList);
-
-        fixedBillRepository.save(fixedBillEntity);
-
     }
 
-    private List<Integer> createList(int first, int last) {
-        List<Integer> numberList = new ArrayList<>();
-        for (int x = first; x <= last; x++) {
-            numberList.add(x);
+    private void validationMandatoryFields(FixedBill fixedBill) {
+        if (fixedBill.getOperationType() == null ||
+                fixedBill.getDescription() == null ||
+                fixedBill.getAmount() == null ||
+                fixedBill.getRecurrenceType() == null ||
+                fixedBill.getDays() == null ||
+                fixedBill.getAmount().compareTo(BigDecimal.ZERO) < 1 ||
+                fixedBill.getDays().isEmpty() ||
+                fixedBill.getDescription().isBlank()
+        ) {
+            log.error("m=validationMandatoryFields error=FieldsMandatoryNull fixedBill={}", fixedBill);
+            throw new RuntimeException();
         }
-        return numberList;
     }
 
     private List<Integer> defineEnableDays(RecurrenceType recurrenceType) {
-        return switch (recurrenceType) {
-            case WEEKLY -> createList(1, 7);
-            case MONTHLY -> createList(1, 31);
-            case YEARLY -> createList(1, 365);
-        };
+        List<Integer> numberList = new ArrayList<>();
+        for (int x = recurrenceType.getInitialDay(); x <= recurrenceType.getEndDay(); x++) {
+            numberList.add(x);
+        }
+        return numberList;
     }
 
 }
