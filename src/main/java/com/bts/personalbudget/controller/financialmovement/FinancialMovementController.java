@@ -36,7 +36,7 @@ public class FinancialMovementController {
     @PostMapping
     public ResponseEntity<Void> create(@RequestBody @Valid final FinancialMovementRequest request) {
         log.info("m=create, request={}", request);
-        service.save(mapper.toModel(request));
+        service.create(mapper.toModel(request));
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
