@@ -71,17 +71,16 @@ public class InstallmentBillRepositoryTest {
 
     @Test
     void shouldUpdateInstallmentBill() {
-        InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
-        repository.update(installmentBill);
-        ArgumentCaptor<InstallmentBillEntity> argumentCaptor = ArgumentCaptor.forClass(InstallmentBillEntity.class);
-        verify(jpaRepository).save(argumentCaptor.capture());
-        InstallmentBillEntity installmentBillEntity = argumentCaptor.getValue();
-        testEquals(installmentBill, installmentBillEntity);
+        InstallmentBill installmentBill = InstallmentBillFactory.buildModel("Update Test");
+        when(jpaRepository.findByCode(installmentBill.getCode())).
+                thenReturn(Optional.ofNullable(InstallmentBillFactory.buildEntity()));
+        InstallmentBill updatedInstallmentBill = repository.update(installmentBill);
+        assertEquals(installmentBill, updatedInstallmentBill);
     }
 
     @Test
     void shouldDeleteInstallmentBill() {
-        UUID code = java.util.UUID.randomUUID();
+        UUID code = UUID.randomUUID();
         InstallmentBillEntity installmentBillEntity = InstallmentBillFactory.buildEntity();
         when(jpaRepository.findByCode(code)).thenReturn(Optional.ofNullable(installmentBillEntity));
         repository.delete(code);

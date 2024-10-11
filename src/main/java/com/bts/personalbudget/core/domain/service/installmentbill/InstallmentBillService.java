@@ -5,7 +5,6 @@ import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDelete
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -19,7 +18,6 @@ public class InstallmentBillService {
 
     private final InstallmentBillRepository repository;
 
-    @Transactional
     public void create(final InstallmentBill installmentBill) {
         log.info("m=create installmentBill={}", installmentBill);
         repository.save(installmentBill);

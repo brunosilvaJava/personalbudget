@@ -2,14 +2,15 @@ package com.bts.personalbudget.core.domain.service.installmentbill;
 
 import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.Optional;
-import java.util.UUID;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @EqualsAndHashCode
@@ -17,7 +18,6 @@ import lombok.extern.slf4j.Slf4j;
 @Getter
 public class InstallmentBill {
 
-    private Long id;
     private UUID code;
     private OperationType operationType;
     private String description;
@@ -32,10 +32,9 @@ public class InstallmentBill {
     private static final int INITIAL_INSTALLMENT_COUNT = 0;
     private static final int DAYS_TO_NEXT_INSTALLMENT = 30;
 
-    public InstallmentBill(Long id, UUID code, OperationType operationType, String description,
+    public InstallmentBill(UUID code, OperationType operationType, String description,
                            BigDecimal amount, InstallmentBillStatus status, LocalDate purchaseDate, Integer installmentTotal,
                            Integer installmentCount, LocalDate lastInstallmentDate, LocalDate nextInstallmentDate) {
-        this.id = id;
         this.code = code;
         this.operationType = operationType;
         this.description = description;
@@ -112,19 +111,8 @@ public class InstallmentBill {
         return Optional.of(lastInstallmentDate.plusDays(DAYS_TO_NEXT_INSTALLMENT));
     }
 
-    protected Long getId() {
-        return id;
-    }
-
     private boolean containsNextInstallment() {
         return installmentCount < installmentTotal;
     }
-
-//    private void validateActiveStatus(final String method) {
-//        if (!isActive()) {
-//            log.error("m={} msg=inactive_installmentBill, code={}", method, code);
-//            throw new RuntimeException("Inactive installment bill, code=" + code);
-//        }
-//    }
 
 }

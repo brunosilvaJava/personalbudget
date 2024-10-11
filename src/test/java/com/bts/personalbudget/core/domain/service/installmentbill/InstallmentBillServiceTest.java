@@ -80,7 +80,6 @@ public class InstallmentBillServiceTest {
 
         InstallmentBill savedInstallmentBill = argumentCaptor.getValue();
 
-        assertEquals(1L, savedInstallmentBill.getId());
         assertEquals(operationType, savedInstallmentBill.getOperationType());
         assertEquals(description, savedInstallmentBill.getDescription());
         assertEquals(amount, savedInstallmentBill.getAmount());

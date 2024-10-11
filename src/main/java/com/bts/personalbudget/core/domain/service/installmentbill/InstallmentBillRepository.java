@@ -2,14 +2,15 @@ package com.bts.personalbudget.core.domain.service.installmentbill;
 
 import com.bts.personalbudget.core.domain.entity.InstallmentBillEntity;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
-import com.bts.personalbudget.repository.InstallmentBillJpaRepository;
 import com.bts.personalbudget.mapper.InstallmentBillMapper;
-import java.util.List;
-import java.util.UUID;
+import com.bts.personalbudget.repository.InstallmentBillJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -22,7 +23,9 @@ public class InstallmentBillRepository {
     @Transactional
     public void save(final InstallmentBill installmentBill) {
         log.info("m=save installmentBill={}", installmentBill);
-        jpaRepository.save(mapper.toEntity(installmentBill));
+        final InstallmentBillEntity entity = mapper.toEntity(installmentBill);
+        entity.setFlagActive(Boolean.TRUE);
+        jpaRepository.save(entity);
     }
 
     @Transactional(readOnly = true)
@@ -40,9 +43,13 @@ public class InstallmentBillRepository {
     @Transactional
     public InstallmentBill update(final InstallmentBill installmentBill) {
         log.info("m=update installmentBill={}", installmentBill);
-        final InstallmentBillEntity entity = mapper.toEntity(installmentBill, installmentBill.getId());
-        final InstallmentBillEntity installmentBillEntity = jpaRepository.save(entity);
-        return mapper.toModel(installmentBillEntity);
+        final InstallmentBillEntity entity = findEntityByCode(installmentBill.getCode());
+        entity.setDescription(installmentBill.getDescription());
+        entity.setAmount(installmentBill.getAmount());
+        entity.setInstallmentTotal(installmentBill.getInstallmentTotal());
+        entity.setOperationType(installmentBill.getOperationType());
+        entity.setPurchaseDate(installmentBill.getPurchaseDate());
+        return mapper.toModel(entity);
     }
 
     @Transactional
