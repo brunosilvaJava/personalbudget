@@ -28,7 +28,8 @@ class FinancialMovementTest {
                         LocalDateTime.now(),
                         null,
                         FinancialMovementStatus.PAID_OUT,
-                        Boolean.TRUE
+                        Boolean.TRUE,
+                        null
                 ));
 
         Map<String, String> validations = exception.getValidations();
@@ -54,7 +55,8 @@ class FinancialMovementTest {
                         null,
                         null,
                         FinancialMovementStatus.LATE,
-                        Boolean.TRUE
+                        Boolean.TRUE,
+                        null
                 ));
 
         Map<String, String> validations = exception.getValidations();
@@ -78,7 +80,8 @@ class FinancialMovementTest {
                         LocalDateTime.now().plusDays(1),
                         null,
                         FinancialMovementStatus.LATE,
-                        Boolean.TRUE
+                        Boolean.TRUE,
+                        null
                 ));
 
         Map<String, String> validations = exception.getValidations();

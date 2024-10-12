@@ -3,13 +3,15 @@ package com.bts.personalbudget.core.domain.model;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.exception.InvalidFieldsException;
+import lombok.Builder;
+import lombok.extern.slf4j.Slf4j;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import lombok.Builder;
-import lombok.extern.slf4j.Slf4j;
+
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.LATE;
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.PAID_OUT;
 import static java.math.BigDecimal.ZERO;
@@ -26,10 +28,24 @@ public record FinancialMovement(
         LocalDateTime dueDate,
         LocalDateTime payDate,
         FinancialMovementStatus status,
-        Boolean flagActive
+        Boolean flagActive,
+        UUID recurrenceBillCode
 ) {
 
     private static final String MSG_FIELD_NULL_OR_EMPTY = "deve ser informado quando o status for ";
+
+    public FinancialMovement(
+            OperationType operationType,
+            String description,
+            BigDecimal amount,
+            LocalDateTime movementDate,
+            LocalDateTime dueDate,
+            FinancialMovementStatus status,
+            UUID recurrenceCode
+    ) {
+        this(null, operationType, description, amount, null, movementDate, dueDate, null,
+                status, Boolean.TRUE, recurrenceCode);
+    }
 
     public FinancialMovement {
         validations(status, dueDate, payDate, amountPaid);

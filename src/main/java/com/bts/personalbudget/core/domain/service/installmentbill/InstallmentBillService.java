@@ -1,5 +1,6 @@
 package com.bts.personalbudget.core.domain.service.installmentbill;
 
+import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,11 @@ public class InstallmentBillService {
     public InstallmentBill findByCode(final UUID code) {
         log.info("m=findByCode code={}", code);
         return repository.findByCode(code);
+    }
+
+    public List<InstallmentBill> findByNextInstallmentDate(final LocalDate nextInstallmentDate) {
+        log.info("m=findByNextInstallmentDate date={}", nextInstallmentDate);
+        return repository.findAllByNextInstallmentDate(nextInstallmentDate, InstallmentBillStatus.PENDING);
     }
 
     public InstallmentBill update(final UUID code,

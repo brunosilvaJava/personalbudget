@@ -1,6 +1,7 @@
 package com.bts.personalbudget.core.domain.service.installmentbill;
 
 import com.bts.personalbudget.core.domain.entity.InstallmentBillEntity;
+import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import com.bts.personalbudget.mapper.InstallmentBillMapper;
 import com.bts.personalbudget.repository.InstallmentBillJpaRepository;
@@ -9,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,6 +40,16 @@ public class InstallmentBillRepository {
     public InstallmentBill findByCode(final UUID code) {
         log.info("m=findByCode code={}", code);
         return mapper.toModel(findEntityByCode(code));
+    }
+
+    @Transactional(readOnly = true)
+    public List<InstallmentBill> findAllByNextInstallmentDate(final LocalDate nextInstallmentDate,
+                                                              final InstallmentBillStatus installmentBillStatus) {
+        log.info("m=findByNextInstallmentDate date={} status={}", nextInstallmentDate, installmentBillStatus);
+        return mapper.toModel(jpaRepository.findAllByNextInstallmentDateAndStatusAndFlagActive(
+                nextInstallmentDate,
+                installmentBillStatus,
+                Boolean.TRUE));
     }
 
     @Transactional

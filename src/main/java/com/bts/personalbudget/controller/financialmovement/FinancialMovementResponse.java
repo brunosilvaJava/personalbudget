@@ -22,7 +22,9 @@ public record FinancialMovementResponse (
         LocalDateTime dueDate,
         @JsonProperty("pay_date")
         LocalDateTime payDate,
-        FinancialMovementStatus status
+        FinancialMovementStatus status,
+        @JsonProperty("recurrence_bill_code")
+        UUID recurrenceBillCode
 ) {
 }
 

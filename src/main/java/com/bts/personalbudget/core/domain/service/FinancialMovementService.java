@@ -1,20 +1,21 @@
 package com.bts.personalbudget.core.domain.service;
 
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
-import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import com.bts.personalbudget.repository.FinancialMovementRepository;
+import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
-import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
+import com.bts.personalbudget.repository.FinancialMovementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -28,6 +29,11 @@ public class FinancialMovementService {
     public void create(final FinancialMovement financialMovement) {
         log.info("m=create, financialMovement={}", financialMovement);
         repository.save(mapper.toEntity(financialMovement));
+    }
+
+    @Transactional
+    public void create(final List<FinancialMovement> financialMovementList) {
+        financialMovementList.forEach(this::create);
     }
 
     public List<FinancialMovement> find(
