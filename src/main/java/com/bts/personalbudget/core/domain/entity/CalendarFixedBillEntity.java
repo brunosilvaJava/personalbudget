@@ -1,6 +1,5 @@
 package com.bts.personalbudget.core.domain.entity;
 
-import com.bts.personalbudget.controller.fixedbill.FixedBillEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;

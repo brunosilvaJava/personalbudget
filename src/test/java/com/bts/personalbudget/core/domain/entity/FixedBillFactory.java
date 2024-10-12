@@ -9,24 +9,37 @@ import java.util.List;
 
 public class FixedBillFactory {
 
+    private static final String DESCRIPTION = "test";
+    private static final BigDecimal AMOUNT = BigDecimal.valueOf(50);
+    private static final LocalDate START_DATE = LocalDate.now();
+    private static final LocalDate END_DATE = START_DATE.plusYears(1);
+    private static final boolean COMMONS_YEAR = false;
+    private static final String BLANK_DESCRIPTION = "     ";
+    private static final List<Integer> EMPTY_DAYS = List.of();
+    private static final BigDecimal ZERO_AMOUNT = BigDecimal.ZERO;
+
     public static FixedBill buildModel(RecurrenceType type, List<Integer> days) {
-        return buildFixedBill(type, "test", BigDecimal.valueOf(50), days);
+        return buildFixedBill(type, DESCRIPTION, AMOUNT, days, COMMONS_YEAR);
+    }
+
+    public static FixedBill buildModel(RecurrenceType type, List<Integer> days, Boolean flgLeapYear) {
+        return buildFixedBill(type, DESCRIPTION, AMOUNT, days, flgLeapYear);
     }
 
     public static FixedBill buildModelWithEmptyMandatoryFields() {
-        return buildFixedBill(RecurrenceType.WEEKLY, "     ", BigDecimal.ZERO, List.of());
+        return buildFixedBill(RecurrenceType.WEEKLY, BLANK_DESCRIPTION, ZERO_AMOUNT, EMPTY_DAYS, COMMONS_YEAR);
     }
 
-        private static FixedBill buildFixedBill(RecurrenceType type, String test, BigDecimal amount, List<Integer> days) {
+    private static FixedBill buildFixedBill(RecurrenceType type, String test, BigDecimal amount, List<Integer> days, Boolean flgLeapYear) {
         FixedBill fixedBill = new FixedBill();
         fixedBill.setRecurrenceType(type);
         fixedBill.setOperationType(OperationType.DEBIT);
         fixedBill.setDescription(test);
         fixedBill.setAmount(amount);
-        fixedBill.setStartDate(LocalDate.now());
-        fixedBill.setEndDate(LocalDate.now().plusYears(1));
+        fixedBill.setStartDate(START_DATE);
+        fixedBill.setEndDate(END_DATE);
         fixedBill.setDays(days);
-        fixedBill.setFlgLeapYear(false);
+        fixedBill.setFlgLeapYear(flgLeapYear);
         return fixedBill;
     }
 

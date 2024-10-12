@@ -1,15 +1,18 @@
 package com.bts.personalbudget.core.domain.service;
 
-import com.bts.personalbudget.controller.fixedbill.FixedBillEntity;
 import com.bts.personalbudget.controller.fixedbill.FixedBillRepository;
 import com.bts.personalbudget.core.domain.entity.CalendarFixedBillEntity;
+import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.model.FixedBill;
 import com.bts.personalbudget.mapper.FixedBillMapper;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +56,26 @@ public class FixedBillService {
         fixedBillEntity.setCode(UUID.randomUUID());
         fixedBillEntity.setFlagActive(true);
         fixedBillEntity.setStatus(FixedBillStatus.ACTIVE);
+        LocalDate paramDate = defineNextDueDate(fixedBill, LocalDate.now()).orElse(null);
+        fixedBillEntity.setNextDueDate(paramDate);
         return fixedBillEntity;
+    }
+
+    public Optional<LocalDate> defineNextDueDate(FixedBill fixedBill, LocalDate baseData) {
+
+        switch (fixedBill.getRecurrenceType()){
+            case WEEKLY -> {
+                List<Integer> dueWeeklyDays = fixedBill.getDays();
+                DayOfWeek dayOfWeekNow = baseData.getDayOfWeek();
+
+                LocalDate nexDueDate = LocalDate.now();
+
+
+                return Optional.of(nexDueDate);
+            }
+        }
+
+        return Optional.empty();
     }
 
     private void validationDays(FixedBill fixedBill) {
