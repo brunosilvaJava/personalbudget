@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -61,4 +62,10 @@ public class InstallmentBillService {
         }
     }
 
+    @Transactional
+    public void updateNextInstallmentDate(final InstallmentBill installmentBill) {
+        log.info("m=updateNextInstallmentDate code={}", installmentBill.getCode());
+        installmentBill.updateInstallment();
+        repository.update(installmentBill);
+    }
 }

@@ -5,12 +5,12 @@ import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
+import java.time.LocalDate;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDate;
-import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -20,12 +20,17 @@ public class RecurrenceBillService {
     private final InstallmentBillService installmentBillService;
     private final FinancialMovementService financialMovementService;
 
+    @Transactional
     public void postRecurringBills(final LocalDate nextInstallmentDate) {
         log.info("m=postRecurringBills nextInstallmentDate={}", nextInstallmentDate);
         final List<InstallmentBill> installmentBillList = installmentBillService.findByNextInstallmentDate(nextInstallmentDate);
+        log.info("m=postRecurringBills nextInstallmentDate={} installmentBillList={}", nextInstallmentDate, installmentBillList.size());
+        if (installmentBillList.isEmpty()) {
+            return;
+        }
         final List<FinancialMovement> financialMovementList = buildFinancialMovementList(installmentBillList);
         financialMovementService.create(financialMovementList);
-
+        installmentBillList.forEach(installmentBillService::updateNextInstallmentDate);
     }
 
     private List<FinancialMovement> buildFinancialMovementList(final List<InstallmentBill> installmentBillList) {

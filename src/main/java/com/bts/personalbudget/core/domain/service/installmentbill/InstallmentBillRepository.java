@@ -61,6 +61,9 @@ public class InstallmentBillRepository {
         entity.setInstallmentTotal(installmentBill.getInstallmentTotal());
         entity.setOperationType(installmentBill.getOperationType());
         entity.setPurchaseDate(installmentBill.getPurchaseDate());
+        entity.setInstallmentCount(installmentBill.getInstallmentCount());
+        entity.setLastInstallmentDate(installmentBill.getLastInstallmentDate());
+        entity.setNextInstallmentDate(installmentBill.getNextInstallmentDate());
         return mapper.toModel(entity);
     }
 

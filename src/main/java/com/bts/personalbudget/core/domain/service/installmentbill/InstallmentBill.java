@@ -85,10 +85,12 @@ public class InstallmentBill {
             log.error("m=updateInstallment msg=does_not_contains_next_installment code={}", code);
             throw new RuntimeException("Installment concluded, code=" + code);
         }
-        lastInstallmentDate = LocalDate.from(nextInstallmentDate);
-        nextInstallmentDate = calculateNextInstallmentDate()
-                .orElseThrow(() -> new RuntimeException("next installment inaccessible, code=" + code));
         installmentCount++;
+        lastInstallmentDate = LocalDate.from(nextInstallmentDate);
+        nextInstallmentDate = calculateNextInstallmentDate().orElse(null);
+        if (!containsNextInstallment()) {
+            conclude();
+        }
     }
 
     protected void conclude() {
@@ -111,7 +113,7 @@ public class InstallmentBill {
         return Optional.of(lastInstallmentDate.plusDays(DAYS_TO_NEXT_INSTALLMENT));
     }
 
-    private boolean containsNextInstallment() {
+    public boolean containsNextInstallment() {
         return installmentCount < installmentTotal;
     }
 
