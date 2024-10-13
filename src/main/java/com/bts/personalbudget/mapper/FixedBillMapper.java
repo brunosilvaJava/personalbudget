@@ -1,6 +1,6 @@
 package com.bts.personalbudget.mapper;
 
-import com.bts.personalbudget.controller.fixedbill.FixedBillEntity;
+import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
 import com.bts.personalbudget.controller.fixedbill.FixedBillRequest;
 import com.bts.personalbudget.core.domain.model.FixedBill;
 import java.util.List;
