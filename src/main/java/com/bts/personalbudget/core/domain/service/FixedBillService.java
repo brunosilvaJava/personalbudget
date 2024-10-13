@@ -17,6 +17,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -61,9 +62,17 @@ public class FixedBillService {
         return fixedBillEntity;
     }
 
+    @Transactional
+    public void updateNextDueDate(final FixedBill fixedBill) {
+        final Optional<LocalDate> nextDueDate = defineNextDueDate(fixedBill, fixedBill.getNextDueDate());
+        final Optional<FixedBillEntity> fixedBillEntityOptional = fixedBillRepository.findByCode(fixedBill.getCode());
+        final FixedBillEntity fixedBillEntity = fixedBillEntityOptional.orElseThrow();
+        fixedBillEntity.setNextDueDate(nextDueDate.orElseThrow());
+    }
+
     public Optional<LocalDate> defineNextDueDate(FixedBill fixedBill, LocalDate baseData) {
 
-        switch (fixedBill.getRecurrenceType()){
+        switch (fixedBill.getRecurrenceType()) {
             case WEEKLY -> {
                 List<Integer> dueWeeklyDays = fixedBill.getDays();
                 DayOfWeek dayOfWeekNow = baseData.getDayOfWeek();
@@ -127,4 +136,10 @@ public class FixedBillService {
         return numberList;
     }
 
+    public List<FixedBill> findByNextDueDate(final LocalDate nextDueDate) {
+        log.info("m=findByNextDueDate nextDueDate={}", nextDueDate);
+        final List<FixedBillEntity> fixedBillEntityList =
+                fixedBillRepository.findAllByNextDueDateAndStatusAndFlagActive(nextDueDate, FixedBillStatus.ACTIVE, Boolean.TRUE);
+        return fixedBillMapper.toModel(fixedBillEntityList);
+    }
 }
