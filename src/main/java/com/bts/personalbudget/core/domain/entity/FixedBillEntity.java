@@ -1,7 +1,5 @@
-package com.bts.personalbudget.controller.fixedbill;
+package com.bts.personalbudget.core.domain.entity;
 
-import com.bts.personalbudget.core.domain.entity.AuditingEntity;
-import com.bts.personalbudget.core.domain.entity.CalendarFixedBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
@@ -64,6 +62,9 @@ public class FixedBillEntity extends AuditingEntity implements Serializable {
 
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
+
+    @Column(name = "next_due_date")
+    private LocalDate nextDueDate;
 
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
