@@ -4,7 +4,7 @@ import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.model.FixedBill;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
-import com.bts.personalbudget.core.domain.service.FixedBillService;
+import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
 import java.time.LocalDate;

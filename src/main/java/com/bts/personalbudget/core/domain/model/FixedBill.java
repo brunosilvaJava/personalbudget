@@ -1,5 +1,6 @@
 package com.bts.personalbudget.core.domain.model;
 
+import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import java.math.BigDecimal;
@@ -25,7 +26,16 @@ public class FixedBill {
     private RecurrenceType recurrenceType;
     private List<Integer> days;
     private Boolean flgLeapYear;
+    private FixedBillStatus status;
     private LocalDate startDate;
     private LocalDate endDate;
     private LocalDate nextDueDate;
+
+    public boolean isLeapYear() {
+        return flgLeapYear != null && flgLeapYear;
+    }
+
+    public boolean isCurrent(final LocalDate baseDate) {
+        return status == FixedBillStatus.ACTIVE && !(baseDate.isBefore(startDate) || baseDate.isAfter(endDate));
+    }
 }
