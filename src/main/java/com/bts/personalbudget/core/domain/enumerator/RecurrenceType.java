@@ -13,5 +13,4 @@ public enum RecurrenceType {
     private final int initialDay;
     private final int endDay;
 
-
 }

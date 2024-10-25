@@ -1,41 +1,44 @@
-package com.bts.personalbudget.core.domain.service;
+package com.bts.personalbudget.core.domain.service.fixedbill;
 
-import com.bts.personalbudget.controller.fixedbill.FixedBillEntity;
 import com.bts.personalbudget.controller.fixedbill.FixedBillRepository;
 import com.bts.personalbudget.core.domain.entity.CalendarFixedBillEntity;
+import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.model.FixedBill;
 import com.bts.personalbudget.mapper.FixedBillMapper;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 @Slf4j
 @RequiredArgsConstructor
-@Service
-public class FixedBillService {
+public abstract class FixedBillServiceImpl implements FixedBillService {
 
     private final FixedBillRepository fixedBillRepository;
     private final FixedBillMapper fixedBillMapper;
 
-    public void save(FixedBill fixedBill) {
+    protected abstract LocalDate calcNextDueDate(FixedBill fixedBill, LocalDate baseDate);
+
+    public void save(final FixedBill fixedBill) {
         log.info("m=save fixedBill={}", fixedBill);
         validationMandatoryFields(fixedBill);
         validationDays(fixedBill);
-        FixedBillEntity fixedBillEntity = buildFixedBillEntity(fixedBill);
-        List<CalendarFixedBillEntity> calendarFixedBillEntityList = buildCalendarFixedBillEntityList(fixedBill, fixedBillEntity);
+        fixedBill.setStatus(FixedBillStatus.ACTIVE);
+        final FixedBillEntity fixedBillEntity = buildFixedBillEntity(fixedBill);
+        final List<CalendarFixedBillEntity> calendarFixedBillEntityList = buildCalendarFixedBillEntityList(fixedBill, fixedBillEntity);
         fixedBillEntity.setCalendarFixedBillEntityList(calendarFixedBillEntityList);
         fixedBillRepository.save(fixedBillEntity);
     }
 
     private List<CalendarFixedBillEntity> buildCalendarFixedBillEntityList(FixedBill fixedBill, FixedBillEntity fixedBillEntity) {
         log.info("m=buildCalendarFixedBillEntityList fixedBillDays={} fixedBillCode={}", fixedBill.getDays(), fixedBillEntity.getCode());
-        List<CalendarFixedBillEntity> calendarFixedBillEntityList = new ArrayList<>();
+        final List<CalendarFixedBillEntity> calendarFixedBillEntityList = new ArrayList<>();
 
         for (Integer day : fixedBill.getDays()) {
             CalendarFixedBillEntity calendarFixedBillEntity = new CalendarFixedBillEntity();
@@ -48,17 +51,27 @@ public class FixedBillService {
         return calendarFixedBillEntityList;
     }
 
-    private FixedBillEntity buildFixedBillEntity(FixedBill fixedBill) {
-        FixedBillEntity fixedBillEntity = fixedBillMapper.toEntity(fixedBill);
+    private FixedBillEntity buildFixedBillEntity(final FixedBill fixedBill) {
+        final FixedBillEntity fixedBillEntity = fixedBillMapper.toEntity(fixedBill);
         fixedBillEntity.setCode(UUID.randomUUID());
         fixedBillEntity.setFlagActive(true);
         fixedBillEntity.setStatus(FixedBillStatus.ACTIVE);
+        final LocalDate paramDate = defineNextDueDate(fixedBill, LocalDate.now()).orElse(null);
+        fixedBillEntity.setNextDueDate(paramDate);
         return fixedBillEntity;
     }
 
-    private void validationDays(FixedBill fixedBill) {
+    public Optional<LocalDate> defineNextDueDate(final FixedBill fixedBill,
+                                                 final LocalDate baseDate) {
+        if (!fixedBill.isCurrent(baseDate)) {
+            return Optional.empty();
+        }
+        return Optional.of(calcNextDueDate(fixedBill, baseDate));
+    }
+
+    private void validationDays(final FixedBill fixedBill) {
         log.info("m=validationDays fixedBillDays={}", fixedBill.getDays());
-        List<Integer> enabledDays = defineEnableDays(fixedBill.getRecurrenceType());
+        final List<Integer> enabledDays = defineEnableDays(fixedBill.getRecurrenceType());
         for (Integer day : fixedBill.getDays()) {
             boolean isValid = false;
             for (Integer enabledDay : enabledDays) {
@@ -82,7 +95,7 @@ public class FixedBillService {
         }
     }
 
-    private void validationMandatoryFields(FixedBill fixedBill) {
+    private void validationMandatoryFields(final FixedBill fixedBill) {
         if (fixedBill.getOperationType() == null ||
                 fixedBill.getDescription() == null ||
                 fixedBill.getAmount() == null ||
@@ -97,7 +110,7 @@ public class FixedBillService {
         }
     }
 
-    private List<Integer> defineEnableDays(RecurrenceType recurrenceType) {
+    private List<Integer> defineEnableDays(final RecurrenceType recurrenceType) {
         List<Integer> numberList = new ArrayList<>();
         for (int x = recurrenceType.getInitialDay(); x <= recurrenceType.getEndDay(); x++) {
             numberList.add(x);
