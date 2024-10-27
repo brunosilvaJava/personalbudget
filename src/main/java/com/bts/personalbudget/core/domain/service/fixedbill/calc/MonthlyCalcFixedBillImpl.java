@@ -1,19 +1,13 @@
-package com.bts.personalbudget.core.domain.service.fixedbill;
+package com.bts.personalbudget.core.domain.service.fixedbill.calc;
 
-import com.bts.personalbudget.controller.fixedbill.FixedBillRepository;
 import com.bts.personalbudget.core.domain.model.FixedBill;
-import com.bts.personalbudget.mapper.FixedBillMapper;
 import java.time.LocalDate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 @Slf4j
-@Component("FixedBillService.MONTHLY")
-public class MonthlyFixedBillServiceImpl extends FixedBillServiceImpl {
-
-    public MonthlyFixedBillServiceImpl(FixedBillRepository fixedBillRepository, FixedBillMapper fixedBillMapper) {
-        super(fixedBillRepository, fixedBillMapper);
-    }
+@Component("CalcFixedBill.MONTHLY")
+public class MonthlyCalcFixedBillImpl implements CalcFixedBill {
 
     @Override
     public LocalDate calcNextDueDate(final FixedBill fixedBill,

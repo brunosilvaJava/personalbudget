@@ -7,6 +7,7 @@ import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
+import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RecurrenceBillService {
 
     private final FinancialMovementService financialMovementService;
+    private final FinancialMovementMapper financialMovementMapper;
     private final InstallmentBillService installmentBillService;
     private final FixedBillService fixedBillService;
 
@@ -38,7 +40,7 @@ public class RecurrenceBillService {
         }
         final List<FinancialMovement> financialMovementList = buildFinancialMovementListFromFixedBill(fixedBillList);
         financialMovementService.create(financialMovementList);
-        fixedBillList.forEach(fixedBillService::updateNextDueDate);
+        fixedBillList.forEach(fixedBill -> fixedBillService.updateNextDueDate(fixedBill, nextDueDate.plusDays(1)));
     }
 
     private List<FinancialMovement> buildFinancialMovementListFromFixedBill(final List<FixedBill> fixedBillList) {
@@ -60,22 +62,10 @@ public class RecurrenceBillService {
         if (installmentBillList.isEmpty()) {
             return;
         }
-        final List<FinancialMovement> financialMovementList = buildFinancialMovementList(installmentBillList);
+        final List<FinancialMovement> financialMovementList =
+                financialMovementMapper.toFinancialMovementList(installmentBillList, FinancialMovementStatus.PENDING);
         financialMovementService.create(financialMovementList);
         installmentBillList.forEach(installmentBillService::updateNextInstallmentDate);
-    }
-
-    private List<FinancialMovement> buildFinancialMovementList(final List<InstallmentBill> installmentBillList) {
-        return installmentBillList.stream().map(installmentBill ->
-                new FinancialMovement(
-                        installmentBill.getOperationType(),
-                        installmentBill.getDescription(),
-                        installmentBill.getAmount(),
-                        installmentBill.getPurchaseDate().atStartOfDay(),
-                        installmentBill.getNextInstallmentDate().atStartOfDay(),
-                        FinancialMovementStatus.PENDING,
-                        installmentBill.getCode()
-                )).toList();
     }
 
 }

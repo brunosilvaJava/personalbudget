@@ -1,8 +1,6 @@
-package com.bts.personalbudget.core.domain.service.fixedbill;
+package com.bts.personalbudget.core.domain.service.fixedbill.calc;
 
-import com.bts.personalbudget.controller.fixedbill.FixedBillRepository;
 import com.bts.personalbudget.core.domain.model.FixedBill;
-import com.bts.personalbudget.mapper.FixedBillMapper;
 import java.time.LocalDate;
 import java.time.Year;
 import java.util.List;
@@ -10,14 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 @Slf4j
-@Component("FixedBillService.YEARLY")
-public class YearlyFixedBillServiceImpl extends FixedBillServiceImpl {
+@Component("CalcFixedBill.YEARLY")
+public class YearlyCalcFixedBillImpl implements CalcFixedBill {
 
     private static final int LAST_FIXED_YEAR_DAY = 59;
-
-    public YearlyFixedBillServiceImpl(FixedBillRepository fixedBillRepository, FixedBillMapper fixedBillMapper) {
-        super(fixedBillRepository, fixedBillMapper);
-    }
 
     @Override
     public LocalDate calcNextDueDate(final FixedBill fixedBill,

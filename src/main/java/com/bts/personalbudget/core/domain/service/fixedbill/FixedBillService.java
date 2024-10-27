@@ -7,7 +7,7 @@ import java.util.Optional;
 
 public interface FixedBillService {
     void save(FixedBill fixedBill);
-    void updateNextDueDate(FixedBill fixedBill);
+    void updateNextDueDate(FixedBill fixedBill, LocalDate baseDate);
     Optional<LocalDate> defineNextDueDate(FixedBill fixedBill, LocalDate baseDate);
     List<FixedBill> findByNextDueDate(LocalDate nextDueDate);
 }

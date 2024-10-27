@@ -5,6 +5,7 @@ import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBil
 import com.bts.personalbudget.core.domain.service.recurrencebill.RecurrenceBillService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 import java.util.List;
 
+@Profile("local")
 @Slf4j
 @RequiredArgsConstructor
 @RequestMapping("/util")

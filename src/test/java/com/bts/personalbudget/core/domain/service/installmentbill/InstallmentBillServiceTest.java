@@ -34,7 +34,7 @@ public class InstallmentBillServiceTest {
     @Test
     void shouldCreateInstallmentBill() {
         InstallmentBill installmentBill = InstallmentBillFactory.buildModel(
-                OperationType.DEBIT, "Test", BigDecimal.TEN, LocalDate.now(), 1);
+                OperationType.CREDIT, "Test", BigDecimal.TEN, LocalDate.now(), 1);
         service.create(installmentBill);
         verify(repository).save(installmentBill);
     }

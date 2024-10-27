@@ -1,4 +1,4 @@
-package com.bts.personalbudget.core.domain.entity;
+package com.bts.personalbudget.core.domain.factory;
 
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;

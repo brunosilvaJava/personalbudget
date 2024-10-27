@@ -41,10 +41,10 @@ public record FinancialMovement(
             LocalDateTime movementDate,
             LocalDateTime dueDate,
             FinancialMovementStatus status,
-            UUID recurrenceCode
+            UUID recurrenceBillCode
     ) {
         this(null, operationType, description, amount, null, movementDate, dueDate, null,
-                status, Boolean.TRUE, recurrenceCode);
+                status, Boolean.TRUE, recurrenceBillCode);
     }
 
     public FinancialMovement {
