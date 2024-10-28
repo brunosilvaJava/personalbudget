@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class FixedBillFactory {
 
@@ -59,6 +60,7 @@ public class FixedBillFactory {
 
     public static FixedBill buildFixedBill(Map<String, Object> params) {
         final FixedBill fixedBill = new FixedBill();
+        fixedBill.setCode(UUID.randomUUID());
         fixedBill.setRecurrenceType(params.get(RECURRENCE_TYPE) == null ? (RecurrenceType) PARAMS.get(RECURRENCE_TYPE) : (RecurrenceType) params.get(RECURRENCE_TYPE));
         fixedBill.setOperationType(params.get(OPERATION_TYPE) == null ? (OperationType) PARAMS.get(OPERATION_TYPE) : (OperationType) params.get(OPERATION_TYPE));
         fixedBill.setDescription(params.get(DESCRIPTION) == null ? (String) PARAMS.get(DESCRIPTION) : (String) params.get(DESCRIPTION));

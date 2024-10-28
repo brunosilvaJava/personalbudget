@@ -6,6 +6,7 @@ import com.bts.personalbudget.controller.financialmovement.FinancialMovementUpda
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.model.FixedBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import java.util.List;
 import java.util.UUID;
@@ -36,6 +37,18 @@ public interface FinancialMovementMapper {
     default List<FinancialMovement> toFinancialMovementList(List<InstallmentBill> installmentBillList, FinancialMovementStatus financialMovementStatus) {
         return installmentBillList.stream()
                 .map(installmentBill -> toFinancialMovement(installmentBill, financialMovementStatus))
+                .toList();
+    }
+
+    @Mapping(target = "recurrenceBillCode", source = "fixedBill.code")
+    @Mapping(target = "movementDate", source = "fixedBill.nextDueDate")
+    @Mapping(target = "dueDate", source = "fixedBill.nextDueDate")
+    @Mapping(target = "status", source = "financialMovementStatus")
+    FinancialMovement toFinancialMovement(FixedBill fixedBill, FinancialMovementStatus financialMovementStatus);
+
+    default List<FinancialMovement> toFinancialMovementListFromFixedBill(List<FixedBill> fixedBillList, FinancialMovementStatus financialMovementStatus) {
+        return fixedBillList.stream()
+                .map(fixedBill -> toFinancialMovement(fixedBill, financialMovementStatus))
                 .toList();
     }
 }
