@@ -6,6 +6,7 @@ import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.model.FixedBill;
+import com.bts.personalbudget.core.domain.service.fixedbill.calc.CalcFixedBill;
 import com.bts.personalbudget.mapper.FixedBillMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,15 +16,17 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
-public abstract class FixedBillServiceImpl implements FixedBillService {
+@Service
+public class FixedBillServiceImpl implements FixedBillService {
 
     private final FixedBillRepository fixedBillRepository;
     private final FixedBillMapper fixedBillMapper;
-
-    protected abstract LocalDate calcNextDueDate(FixedBill fixedBill, LocalDate baseDate);
+    private final CalcFixedBillFactory calcFixedBillFactory;
 
     public void save(final FixedBill fixedBill) {
         log.info("m=save fixedBill={}", fixedBill);
@@ -61,12 +64,22 @@ public abstract class FixedBillServiceImpl implements FixedBillService {
         return fixedBillEntity;
     }
 
+    @Transactional
+    @Override
+    public void updateNextDueDate(final FixedBill fixedBill, final LocalDate baseData) {
+        final Optional<LocalDate> nextDueDate = defineNextDueDate(fixedBill, baseData);
+        final Optional<FixedBillEntity> fixedBillEntityOptional = fixedBillRepository.findByCode(fixedBill.getCode());
+        final FixedBillEntity fixedBillEntity = fixedBillEntityOptional.orElseThrow();
+        fixedBillEntity.setNextDueDate(nextDueDate.orElseThrow());
+    }
+
     public Optional<LocalDate> defineNextDueDate(final FixedBill fixedBill,
                                                  final LocalDate baseDate) {
         if (!fixedBill.isCurrent(baseDate)) {
             return Optional.empty();
         }
-        return Optional.of(calcNextDueDate(fixedBill, baseDate));
+        final CalcFixedBill calcFixedBill = calcFixedBillFactory.build(fixedBill.getRecurrenceType());
+        return Optional.of(calcFixedBill.calcNextDueDate(fixedBill, baseDate));
     }
 
     private void validationDays(final FixedBill fixedBill) {
@@ -118,4 +131,11 @@ public abstract class FixedBillServiceImpl implements FixedBillService {
         return numberList;
     }
 
+    @Override
+    public List<FixedBill> findByNextDueDate(final LocalDate nextDueDate) {
+        log.info("m=findByNextDueDate nextDueDate={}", nextDueDate);
+        final List<FixedBillEntity> fixedBillEntityList =
+                fixedBillRepository.findAllByNextDueDateAndStatusAndFlagActive(nextDueDate, FixedBillStatus.ACTIVE, Boolean.TRUE);
+        return fixedBillMapper.toModel(fixedBillEntityList);
+    }
 }

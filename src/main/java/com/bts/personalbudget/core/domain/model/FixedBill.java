@@ -6,6 +6,7 @@ import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -18,7 +19,7 @@ import lombok.ToString;
 @NoArgsConstructor
 @AllArgsConstructor
 public class FixedBill {
-
+    private UUID code;
     private OperationType operationType;
     private String description;
     private BigDecimal amount;
@@ -28,6 +29,7 @@ public class FixedBill {
     private FixedBillStatus status;
     private LocalDate startDate;
     private LocalDate endDate;
+    private LocalDate nextDueDate;
 
     public boolean isLeapYear() {
         return flgLeapYear != null && flgLeapYear;

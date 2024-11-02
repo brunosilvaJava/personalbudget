@@ -1,5 +1,6 @@
-package com.bts.personalbudget.core.domain.entity;
+package com.bts.personalbudget.core.domain.factory;
 
+import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
@@ -9,15 +10,15 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import static com.bts.personalbudget.core.domain.entity.FinancialMovementFactory.FinancialMovementProperty.AMOUNT;
-import static com.bts.personalbudget.core.domain.entity.FinancialMovementFactory.FinancialMovementProperty.AMOUNT_PAID;
-import static com.bts.personalbudget.core.domain.entity.FinancialMovementFactory.FinancialMovementProperty.CODE;
-import static com.bts.personalbudget.core.domain.entity.FinancialMovementFactory.FinancialMovementProperty.DESCRIPTION;
-import static com.bts.personalbudget.core.domain.entity.FinancialMovementFactory.FinancialMovementProperty.MOVEMENT_DATE;
-import static com.bts.personalbudget.core.domain.entity.FinancialMovementFactory.FinancialMovementProperty.MOVEMENT_DUE_DATE;
-import static com.bts.personalbudget.core.domain.entity.FinancialMovementFactory.FinancialMovementProperty.OPERATION_TYPE;
-import static com.bts.personalbudget.core.domain.entity.FinancialMovementFactory.FinancialMovementProperty.PAY_DATE;
-import static com.bts.personalbudget.core.domain.entity.FinancialMovementFactory.FinancialMovementProperty.STATUS;
+import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.AMOUNT;
+import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.AMOUNT_PAID;
+import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.CODE;
+import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.DESCRIPTION;
+import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.MOVEMENT_DATE;
+import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.MOVEMENT_DUE_DATE;
+import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.OPERATION_TYPE;
+import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.PAY_DATE;
+import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.STATUS;
 
 public class FinancialMovementFactory {
 

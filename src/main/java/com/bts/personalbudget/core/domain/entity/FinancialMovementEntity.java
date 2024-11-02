@@ -70,6 +70,9 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
     @Column(nullable = false, columnDefinition = "varchar")
     private FinancialMovementStatus status;
 
+    @Column(name = "recurrence_bill_code")
+    private UUID recurrenceBillCode;
+
     @PrePersist
     public void prePersist() {
         if (code == null) {

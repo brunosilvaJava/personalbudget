@@ -1,6 +1,7 @@
 package com.bts.personalbudget.core.domain.service.installmentbill;
 
 import com.bts.personalbudget.core.domain.entity.InstallmentBillEntity;
+import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import com.bts.personalbudget.mapper.InstallmentBillMapper;
 import com.bts.personalbudget.repository.InstallmentBillJpaRepository;
@@ -9,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,6 +42,16 @@ public class InstallmentBillRepository {
         return mapper.toModel(findEntityByCode(code));
     }
 
+    @Transactional(readOnly = true)
+    public List<InstallmentBill> findAllByNextInstallmentDate(final LocalDate nextInstallmentDate,
+                                                              final InstallmentBillStatus installmentBillStatus) {
+        log.info("m=findByNextInstallmentDate date={} status={}", nextInstallmentDate, installmentBillStatus);
+        return mapper.toModel(jpaRepository.findAllByNextInstallmentDateAndStatusAndFlagActive(
+                nextInstallmentDate,
+                installmentBillStatus,
+                Boolean.TRUE));
+    }
+
     @Transactional
     public InstallmentBill update(final InstallmentBill installmentBill) {
         log.info("m=update installmentBill={}", installmentBill);
@@ -49,6 +61,9 @@ public class InstallmentBillRepository {
         entity.setInstallmentTotal(installmentBill.getInstallmentTotal());
         entity.setOperationType(installmentBill.getOperationType());
         entity.setPurchaseDate(installmentBill.getPurchaseDate());
+        entity.setInstallmentCount(installmentBill.getInstallmentCount());
+        entity.setLastInstallmentDate(installmentBill.getLastInstallmentDate());
+        entity.setNextInstallmentDate(installmentBill.getNextInstallmentDate());
         return mapper.toModel(entity);
     }
 
