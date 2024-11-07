@@ -3,6 +3,7 @@ package com.bts.personalbudget.controller;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
 import com.bts.personalbudget.core.domain.service.recurrencebill.RecurrenceBillService;
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 import java.util.List;
 
+@Hidden
 @Profile("local")
 @Slf4j
 @RequiredArgsConstructor
