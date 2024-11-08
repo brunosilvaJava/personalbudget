@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
@@ -37,6 +38,14 @@ public class UtilController {
         log.info("m=postRecurringBills date={}", date);
         recurrenceBillService.postRecurringBills(date);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/movements")
+    public List<InstallmentBill> movements(@RequestParam LocalDate initialDate,
+                                           @RequestParam LocalDate endDate) {
+
+        return installmentBillService.findAllByNextInstallmentDateBetween(initialDate, endDate);
+
     }
 
 }

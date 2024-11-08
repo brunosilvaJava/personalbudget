@@ -10,4 +10,6 @@ public interface FixedBillService {
     void updateNextDueDate(FixedBill fixedBill, LocalDate baseDate);
     Optional<LocalDate> defineNextDueDate(FixedBill fixedBill, LocalDate baseDate);
     List<FixedBill> findByNextDueDate(LocalDate nextDueDate);
+    List<FixedBill> findAllByFlagActiveTrueAndNextDueDateBetween(LocalDate inicialDate, LocalDate endDate);
+
 }

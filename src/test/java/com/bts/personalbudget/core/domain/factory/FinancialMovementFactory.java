@@ -1,15 +1,17 @@
 package com.bts.personalbudget.core.domain.factory;
 
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
-import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.AMOUNT;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.AMOUNT_PAID;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.CODE;
@@ -36,37 +38,45 @@ public class FinancialMovementFactory {
                 STATUS, FinancialMovementStatus.PENDING.name());
     }
 
-    public static FinancialMovementEntity buildModel() {
-        return buildModel(data());
+    public static Map<FinancialMovementProperty, String> data(Map<FinancialMovementProperty, String> data) {
+        final Map<FinancialMovementProperty, String> data1 = new java.util.HashMap<>(data());
+        data1.putAll(data);
+        return data1;
     }
 
-    public static FinancialMovementEntity buildModel(Map<FinancialMovementProperty, String> data) {
+    public static FinancialMovementEntity buildEntity() {
+        return buildEntity(data());
+    }
+
+    public static FinancialMovementEntity buildEntity(Map<FinancialMovementProperty, String> data) {
+        BigDecimal amountPaid = new BigDecimal(data.get(AMOUNT_PAID));
         FinancialMovementEntity financialMovementEntity = FinancialMovementEntity.builder()
                 .code(UUID.fromString(data.get(CODE)))
-                .operationType(OperationType.valueOf(data().get(OPERATION_TYPE)))
-                .description(data().get(DESCRIPTION))
-                .amount(new BigDecimal(data().get(AMOUNT)))
-                .amountPaid(new BigDecimal(data().get(AMOUNT_PAID)))
-                .movementDate(LocalDateTime.parse(data().get(MOVEMENT_DATE)))
-                .dueDate(LocalDateTime.parse(data().get(MOVEMENT_DUE_DATE)))
-                .payDate(LocalDateTime.parse(data().get(PAY_DATE)))
-                .status(FinancialMovementStatus.valueOf(data().get(STATUS)))
+                .operationType(OperationType.valueOf(data.get(OPERATION_TYPE)))
+                .description(data.get(DESCRIPTION))
+                .amount(amountPaid.equals(BigDecimal.ZERO) ? new BigDecimal(data.get(AMOUNT)): amountPaid)
+                .amountPaid(amountPaid)
+                .movementDate(LocalDateTime.parse(data.get(MOVEMENT_DATE)))
+                .dueDate(LocalDateTime.parse(data.get(MOVEMENT_DUE_DATE)))
+                .payDate(LocalDateTime.parse(data.get(PAY_DATE)))
+                .status(FinancialMovementStatus.valueOf(data.get(STATUS)))
                 .build();
         financialMovementEntity.prePersist();
         return financialMovementEntity;
     }
 
-    public static FinancialMovement buildEntity() {
-        return buildEntity(data());
+    public static FinancialMovement buildModel() {
+        return buildModel(data());
     }
 
-    public static FinancialMovement buildEntity(Map<FinancialMovementProperty, String> data) {
+    public static FinancialMovement buildModel(Map<FinancialMovementProperty, String> data) {
+        BigDecimal amountPaid = new BigDecimal(data.get(AMOUNT_PAID));
         return FinancialMovement.builder()
                 .code(UUID.fromString(data.get(CODE)))
                 .operationType(OperationType.valueOf(data.get(OPERATION_TYPE)))
                 .description(data.get(DESCRIPTION))
-                .amount(new BigDecimal(data.get(AMOUNT)))
-                .amountPaid(new BigDecimal(data.get(AMOUNT_PAID)))
+                .amount(amountPaid.equals(BigDecimal.ZERO) ? new BigDecimal(data().get(AMOUNT)): amountPaid)
+                .amountPaid(amountPaid)
                 .movementDate(LocalDateTime.parse(data.get(MOVEMENT_DATE)))
                 .dueDate(LocalDateTime.parse(data.get(MOVEMENT_DUE_DATE)))
                 .payDate(LocalDateTime.parse(data.get(PAY_DATE)))

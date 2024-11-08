@@ -126,4 +126,16 @@ public class FinancialMovementService {
         financialMovementEntity.delete();
     }
 
+    public List<FinancialMovement> findMovementsForBalanceCalculation(final LocalDate initialDate,
+                                                           final LocalDate endDate) {
+        return mapper.toModel(
+                repository.findAllByStatusAndDates(
+                        initialDate.atStartOfDay(),
+                        endDate.atTime(23, 59, 59),
+                        FinancialMovementStatus.PENDING,
+                        FinancialMovementStatus.PAID_OUT,
+                        FinancialMovementStatus.LATE)
+        );
+    }
+
 }

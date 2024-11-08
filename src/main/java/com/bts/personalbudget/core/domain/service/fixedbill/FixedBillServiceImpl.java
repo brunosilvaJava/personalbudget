@@ -8,16 +8,17 @@ import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.model.FixedBill;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.CalcFixedBill;
 import com.bts.personalbudget.mapper.FixedBillMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -136,6 +137,14 @@ public class FixedBillServiceImpl implements FixedBillService {
         log.info("m=findByNextDueDate nextDueDate={}", nextDueDate);
         final List<FixedBillEntity> fixedBillEntityList =
                 fixedBillRepository.findAllByNextDueDateAndStatusAndFlagActive(nextDueDate, FixedBillStatus.ACTIVE, Boolean.TRUE);
+        return fixedBillMapper.toModel(fixedBillEntityList);
+    }
+
+    @Override
+    public List<FixedBill> findAllByFlagActiveTrueAndNextDueDateBetween(final LocalDate initialDate,
+                                                                        final LocalDate endDate) {
+        final List<FixedBillEntity> fixedBillEntityList =
+                fixedBillRepository.findAllByFlagActiveTrueAndStatusAndNextDueDateBetween(FixedBillStatus.ACTIVE, initialDate, endDate);
         return fixedBillMapper.toModel(fixedBillEntityList);
     }
 }

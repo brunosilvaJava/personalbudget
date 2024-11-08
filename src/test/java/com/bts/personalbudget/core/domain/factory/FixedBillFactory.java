@@ -26,6 +26,7 @@ public class FixedBillFactory {
     public static final String STATUS = "status";
     public static final String START_DATE = "startDate";
     public static final String END_DATE = "endDate";
+    public static final String NEXT_DUE_DATE = "nextDueDate";
 
     private static final Map<String, Object> PARAMS = Map.of(
             OPERATION_TYPE, OperationType.DEBIT,
@@ -36,7 +37,8 @@ public class FixedBillFactory {
             FLG_LEAP_YEAR, COMMONS_YEAR,
             STATUS, FixedBillStatus.ACTIVE,
             START_DATE, LocalDate.now().minusYears(10),
-            END_DATE, LocalDate.now().plusYears(10)
+            END_DATE, LocalDate.now().plusYears(10),
+            NEXT_DUE_DATE, LocalDate.now()
     );
 
     public static FixedBill buildModelWithEmptyMandatoryFields() {
@@ -70,6 +72,7 @@ public class FixedBillFactory {
         fixedBill.setDays(params.get(DAYS) == null ? (List) PARAMS.get(DAYS) : (List) params.get(DAYS));
         fixedBill.setFlgLeapYear(params.get(FLG_LEAP_YEAR) == null ? (Boolean) PARAMS.get(FLG_LEAP_YEAR) : (Boolean) params.get(FLG_LEAP_YEAR));
         fixedBill.setStatus(params.get(STATUS) == null ? (FixedBillStatus) PARAMS.get(STATUS) : (FixedBillStatus) params.get(STATUS));
+        fixedBill.setNextDueDate(params.get(NEXT_DUE_DATE) == null ? (LocalDate) PARAMS.get(NEXT_DUE_DATE) : (LocalDate) params.get(NEXT_DUE_DATE));
         return fixedBill;
     }
 
