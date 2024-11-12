@@ -14,9 +14,9 @@ import java.util.Objects;
 public class DailyBalance {
 
     private final LocalDate date;
+    private final BigDecimal previousBalance;
     private BigDecimal totalRevenue;
     private BigDecimal totalExpense;
-    private BigDecimal projectedBalance;
 
     {
         verifyValues();
@@ -32,9 +32,9 @@ public class DailyBalance {
         totalExpense = totalExpense.add(value);
     }
 
-    public BigDecimal calcFinalBalance() {
+    public BigDecimal getFinalBalance() {
         verifyValues();
-        return totalRevenue.subtract(totalExpense);
+        return previousBalance.add(totalRevenue.subtract(totalExpense));
     }
 
     private void verifyValues() {
@@ -47,7 +47,7 @@ public class DailyBalance {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(final Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DailyBalance that = (DailyBalance) o;

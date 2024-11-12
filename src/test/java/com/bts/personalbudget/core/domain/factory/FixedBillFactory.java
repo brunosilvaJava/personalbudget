@@ -59,6 +59,12 @@ public class FixedBillFactory {
     public static FixedBill buildModel(RecurrenceType type, List<Integer> days, Boolean flgLeapYear) {
         return buildFixedBill(Map.of(RECURRENCE_TYPE, type, DAYS, days, FLG_LEAP_YEAR, flgLeapYear));
     }
+    public static FixedBill buildModel(LocalDate date, OperationType operationType, String value) {
+        return buildFixedBill(Map.of(
+                FixedBillFactory.AMOUNT, new BigDecimal(value),
+                FixedBillFactory.OPERATION_TYPE, operationType,
+                FixedBillFactory.NEXT_DUE_DATE, date));
+    }
 
     public static FixedBill buildFixedBill(Map<String, Object> params) {
         final FixedBill fixedBill = new FixedBill();

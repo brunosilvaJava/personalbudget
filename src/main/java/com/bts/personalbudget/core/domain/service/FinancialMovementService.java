@@ -6,6 +6,7 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
+import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
@@ -127,15 +128,18 @@ public class FinancialMovementService {
     }
 
     public List<FinancialMovement> findMovementsForBalanceCalculation(final LocalDate initialDate,
-                                                           final LocalDate endDate) {
+                                                                      final LocalDate endDate) {
+        log.info("m=findMovementsForBalanceCalculation initialDate={} endDate={}", initialDate, endDate);
         return mapper.toModel(
                 repository.findAllByStatusAndDates(
                         initialDate.atStartOfDay(),
                         endDate.atTime(23, 59, 59),
                         FinancialMovementStatus.PENDING,
                         FinancialMovementStatus.PAID_OUT,
-                        FinancialMovementStatus.LATE)
-        );
+                        FinancialMovementStatus.LATE));
     }
 
+    public BigDecimal findBalance(final LocalDate date) {
+        return BigDecimal.ZERO;
+    }
 }

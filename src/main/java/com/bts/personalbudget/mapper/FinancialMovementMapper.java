@@ -7,7 +7,6 @@ import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.model.FixedBill;
-import com.bts.personalbudget.core.domain.service.balance.BalanceCalc;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

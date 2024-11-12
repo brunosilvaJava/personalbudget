@@ -3,22 +3,24 @@ package com.bts.personalbudget.core.domain.service.fixedbill;
 import com.bts.personalbudget.controller.fixedbill.FixedBillRepository;
 import com.bts.personalbudget.core.domain.entity.CalendarFixedBillEntity;
 import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
-import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.model.FixedBill;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.CalcFixedBill;
 import com.bts.personalbudget.mapper.FixedBillMapper;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import static com.bts.personalbudget.core.domain.enumerator.FixedBillStatus.ACTIVE;
+import static com.bts.personalbudget.core.domain.enumerator.RecurrenceType.MONTHLY;
+import static com.bts.personalbudget.core.domain.enumerator.RecurrenceType.WEEKLY;
+import static java.lang.Boolean.TRUE;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -33,7 +35,7 @@ public class FixedBillServiceImpl implements FixedBillService {
         log.info("m=save fixedBill={}", fixedBill);
         validationMandatoryFields(fixedBill);
         validationDays(fixedBill);
-        fixedBill.setStatus(FixedBillStatus.ACTIVE);
+        fixedBill.setStatus(ACTIVE);
         final FixedBillEntity fixedBillEntity = buildFixedBillEntity(fixedBill);
         final List<CalendarFixedBillEntity> calendarFixedBillEntityList = buildCalendarFixedBillEntityList(fixedBill, fixedBillEntity);
         fixedBillEntity.setCalendarFixedBillEntityList(calendarFixedBillEntityList);
@@ -48,7 +50,7 @@ public class FixedBillServiceImpl implements FixedBillService {
             CalendarFixedBillEntity calendarFixedBillEntity = new CalendarFixedBillEntity();
             calendarFixedBillEntity.setDayLaunch(day);
             calendarFixedBillEntity.setFlgLeapYear(fixedBill.getFlgLeapYear());
-            calendarFixedBillEntity.setFlgActive(Boolean.TRUE);
+            calendarFixedBillEntity.setFlgActive(TRUE);
             calendarFixedBillEntity.setFixedBill(fixedBillEntity);
             calendarFixedBillEntityList.add(calendarFixedBillEntity);
         }
@@ -59,7 +61,7 @@ public class FixedBillServiceImpl implements FixedBillService {
         final FixedBillEntity fixedBillEntity = fixedBillMapper.toEntity(fixedBill);
         fixedBillEntity.setCode(UUID.randomUUID());
         fixedBillEntity.setFlagActive(true);
-        fixedBillEntity.setStatus(FixedBillStatus.ACTIVE);
+        fixedBillEntity.setStatus(ACTIVE);
         final LocalDate paramDate = defineNextDueDate(fixedBill, LocalDate.now()).orElse(null);
         fixedBillEntity.setNextDueDate(paramDate);
         return fixedBillEntity;
@@ -95,10 +97,10 @@ public class FixedBillServiceImpl implements FixedBillService {
                 }
             }
             if (!isValid) {
-                if (RecurrenceType.WEEKLY == fixedBill.getRecurrenceType()) {
+                if (WEEKLY == fixedBill.getRecurrenceType()) {
                     log.error("m=validationDays error=DayOfWeekInvalid RecorrenceType={}", fixedBill.getRecurrenceType());
                     throw new RuntimeException("Dia da semana inválido");
-                } else if (RecurrenceType.MONTHLY == fixedBill.getRecurrenceType()) {
+                } else if (MONTHLY == fixedBill.getRecurrenceType()) {
                     log.error("m=validationDays error=DayOfMonthInvalid RecorrenceType={}", fixedBill.getRecurrenceType());
                     throw new RuntimeException("Dia do mês inválido");
                 } else {
@@ -136,15 +138,16 @@ public class FixedBillServiceImpl implements FixedBillService {
     public List<FixedBill> findByNextDueDate(final LocalDate nextDueDate) {
         log.info("m=findByNextDueDate nextDueDate={}", nextDueDate);
         final List<FixedBillEntity> fixedBillEntityList =
-                fixedBillRepository.findAllByNextDueDateAndStatusAndFlagActive(nextDueDate, FixedBillStatus.ACTIVE, Boolean.TRUE);
+                fixedBillRepository.findAllByNextDueDateAndStatusAndFlagActive(nextDueDate, ACTIVE, TRUE);
         return fixedBillMapper.toModel(fixedBillEntityList);
     }
 
     @Override
-    public List<FixedBill> findAllByFlagActiveTrueAndNextDueDateBetween(final LocalDate initialDate,
-                                                                        final LocalDate endDate) {
+    public List<FixedBill> findAllByNextDueDateBetween(final LocalDate initialDate,
+                                                       final LocalDate endDate) {
+        log.info("m=findAllByNextDueDateBetween initialDate={} endDate={}", initialDate, endDate);
         final List<FixedBillEntity> fixedBillEntityList =
-                fixedBillRepository.findAllByFlagActiveTrueAndStatusAndNextDueDateBetween(FixedBillStatus.ACTIVE, initialDate, endDate);
+                fixedBillRepository.findAllByFlagActiveTrueAndStatusAndNextDueDateBetween(ACTIVE, initialDate, endDate);
         return fixedBillMapper.toModel(fixedBillEntityList);
     }
 }

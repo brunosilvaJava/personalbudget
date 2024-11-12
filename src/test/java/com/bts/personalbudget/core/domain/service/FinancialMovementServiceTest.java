@@ -30,7 +30,7 @@ import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactor
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.AMOUNT_PAID;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.DESCRIPTION;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.MOVEMENT_DATE;
-import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.MOVEMENT_DUE_DATE;
+import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.DUE_DATE;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.OPERATION_TYPE;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.PAY_DATE;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.STATUS;
@@ -105,7 +105,7 @@ class FinancialMovementServiceTest {
         data.put(AMOUNT, amount.toString());
         data.put(AMOUNT_PAID, amount.toString());
         data.put(MOVEMENT_DATE, now.toString());
-        data.put(MOVEMENT_DUE_DATE, now.toString());
+        data.put(DUE_DATE, now.toString());
         data.put(PAY_DATE, now.toString());
         data.put(STATUS, status.name());
 

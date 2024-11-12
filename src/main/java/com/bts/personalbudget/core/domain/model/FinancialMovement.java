@@ -2,19 +2,16 @@ package com.bts.personalbudget.core.domain.model;
 
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import com.bts.personalbudget.core.domain.service.balance.BalanceCalc;
+import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData;
 import com.bts.personalbudget.exception.InvalidFieldsException;
-import lombok.Builder;
-import lombok.extern.slf4j.Slf4j;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
-
+import lombok.Builder;
+import lombok.extern.slf4j.Slf4j;
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.LATE;
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.PAID_OUT;
 import static java.math.BigDecimal.ZERO;
@@ -33,7 +30,7 @@ public record FinancialMovement(
         FinancialMovementStatus status,
         Boolean flagActive,
         UUID recurrenceBillCode
-) implements BalanceCalc {
+) implements BalanceCalcData {
 
     private static final String MSG_FIELD_NULL_OR_EMPTY = "deve ser informado quando o status for ";
 
@@ -57,20 +54,6 @@ public record FinancialMovement(
         }
     }
 
-    public Optional<BigDecimal> findAmountForCalc() {
-        if (amount == null) {
-            return Optional.empty();
-        }
-        return operationType == OperationType.CREDIT ? Optional.of(amount) : Optional.of(amount.negate());
-    }
-
-    public Optional<BigDecimal> findAmountPaidForCalc() {
-        if (amountPaid == null) {
-            return Optional.empty();
-        }
-        return operationType == OperationType.CREDIT ? Optional.of(amountPaid) : Optional.of(amountPaid.negate());
-    }
-
     @Override
     public BigDecimal getBalanceCalcValue() {
         return switch (status) {
@@ -80,7 +63,7 @@ public record FinancialMovement(
     }
 
     @Override
-    public LocalDate getBalanceCalcDate() {
+    public LocalDate findBalanceCalcDate() {
         return switch (status) {
             case PENDING -> dueDate.toLocalDate();
             case PAID_OUT -> payDate.toLocalDate();

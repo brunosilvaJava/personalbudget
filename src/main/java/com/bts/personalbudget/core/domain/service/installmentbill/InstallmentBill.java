@@ -2,7 +2,7 @@ package com.bts.personalbudget.core.domain.service.installmentbill;
 
 import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import com.bts.personalbudget.core.domain.service.balance.BalanceCalc;
+import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
@@ -17,7 +17,7 @@ import java.util.UUID;
 @EqualsAndHashCode
 @ToString
 @Getter
-public class InstallmentBill implements BalanceCalc {
+public class InstallmentBill implements BalanceCalcData {
 
     private UUID code;
     private OperationType operationType;
@@ -119,7 +119,7 @@ public class InstallmentBill implements BalanceCalc {
     }
 
     @Override
-    public LocalDate getBalanceCalcDate() {
+    public LocalDate findBalanceCalcDate() {
         return nextInstallmentDate;
     }
 
