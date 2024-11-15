@@ -52,6 +52,14 @@ public record FinancialMovement(
         if (code == null) {
             code = UUID.randomUUID();
         }
+        if (operationType == OperationType.DEBIT) {
+            if (amount != null && amount.compareTo(ZERO) > 0) {
+                amount = amount.negate();
+            }
+            if (amountPaid != null && amountPaid.compareTo(ZERO) > 0) {
+                amountPaid = amountPaid.negate();
+            }
+        }
     }
 
     @Override

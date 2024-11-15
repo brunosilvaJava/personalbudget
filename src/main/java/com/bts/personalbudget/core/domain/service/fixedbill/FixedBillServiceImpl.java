@@ -117,7 +117,7 @@ public class FixedBillServiceImpl implements FixedBillService {
                 fixedBill.getAmount() == null ||
                 fixedBill.getRecurrenceType() == null ||
                 fixedBill.getDays() == null ||
-                fixedBill.getAmount().compareTo(BigDecimal.ZERO) < 1 ||
+                fixedBill.getAmount().compareTo(BigDecimal.ZERO) == 0 ||
                 fixedBill.getDays().isEmpty() ||
                 fixedBill.getDescription().isBlank()
         ) {

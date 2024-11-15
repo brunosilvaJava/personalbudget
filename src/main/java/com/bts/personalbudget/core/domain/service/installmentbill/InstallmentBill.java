@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
+import static java.math.BigDecimal.ZERO;
 
 @Slf4j
 @EqualsAndHashCode
@@ -60,6 +61,11 @@ public class InstallmentBill implements BalanceCalcData {
             }
             this.nextInstallmentDate = calculateNextInstallmentDate()
                     .orElseThrow(() -> new RuntimeException("next installment inaccessible"));
+        }
+        if (operationType == OperationType.DEBIT) {
+            if (amount != null && amount.compareTo(ZERO) > 0) {
+                amount = amount.negate();
+            }
         }
         log.info("m=init isNew={} code={}", isNew, this.code);
     }

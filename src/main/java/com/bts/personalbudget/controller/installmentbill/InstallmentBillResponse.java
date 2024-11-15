@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import static java.math.BigDecimal.ZERO;
 
 public record InstallmentBillResponse(
         UUID code,
@@ -19,4 +20,11 @@ public record InstallmentBillResponse(
         @JsonProperty("installment_total")
         Integer installmentTotal
 ) {
+    public InstallmentBillResponse {
+        if (operationType == OperationType.DEBIT) {
+            if (amount != null && amount.compareTo(ZERO) < 0) {
+                amount = amount.negate();
+            }
+        }
+    }
 }

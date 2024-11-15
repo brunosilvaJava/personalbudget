@@ -59,6 +59,7 @@ public class FixedBillFactory {
     public static FixedBill buildModel(RecurrenceType type, List<Integer> days, Boolean flgLeapYear) {
         return buildFixedBill(Map.of(RECURRENCE_TYPE, type, DAYS, days, FLG_LEAP_YEAR, flgLeapYear));
     }
+
     public static FixedBill buildModel(LocalDate date, OperationType operationType, String value) {
         return buildFixedBill(Map.of(
                 FixedBillFactory.AMOUNT, new BigDecimal(value),
@@ -67,18 +68,19 @@ public class FixedBillFactory {
     }
 
     public static FixedBill buildFixedBill(Map<String, Object> params) {
-        final FixedBill fixedBill = new FixedBill();
-        fixedBill.setCode(UUID.randomUUID());
-        fixedBill.setRecurrenceType(params.get(RECURRENCE_TYPE) == null ? (RecurrenceType) PARAMS.get(RECURRENCE_TYPE) : (RecurrenceType) params.get(RECURRENCE_TYPE));
-        fixedBill.setOperationType(params.get(OPERATION_TYPE) == null ? (OperationType) PARAMS.get(OPERATION_TYPE) : (OperationType) params.get(OPERATION_TYPE));
-        fixedBill.setDescription(params.get(DESCRIPTION) == null ? (String) PARAMS.get(DESCRIPTION) : (String) params.get(DESCRIPTION));
-        fixedBill.setAmount(params.get(AMOUNT) == null ? (BigDecimal) PARAMS.get(AMOUNT) : (BigDecimal) params.get(AMOUNT));
-        fixedBill.setStartDate(params.get(START_DATE) == null ? (LocalDate) PARAMS.get(START_DATE) : (LocalDate) params.get(START_DATE));
-        fixedBill.setEndDate(params.get(END_DATE) == null ? (LocalDate) PARAMS.get(END_DATE) : (LocalDate) params.get(END_DATE));
-        fixedBill.setDays(params.get(DAYS) == null ? (List) PARAMS.get(DAYS) : (List) params.get(DAYS));
-        fixedBill.setFlgLeapYear(params.get(FLG_LEAP_YEAR) == null ? (Boolean) PARAMS.get(FLG_LEAP_YEAR) : (Boolean) params.get(FLG_LEAP_YEAR));
-        fixedBill.setStatus(params.get(STATUS) == null ? (FixedBillStatus) PARAMS.get(STATUS) : (FixedBillStatus) params.get(STATUS));
-        fixedBill.setNextDueDate(params.get(NEXT_DUE_DATE) == null ? (LocalDate) PARAMS.get(NEXT_DUE_DATE) : (LocalDate) params.get(NEXT_DUE_DATE));
+        final FixedBill fixedBill =
+                new FixedBill(
+                        UUID.randomUUID(),
+                        params.get(OPERATION_TYPE) == null ? (OperationType) PARAMS.get(OPERATION_TYPE) : (OperationType) params.get(OPERATION_TYPE),
+                        params.get(DESCRIPTION) == null ? (String) PARAMS.get(DESCRIPTION) : (String) params.get(DESCRIPTION),
+                        params.get(AMOUNT) == null ? (BigDecimal) PARAMS.get(AMOUNT) : (BigDecimal) params.get(AMOUNT),
+                        params.get(RECURRENCE_TYPE) == null ? (RecurrenceType) PARAMS.get(RECURRENCE_TYPE) : (RecurrenceType) params.get(RECURRENCE_TYPE),
+                        params.get(DAYS) == null ? (List) PARAMS.get(DAYS) : (List) params.get(DAYS),
+                        params.get(FLG_LEAP_YEAR) == null ? (Boolean) PARAMS.get(FLG_LEAP_YEAR) : (Boolean) params.get(FLG_LEAP_YEAR),
+                        params.get(STATUS) == null ? (FixedBillStatus) PARAMS.get(STATUS) : (FixedBillStatus) params.get(STATUS),
+                        params.get(START_DATE) == null ? (LocalDate) PARAMS.get(START_DATE) : (LocalDate) params.get(START_DATE),
+                        params.get(END_DATE) == null ? (LocalDate) PARAMS.get(END_DATE) : (LocalDate) params.get(END_DATE),
+                        params.get(NEXT_DUE_DATE) == null ? (LocalDate) PARAMS.get(NEXT_DUE_DATE) : (LocalDate) params.get(NEXT_DUE_DATE));
         return fixedBill;
     }
 

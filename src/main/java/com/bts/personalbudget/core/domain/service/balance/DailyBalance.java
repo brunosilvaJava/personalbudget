@@ -14,9 +14,12 @@ import java.util.Objects;
 public class DailyBalance {
 
     private final LocalDate date;
-    private final BigDecimal previousBalance;
+    private final BigDecimal openingBalance;
     private BigDecimal totalRevenue;
     private BigDecimal totalExpense;
+    private final BigDecimal projectedOpeningBalance;
+    private BigDecimal projectedTotalRevenue;
+    private BigDecimal projectedTotalExpense;
 
     {
         verifyValues();
@@ -32,9 +35,16 @@ public class DailyBalance {
         totalExpense = totalExpense.add(value);
     }
 
-    public BigDecimal getFinalBalance() {
+    public BigDecimal getClosingBalance() {
         verifyValues();
-        return previousBalance.add(totalRevenue.subtract(totalExpense));
+        return openingBalance.add(totalRevenue.subtract(totalExpense));
+    }
+
+    public BigDecimal getProjectedBalance() {
+        verifyValues();
+        final BigDecimal finalBalance = totalRevenue.subtract(totalExpense);
+        final BigDecimal projectedBalance = projectedTotalRevenue.subtract(projectedTotalExpense);
+        return projectedOpeningBalance.add(finalBalance.add(projectedBalance));
     }
 
     private void verifyValues() {
@@ -43,6 +53,12 @@ public class DailyBalance {
         }
         if (totalExpense == null) {
             totalExpense = BigDecimal.ZERO;
+        }
+        if (projectedTotalRevenue == null) {
+            projectedTotalRevenue = BigDecimal.ZERO;
+        }
+        if (projectedTotalExpense == null) {
+            projectedTotalExpense = BigDecimal.ZERO;
         }
     }
 

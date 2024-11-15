@@ -5,10 +5,16 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public class DailyBalanceFactory {
-    public static DailyBalance buildDailyBalance(LocalDate yesterday, String previousBalance, String totalRevenue, String totalExpense) {
-        return new DailyBalance(yesterday,
-                new BigDecimal(previousBalance),
+    public static DailyBalance buildDailyBalance(LocalDate date,
+                                                 String openingBalance, String totalRevenue, String totalExpense,
+                                                 String projectedOpeningBalance, String projectedTotalRevenue, String projectedTotalExpense
+    ) {
+        return new DailyBalance(date,
+                new BigDecimal(openingBalance),
                 new BigDecimal(totalRevenue),
-                new BigDecimal(totalExpense));
+                new BigDecimal(totalExpense),
+                new BigDecimal(projectedOpeningBalance),
+                new BigDecimal(projectedTotalRevenue),
+                new BigDecimal(projectedTotalExpense));
     }
 }

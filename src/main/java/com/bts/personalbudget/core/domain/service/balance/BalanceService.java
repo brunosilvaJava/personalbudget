@@ -6,6 +6,10 @@ import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -13,9 +17,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -33,13 +34,26 @@ public class BalanceService {
         final Set<DailyBalance> dailyBalanceList = new HashSet<>();
         final List<BalanceCalcData> balanceCalcDataList = findBalanceCalcDataList(initialDate, endDate);
 
-        final AtomicReference<BigDecimal> previousBalance = new AtomicReference<>(
+        // TODO - IMPLEMENTAR CONSULTA DE SALDO INICIAL E SALDO PREVISTO
+        /*
+        * SALDO INICIAL
+        *   financial movement - passar data anterior da data inicial
+        *       openingBalance - somar todos os pagos
+        *       projectedOpeningBalance - somar todos
+        *   contas recorrentes (se igual data atual ou futura)
+        *       projectedOpeningBalance - somar todos os valores
+        *
+        * */
+        // SALDO INICIAL
+        final AtomicReference<BigDecimal> openingBalance = new AtomicReference<>(
                 financialMovementService.findBalance(initialDate.minusDays(1)));
+        // SALDO INICIAL PROJETADO - COM CONTAS ATRASADAS
+        final AtomicReference<BigDecimal> projectedOpeningBalance = new AtomicReference<>(BigDecimal.ZERO);
 
         final List<LocalDate> datesList = initialDate.datesUntil(endDate.plusDays(1)).toList();
 
         datesList.forEach(date -> {
-            final DailyBalance dailyBalance = new DailyBalance(date, previousBalance.get());
+            final DailyBalance dailyBalance = new DailyBalance(date, openingBalance.get(), projectedOpeningBalance.get());
             final List<BalanceCalcData> balanceCalcData = balanceCalcDataList.stream()
                     .filter(bcd -> date.equals(bcd.findBalanceCalcDate()))
                     .toList();
@@ -51,7 +65,7 @@ public class BalanceService {
             });
             dailyBalanceList.add(dailyBalance);
 
-            previousBalance.set(dailyBalance.getFinalBalance());
+            openingBalance.set(dailyBalance.getClosingBalance());
         });
 
         if (!datesList.contains(LocalDate.now())) {
