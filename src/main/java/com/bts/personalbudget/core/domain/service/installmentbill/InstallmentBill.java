@@ -1,5 +1,6 @@
 package com.bts.personalbudget.core.domain.service.installmentbill;
 
+import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData;
@@ -132,5 +133,10 @@ public class InstallmentBill implements BalanceCalcData {
     @Override
     public BigDecimal getBalanceCalcValue() {
         return amount;
+    }
+
+    @Override
+    public PaymentStatus findStatus() {
+        return PaymentStatus.PENDING;
     }
 }

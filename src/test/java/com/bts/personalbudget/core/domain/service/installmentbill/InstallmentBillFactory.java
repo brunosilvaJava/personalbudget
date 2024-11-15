@@ -50,7 +50,7 @@ public class InstallmentBillFactory {
                 .flagActive(Boolean.TRUE)
                 .operationType(OperationType.DEBIT)
                 .description(description)
-                .amount(BigDecimal.TEN)
+                .amount(BigDecimal.TEN.negate())
                 .status(InstallmentBillStatus.PENDING)
                 .purchaseDate(LocalDate.now())
                 .installmentTotal(1)

@@ -2,14 +2,12 @@ package com.bts.personalbudget.core.domain.service.balance;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Objects;
 
 @Getter
-@RequiredArgsConstructor
 @AllArgsConstructor
 public class DailyBalance {
 
@@ -17,48 +15,74 @@ public class DailyBalance {
     private final BigDecimal openingBalance;
     private BigDecimal totalRevenue;
     private BigDecimal totalExpense;
+    private BigDecimal closingBalance;
     private final BigDecimal projectedOpeningBalance;
-    private BigDecimal projectedTotalRevenue;
-    private BigDecimal projectedTotalExpense;
+    private BigDecimal pendingTotalRevenue;
+    private BigDecimal pendingTotalExpense;
+    private BigDecimal projectedClosingBalance;
 
-    {
+    public DailyBalance(LocalDate date, BigDecimal openingBalance, BigDecimal projectedOpeningBalance) {
+        this.date = date;
+        this.openingBalance = openingBalance;
+        this.projectedOpeningBalance = projectedOpeningBalance;
         verifyValues();
+        defineClosingBalance();
+        defineProjectedClosingBalance();
     }
 
     public void addRevenue(final BigDecimal value) {
         verifyValues();
         totalRevenue = totalRevenue.add(value);
+        defineClosingBalance();
+        defineProjectedClosingBalance();
     }
 
     public void addExpense(final BigDecimal value) {
         verifyValues();
         totalExpense = totalExpense.add(value);
+        defineClosingBalance();
+        defineProjectedClosingBalance();
     }
 
-    public BigDecimal getClosingBalance() {
-        verifyValues();
-        return openingBalance.add(totalRevenue.subtract(totalExpense));
+    private void defineClosingBalance() {
+        closingBalance = openingBalance.add(totalRevenue.add(totalExpense));
     }
 
-    public BigDecimal getProjectedBalance() {
+    public void addProjectedRevenue(final BigDecimal value) {
         verifyValues();
-        final BigDecimal finalBalance = totalRevenue.subtract(totalExpense);
-        final BigDecimal projectedBalance = projectedTotalRevenue.subtract(projectedTotalExpense);
-        return projectedOpeningBalance.add(finalBalance.add(projectedBalance));
+        pendingTotalRevenue = pendingTotalRevenue.add(value);
+        defineProjectedClosingBalance();
+    }
+
+    public void addProjectedExpense(final BigDecimal value) {
+        verifyValues();
+        pendingTotalExpense = pendingTotalExpense.add(value);
+        defineProjectedClosingBalance();
+    }
+
+    private void defineProjectedClosingBalance() {
+        final BigDecimal balanceDay = totalRevenue.add(totalExpense);
+        projectedClosingBalance = balanceDay.add(projectedOpeningBalance.add(pendingTotalRevenue.add(pendingTotalExpense)));
     }
 
     private void verifyValues() {
+        if (closingBalance == null) {
+            closingBalance = BigDecimal.ZERO;
+        }
+        if (projectedClosingBalance == null) {
+            projectedClosingBalance = BigDecimal.ZERO;
+        }
         if (totalRevenue == null) {
             totalRevenue = BigDecimal.ZERO;
         }
         if (totalExpense == null) {
             totalExpense = BigDecimal.ZERO;
         }
-        if (projectedTotalRevenue == null) {
-            projectedTotalRevenue = BigDecimal.ZERO;
+        if (pendingTotalRevenue == null) {
+            pendingTotalRevenue = BigDecimal.ZERO;
         }
-        if (projectedTotalExpense == null) {
-            projectedTotalExpense = BigDecimal.ZERO;
+        if (pendingTotalExpense == null) {
+            pendingTotalExpense = BigDecimal.ZERO;
         }
     }
 
@@ -73,5 +97,9 @@ public class DailyBalance {
     @Override
     public int hashCode() {
         return Objects.hashCode(date);
+    }
+
+    class ProjectedBalance {
+
     }
 }

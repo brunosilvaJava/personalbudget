@@ -3,20 +3,20 @@ package com.bts.personalbudget.core.domain.service.balance;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.model.FixedBill;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData.PaymentStatus;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -31,24 +31,15 @@ public class BalanceService {
                                                      final LocalDate endDate) {
         log.info("m=findDailyBalanceBetween initialDate={} endDate={}", initialDate, endDate);
 
-        final Set<DailyBalance> dailyBalanceList = new HashSet<>();
+        final Set<DailyBalance> dailyBalanceList = new LinkedHashSet<>();
         final List<BalanceCalcData> balanceCalcDataList = findBalanceCalcDataList(initialDate, endDate);
 
-        // TODO - IMPLEMENTAR CONSULTA DE SALDO INICIAL E SALDO PREVISTO
-        /*
-        * SALDO INICIAL
-        *   financial movement - passar data anterior da data inicial
-        *       openingBalance - somar todos os pagos
-        *       projectedOpeningBalance - somar todos
-        *   contas recorrentes (se igual data atual ou futura)
-        *       projectedOpeningBalance - somar todos os valores
-        *
-        * */
-        // SALDO INICIAL
+        final LocalDate openingBalanceDate = initialDate.minusDays(1);
         final AtomicReference<BigDecimal> openingBalance = new AtomicReference<>(
-                financialMovementService.findBalance(initialDate.minusDays(1)));
-        // SALDO INICIAL PROJETADO - COM CONTAS ATRASADAS
-        final AtomicReference<BigDecimal> projectedOpeningBalance = new AtomicReference<>(BigDecimal.ZERO);
+                financialMovementService.findBalance(openingBalanceDate));
+
+        final AtomicReference<BigDecimal> projectedOpeningBalance = new AtomicReference<>(
+                financialMovementService.findProjectedBalance(openingBalanceDate));
 
         final List<LocalDate> datesList = initialDate.datesUntil(endDate.plusDays(1)).toList();
 
@@ -57,36 +48,33 @@ public class BalanceService {
             final List<BalanceCalcData> balanceCalcData = balanceCalcDataList.stream()
                     .filter(bcd -> date.equals(bcd.findBalanceCalcDate()))
                     .toList();
-            balanceCalcData.forEach(bcd -> {
-                switch (bcd.getOperationType()) {
-                    case CREDIT -> dailyBalance.addRevenue(bcd.getBalanceCalcValue());
-                    case DEBIT -> dailyBalance.addExpense(bcd.getBalanceCalcValue());
-                }
-            });
+            balanceCalcData.forEach(bcd -> addCalcValue(bcd, dailyBalance));
             dailyBalanceList.add(dailyBalance);
-
             openingBalance.set(dailyBalance.getClosingBalance());
+            projectedOpeningBalance.set(dailyBalance.getProjectedClosingBalance());
         });
 
-        if (!datesList.contains(LocalDate.now())) {
-            DailyBalance dailyBalance = dailyBalanceList.stream()
-                    .filter(db -> db.getDate().equals(endDate))
-                    .findFirst().orElseThrow();
-
-            final List<BalanceCalcData> balanceCalcData =
-                    balanceCalcDataList.stream()
-                            .filter(bcd -> bcd.findBalanceCalcDate().equals(LocalDate.now()))
-                            .toList();
-
-            balanceCalcData.forEach(bcd -> {
-                switch (bcd.getOperationType()) {
-                    case CREDIT -> dailyBalance.addRevenue(bcd.getBalanceCalcValue());
-                    case DEBIT -> dailyBalance.addExpense(bcd.getBalanceCalcValue());
-                }
-            });
-        }
-
         return dailyBalanceList;
+    }
+
+    private void addCalcValue(BalanceCalcData bcd, DailyBalance dailyBalance) {
+        final BigDecimal balanceCalcValue = bcd.getBalanceCalcValue();
+        switch (bcd.getOperationType()) {
+            case CREDIT -> {
+                if (bcd.findStatus() == PaymentStatus.DONE) {
+                    dailyBalance.addRevenue(balanceCalcValue);
+                } else {
+                    dailyBalance.addProjectedRevenue(balanceCalcValue);
+                }
+            }
+            case DEBIT -> {
+                if (bcd.findStatus() == PaymentStatus.DONE) {
+                    dailyBalance.addExpense(balanceCalcValue);
+                } else {
+                    dailyBalance.addProjectedExpense(balanceCalcValue);
+                }
+            }
+        }
     }
 
     private List<BalanceCalcData> findBalanceCalcDataList(final LocalDate initialDate,

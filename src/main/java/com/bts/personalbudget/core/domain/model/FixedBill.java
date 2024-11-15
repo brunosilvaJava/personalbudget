@@ -1,16 +1,19 @@
 package com.bts.personalbudget.core.domain.model;
 
+import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
+
 import static java.math.BigDecimal.ZERO;
 
 @ToString
@@ -73,6 +76,11 @@ public class FixedBill implements BalanceCalcData {
     @Override
     public BigDecimal getBalanceCalcValue() {
         return amount;
+    }
+
+    @Override
+    public PaymentStatus findStatus() {
+        return PaymentStatus.PENDING;
     }
 
 }

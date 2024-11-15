@@ -11,10 +11,7 @@ public class DailyBalanceFactory {
     ) {
         return new DailyBalance(date,
                 new BigDecimal(openingBalance),
-                new BigDecimal(totalRevenue),
-                new BigDecimal(totalExpense),
-                new BigDecimal(projectedOpeningBalance),
-                new BigDecimal(projectedTotalRevenue),
-                new BigDecimal(projectedTotalExpense));
+                new BigDecimal(projectedOpeningBalance)
+        );
     }
 }

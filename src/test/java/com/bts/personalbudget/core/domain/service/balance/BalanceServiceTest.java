@@ -10,19 +10,17 @@ import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillFactory;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.LATE;
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.PAID_OUT;
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.PENDING;
@@ -48,7 +46,7 @@ public class BalanceServiceTest {
     @Mock
     private FixedBillService fixedBillService;
 
-    //@Test
+    @Test
     @DisplayName("Balanço diário com datas entre data vigente")
     void mustCreateBalanceListOfFinancialMovementWhenCurrentDateBetweenInitialDateAndEndDate() {
 
@@ -56,19 +54,20 @@ public class BalanceServiceTest {
 
         LocalDate initialDate = currentDate.minusDays(2);
         LocalDate secondDate = currentDate.minusDays(1);
-        LocalDate thirdDate = currentDate;
         LocalDate fourthDate = currentDate.plusDays(1);
         LocalDate endDate = currentDate.plusDays(2);
 
         BigDecimal initialBalance = BigDecimal.valueOf(1);
+        BigDecimal projectedOpeningBalance = BigDecimal.ZERO;
 
         Set<DailyBalance> dailyBalances = mustCreateBalanceListOfFinancialMovement(
                 initialBalance,
+                projectedOpeningBalance,
                 initialDate, endDate,
                 // Movimentações financeiras
                 List.of(FinancialMovementFactory.buildModel(secondDate, CREDIT, "100.00", PAID_OUT),
                         FinancialMovementFactory.buildModel(secondDate, DEBIT, "50.00", LATE),
-                        FinancialMovementFactory.buildModel(thirdDate, CREDIT, "100.00", PAID_OUT),
+                        FinancialMovementFactory.buildModel(currentDate, CREDIT, "100.00", PAID_OUT),
                         FinancialMovementFactory.buildModel(fourthDate, DEBIT, "10.00", PENDING),
                         FinancialMovementFactory.buildModel(endDate, CREDIT, "100.00", PENDING)
                 ),
@@ -79,29 +78,29 @@ public class BalanceServiceTest {
                 // Balanço diário esperado
                 List.of(DailyBalanceFactory.buildDailyBalance(initialDate,
                                 "1", "0", "0",
-                                "1", "0", "0"),
+                                "0", "0", "0"),
                         DailyBalanceFactory.buildDailyBalance(secondDate,
                                 "1", "100", "0",
-                                "1", "0", "50"),
-                        DailyBalanceFactory.buildDailyBalance(thirdDate,
+                                "0", "0", "50"),
+                        DailyBalanceFactory.buildDailyBalance(currentDate,
                                 "101", "100", "0",
-                                "51", "0", "0"),
+                                "50", "100", "0"),
                         DailyBalanceFactory.buildDailyBalance(fourthDate,
                                 "201", "0", "0",
-                                "151", "100", "110"),
+                                "150", "100", "110"),
                         DailyBalanceFactory.buildDailyBalance(endDate,
                                 "201", "0", "0",
-                                "141", "100", "0")
+                                "140", "100", "0")
                 ));
 
         assertFinalBalance(initialDate, "1", "1", dailyBalances);
         assertFinalBalance(secondDate, "101", "51", dailyBalances);
-        assertFinalBalance(thirdDate, "201", "151", dailyBalances);
+        assertFinalBalance(currentDate, "201", "151", dailyBalances);
         assertFinalBalance(fourthDate, "201", "141", dailyBalances);
         assertFinalBalance(endDate, "201", "241", dailyBalances);
     }
 
-    //@Test
+    @Test
     @DisplayName("Balanço diário com datas no passado")
     void mustCreateBalanceListOfFinancialMovementWhenCurrentDateAfterEndDate() {
 
@@ -113,9 +112,11 @@ public class BalanceServiceTest {
         LocalDate endDate = thirdDate.plusDays(1);
 
         BigDecimal initialBalance = BigDecimal.valueOf(0);
+        BigDecimal projectedOpeningBalance = BigDecimal.ZERO;
 
         Set<DailyBalance> dailyBalances = mustCreateBalanceListOfFinancialMovement(
                 initialBalance,
+                projectedOpeningBalance,
                 initialDate, endDate,
                 // Movimentações financeiras
                 List.of(FinancialMovementFactory.buildModel(initialDate, CREDIT, "100.00", PAID_OUT),
@@ -150,7 +151,7 @@ public class BalanceServiceTest {
         assertFinalBalance(endDate, "190", "150", dailyBalances);
     }
 
-    //@Test
+    @Test
     @DisplayName("Balanço diário com datas no futuro")
     void mustCreateBalanceListOfFinancialMovementWhenCurrentDateBeforeInitialDate() {
 
@@ -162,9 +163,11 @@ public class BalanceServiceTest {
         LocalDate endDate = thirdDate.plusDays(1);
 
         BigDecimal initialBalance = BigDecimal.valueOf(-100);
+        BigDecimal projectedOpeningBalance = BigDecimal.ZERO;
 
         Set<DailyBalance> dailyBalances = mustCreateBalanceListOfFinancialMovement(
                 initialBalance,
+                projectedOpeningBalance,
                 initialDate, endDate,
                 // Movimentações financeiras
                 List.of(FinancialMovementFactory.buildModel(initialDate, CREDIT, "100.00", PENDING),
@@ -197,6 +200,7 @@ public class BalanceServiceTest {
     }
 
     private Set<DailyBalance> mustCreateBalanceListOfFinancialMovement(BigDecimal initialBalance,
+                                                                       BigDecimal projectedOpeningBalance,
                                                                        LocalDate initialDate,
                                                                        LocalDate endDate,
                                                                        List<FinancialMovement> mockFinancialMovementList,
@@ -205,8 +209,10 @@ public class BalanceServiceTest {
                                                                        List<DailyBalance> expectedDailyBalanceList) {
 
         when(financialMovementService.findBalance(initialDate.minusDays(1))).thenReturn(initialBalance);
+        when(financialMovementService.findProjectedBalance(initialDate.minusDays(1))).thenReturn(projectedOpeningBalance);
         when(financialMovementService.findMovementsForBalanceCalculation(initialDate, endDate)).thenReturn(mockFinancialMovementList);
         when(fixedBillService.findAllByNextDueDateBetween(initialDate, endDate)).thenReturn(mockFixedBillList);
+        when(installmentBillService.findAllByNextInstallmentDateBetween(initialDate, endDate)).thenReturn(mockInstallmentBillList);
         when(installmentBillService.findAllByNextInstallmentDateBetween(initialDate, endDate)).thenReturn(mockInstallmentBillList);
 
         Set<DailyBalance> resultDailyBalanceList = balanceService.findDailyBalanceBetween(initialDate, endDate);
@@ -235,9 +241,9 @@ public class BalanceServiceTest {
         assertValue(date, "finalBalance", expectedDailyBalance.getClosingBalance(), dailyBalanceOptional.get().getClosingBalance());
 
         assertValue(date, "projectedOpeningBalance", expectedDailyBalance.getProjectedOpeningBalance(), dailyBalanceOptional.get().getProjectedOpeningBalance());
-        assertValue(date, "projectedTotalRevenue", expectedDailyBalance.getProjectedTotalRevenue(), dailyBalanceOptional.get().getProjectedTotalRevenue());
-        assertValue(date, "projectedTotalExpense", expectedDailyBalance.getProjectedTotalExpense(), dailyBalanceOptional.get().getProjectedTotalExpense());
-        assertValue(date, "projectedBalance", expectedDailyBalance.getProjectedBalance(), dailyBalanceOptional.get().getProjectedBalance());
+        assertValue(date, "projectedTotalRevenue", expectedDailyBalance.getPendingTotalRevenue(), dailyBalanceOptional.get().getPendingTotalRevenue());
+        assertValue(date, "projectedTotalExpense", expectedDailyBalance.getPendingTotalExpense(), dailyBalanceOptional.get().getPendingTotalExpense());
+        assertValue(date, "projectedBalance", expectedDailyBalance.getProjectedClosingBalance(), dailyBalanceOptional.get().getProjectedClosingBalance());
     }
 
     private void assertValue(LocalDate date, String valueDesc, BigDecimal expectedValue, BigDecimal actualValue) {
@@ -260,7 +266,7 @@ public class BalanceServiceTest {
                 .isEqualByComparingTo(expectedFinalBalanceValue);
         assertThat(initialDailyBalance.getClosingBalance())
                 .as("Date: %s, %s - actual: %s, expected: %s", initialDailyBalance.getDate(),
-                        "finalBalance", initialDailyBalance.getProjectedBalance(), expectedProjectedBalanceValue)
+                        "finalBalance", initialDailyBalance.getProjectedClosingBalance(), expectedProjectedBalanceValue)
                 .isEqualByComparingTo(expectedProjectedBalanceValue);
     }
 
