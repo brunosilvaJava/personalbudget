@@ -95,7 +95,7 @@ public record FinancialMovement(
             if (payDate == null) {
                 errorsMsg.put("payDate", MSG_FIELD_NULL_OR_EMPTY + PAID_OUT);
             }
-            if (amountPaid == null || amountPaid.compareTo(ZERO) < 1) {
+            if (amountPaid == null || amountPaid.compareTo(ZERO) == 0) {
                 errorsMsg.put("amountPaid", MSG_FIELD_NULL_OR_EMPTY + PAID_OUT);
             }
         }

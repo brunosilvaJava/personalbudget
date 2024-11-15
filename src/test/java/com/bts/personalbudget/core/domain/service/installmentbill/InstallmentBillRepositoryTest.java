@@ -47,7 +47,7 @@ public class InstallmentBillRepositoryTest {
         ArgumentCaptor<InstallmentBillEntity> argumentCaptor = ArgumentCaptor.forClass(InstallmentBillEntity.class);
         verify(jpaRepository).save(argumentCaptor.capture());
         InstallmentBillEntity installmentBillEntity = argumentCaptor.getValue();
-        testEquals(installmentBill, installmentBillEntity);
+        testEquals(installmentBillEntity, installmentBill);
     }
 
     @Test
@@ -56,7 +56,7 @@ public class InstallmentBillRepositoryTest {
         when(jpaRepository.findAllByFlagActive(Boolean.TRUE)).thenReturn(List.of(installmentBillEntity));
         List<InstallmentBill> installmentBillList = repository.findAll();
         assertFalse(installmentBillList.isEmpty());
-        testEquals(installmentBillList.stream().findFirst().get(), installmentBillEntity);
+        testEquals(installmentBillEntity, installmentBillList.stream().findFirst().get());
     }
 
     @Test
@@ -66,7 +66,7 @@ public class InstallmentBillRepositoryTest {
         when(jpaRepository.findByCode(code)).thenReturn(Optional.of(installmentBillEntity));
         InstallmentBill installmentBill = repository.findByCode(code);
         assertNotNull(installmentBill);
-        testEquals(installmentBill, installmentBillEntity);
+        testEquals(installmentBillEntity, installmentBill);
     }
 
     @Test
@@ -104,14 +104,15 @@ public class InstallmentBillRepositoryTest {
         assertThrows(RuntimeException.class, () -> repository.findByCode(UUID.randomUUID()));
     }
 
-    private void testEquals(InstallmentBill installmentBill, InstallmentBillEntity entity) {
-        assertEquals(installmentBill.getCode(), entity.getCode());
-        assertEquals(installmentBill.getDescription(), entity.getDescription());
-        assertEquals(installmentBill.getAmount(), entity.getAmount());
-        assertEquals(installmentBill.getPurchaseDate(), entity.getPurchaseDate());
-        assertEquals(installmentBill.getInstallmentTotal(), entity.getInstallmentTotal());
-        assertEquals(installmentBill.getLastInstallmentDate(), entity.getLastInstallmentDate());
-        assertEquals(installmentBill.getNextInstallmentDate(), entity.getNextInstallmentDate());
+    private void testEquals(InstallmentBillEntity entity, InstallmentBill installmentBill) {
+        assertEquals(entity.getCode(), installmentBill.getCode());
+        assertEquals(entity.getDescription(), installmentBill.getDescription());
+        assertEquals(entity.getAmount(), installmentBill.getAmount());
+        assertEquals(entity.getPurchaseDate(), installmentBill.getPurchaseDate());
+        assertEquals(entity.getInstallmentTotal(), installmentBill.getInstallmentTotal());
+        assertEquals(entity.getLastInstallmentDate(), installmentBill.getLastInstallmentDate());
+        assertEquals(entity.getNextInstallmentDate(), installmentBill.getNextInstallmentDate());
     }
+
 
 }

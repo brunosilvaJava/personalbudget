@@ -140,6 +140,9 @@ public class FinancialMovementService {
     }
 
     public BigDecimal findBalance(final LocalDate date) {
-        return BigDecimal.ZERO;
+        return repository.sumAmountPaidByStatusAndPayDateLessThanEqual(
+                        FinancialMovementStatus.PAID_OUT,
+                        date.atTime(23, 59, 59))
+                .orElse(BigDecimal.ZERO);
     }
 }

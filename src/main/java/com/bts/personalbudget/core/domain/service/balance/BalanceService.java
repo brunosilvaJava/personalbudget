@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,7 +31,7 @@ public class BalanceService {
                                                      final LocalDate endDate) {
         log.info("m=findDailyBalanceBetween initialDate={} endDate={}", initialDate, endDate);
 
-        final Set<DailyBalance> dailyBalanceList = new HashSet<>();
+        final Set<DailyBalance> dailyBalanceList = new LinkedHashSet<>();
         final List<BalanceCalcData> balanceCalcDataList = findBalanceCalcDataList(initialDate, endDate);
 
         // TODO - IMPLEMENTAR CONSULTA DE SALDO INICIAL E SALDO PREVISTO
