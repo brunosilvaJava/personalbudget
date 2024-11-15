@@ -80,7 +80,6 @@ class FinancialMovementServiceTest {
 
         assertNotNull(financialMovements);
         assertFalse(financialMovements.isEmpty());
-
     }
 
     @Test

@@ -4,14 +4,16 @@ import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData;
 import com.bts.personalbudget.exception.InvalidFieldsException;
+import lombok.Builder;
+import lombok.extern.slf4j.Slf4j;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import lombok.Builder;
-import lombok.extern.slf4j.Slf4j;
+
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.LATE;
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.PAID_OUT;
 import static java.math.BigDecimal.ZERO;
@@ -32,7 +34,7 @@ public record FinancialMovement(
         UUID recurrenceBillCode
 ) implements BalanceCalcData {
 
-    private static final String MSG_FIELD_NULL_OR_EMPTY = "deve ser informado quando o status for ";
+    private static final String MSG_FIELD_NULL_OR_EMPTY = "deve ser informado um valor válido quando o status for ";
 
     public FinancialMovement(
             OperationType operationType,
@@ -52,6 +54,14 @@ public record FinancialMovement(
         if (code == null) {
             code = UUID.randomUUID();
         }
+        if (operationType == OperationType.DEBIT) {
+            if (amount != null && amount.compareTo(ZERO) > 0) {
+                amount = amount.negate();
+            }
+            if (amountPaid != null && amountPaid.compareTo(ZERO) > 0) {
+                amountPaid = amountPaid.negate();
+            }
+        }
     }
 
     @Override
@@ -65,15 +75,22 @@ public record FinancialMovement(
     @Override
     public LocalDate findBalanceCalcDate() {
         return switch (status) {
-            case PENDING -> dueDate.toLocalDate();
+            case PENDING, LATE -> dueDate.toLocalDate();
             case PAID_OUT -> payDate.toLocalDate();
-            case LATE -> LocalDate.now();
         };
     }
 
     @Override
     public OperationType getOperationType() {
         return operationType;
+    }
+
+    @Override
+    public PaymentStatus findStatus() {
+        return switch (status) {
+            case PAID_OUT -> PaymentStatus.DONE;
+            default -> PaymentStatus.PENDING;
+        };
     }
 
     private void validations(FinancialMovementStatus status,
@@ -87,7 +104,9 @@ public record FinancialMovement(
             if (payDate == null) {
                 errorsMsg.put("payDate", MSG_FIELD_NULL_OR_EMPTY + PAID_OUT);
             }
-            if (amountPaid == null || amountPaid.compareTo(ZERO) < 1) {
+            if (amountPaid == null || amountPaid.compareTo(ZERO) == 0 ||
+                    operationType == OperationType.CREDIT && amountPaid.compareTo(ZERO) < 0 ||
+                    operationType == OperationType.DEBIT && amountPaid.compareTo(ZERO) > 0) {
                 errorsMsg.put("amountPaid", MSG_FIELD_NULL_OR_EMPTY + PAID_OUT);
             }
         }

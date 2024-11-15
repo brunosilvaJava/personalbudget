@@ -68,14 +68,18 @@ public class FinancialMovementFactory {
     }
 
     public static FinancialMovement buildModel(LocalDate date, OperationType operationType,
-                                               String amountPaid, FinancialMovementStatus status) {
+                                               String amount, FinancialMovementStatus status) {
         Map<FinancialMovementProperty, String> dataMap = new HashMap<>();
         dataMap.put(OPERATION_TYPE, operationType.name());
-        dataMap.put(AMOUNT_PAID, amountPaid);
+        dataMap.put(AMOUNT, amount);
         dataMap.put(STATUS, status.name());
+        dataMap.put(DUE_DATE, date.atStartOfDay().toString());
+        dataMap.put(MOVEMENT_DATE, date.atStartOfDay().toString());
         switch (status) {
-            case PENDING -> dataMap.put(DUE_DATE, date.atStartOfDay().toString());
-            case PAID_OUT -> dataMap.put(PAY_DATE, date.atStartOfDay().toString());
+            case PAID_OUT -> {
+                dataMap.put(PAY_DATE, date.atStartOfDay().toString());
+                dataMap.put(AMOUNT_PAID, amount);
+            }
         }
         return buildModel(data(dataMap));
     }
@@ -86,16 +90,18 @@ public class FinancialMovementFactory {
 
     public static FinancialMovement buildModel(Map<FinancialMovementProperty, String> data) {
         BigDecimal amountPaid = new BigDecimal(data.get(AMOUNT_PAID));
+        BigDecimal amount = new BigDecimal(data.get(AMOUNT));
+        FinancialMovementStatus status = FinancialMovementStatus.valueOf(data.get(STATUS));
         return FinancialMovement.builder()
                 .code(UUID.fromString(data.get(CODE)))
                 .operationType(OperationType.valueOf(data.get(OPERATION_TYPE)))
                 .description(data.get(DESCRIPTION))
-                .amount(amountPaid.equals(BigDecimal.ZERO) ? new BigDecimal(data().get(AMOUNT)): amountPaid)
-                .amountPaid(amountPaid)
+                .amount(amount.equals(BigDecimal.ZERO) ? new BigDecimal(data().get(AMOUNT)): amount)
+                .amountPaid(status == FinancialMovementStatus.PAID_OUT ? amountPaid : BigDecimal.ZERO)
                 .movementDate(LocalDateTime.parse(data.get(MOVEMENT_DATE)))
                 .dueDate(LocalDateTime.parse(data.get(DUE_DATE)))
-                .payDate(LocalDateTime.parse(data.get(PAY_DATE)))
-                .status(FinancialMovementStatus.valueOf(data.get(STATUS)))
+                .payDate(status == FinancialMovementStatus.PAID_OUT ? LocalDateTime.parse(data.get(PAY_DATE)) : null)
+                .status(status)
                 .build();
     }
 

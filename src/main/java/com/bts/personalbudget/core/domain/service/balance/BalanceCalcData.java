@@ -8,4 +8,10 @@ public interface BalanceCalcData {
     LocalDate findBalanceCalcDate();
     BigDecimal getBalanceCalcValue();
     OperationType getOperationType();
+    PaymentStatus findStatus();
+
+    enum PaymentStatus {
+        PENDING,
+        DONE
+    }
 }
