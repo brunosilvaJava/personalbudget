@@ -6,7 +6,7 @@ import com.bts.personalbudget.controller.financialmovement.FinancialMovementUpda
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
-import com.bts.personalbudget.core.domain.model.FixedBill;
+import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import java.util.List;
 import java.util.UUID;

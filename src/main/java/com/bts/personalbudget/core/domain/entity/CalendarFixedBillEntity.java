@@ -55,4 +55,5 @@ public class CalendarFixedBillEntity extends AuditingEntity{
     public int hashCode() {
         return Objects.hash(id);
     }
+
 }

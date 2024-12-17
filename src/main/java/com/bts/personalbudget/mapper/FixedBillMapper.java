@@ -3,7 +3,7 @@ package com.bts.personalbudget.mapper;
 import com.bts.personalbudget.controller.fixedbill.FixedBillRequest;
 import com.bts.personalbudget.core.domain.entity.CalendarFixedBillEntity;
 import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
-import com.bts.personalbudget.core.domain.model.FixedBill;
+import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -20,7 +20,7 @@ public interface FixedBillMapper {
     FixedBill toModel(FixedBillRequest request);
     @Mapping(target = "days", source = "calendarFixedBillEntityList", qualifiedByName = "calendarEntityToDays")
     FixedBill toModel(FixedBillEntity entity);
-    List<FixedBill> toModel(List<FixedBillEntity> fixedBillEntities);
+    List<FixedBill> toModelList(List<FixedBillEntity> fixedBillEntities);
     FixedBillEntity toEntity(FixedBill fixedBill);
 
     @Named("calendarEntityToDays")
