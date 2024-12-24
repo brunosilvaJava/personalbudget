@@ -77,4 +77,10 @@ public class FixedBillEntity extends AuditingEntity implements Serializable {
     @OneToMany(mappedBy = "fixedBill", cascade = CascadeType.PERSIST)
     private List<CalendarFixedBillEntity> calendarFixedBillEntityList;
 
+    public void delete() {
+        if (flagActive) {
+            flagActive = false;
+        }
+    }
+
 }
