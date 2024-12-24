@@ -19,6 +19,7 @@ import lombok.ToString;
 @NoArgsConstructor
 @AllArgsConstructor
 public class FixedBill {
+    private Long id;
     private UUID code;
     private OperationType operationType;
     private String description;
