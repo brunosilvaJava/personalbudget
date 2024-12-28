@@ -1,4 +1,4 @@
-package com.bts.personalbudget.controller.fixedbill;
+package com.bts.personalbudget.core.domain.service.fixedbill;
 
 import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
@@ -11,6 +11,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface FixedBillRepository extends JpaRepository<FixedBillEntity, Long> {
-    Optional<FixedBillEntity> findByCode(UUID code);
+
+    Optional<FixedBillEntity> findByCodeAndFlagActiveTrue(UUID code);
+    List<FixedBillEntity> findAllByFlagActiveTrue();
     List<FixedBillEntity> findAllByNextDueDateAndStatusAndFlagActive(LocalDate nextDueDate, FixedBillStatus fixedBillStatus, Boolean flagActive);
 }
