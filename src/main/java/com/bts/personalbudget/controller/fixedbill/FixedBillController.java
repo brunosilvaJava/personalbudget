@@ -39,7 +39,7 @@ public class FixedBillController implements FixedBillControllerApiDocs {
     }
 
     @GetMapping
-    public ResponseEntity<List<FixedBill>> findAll() {
+    public ResponseEntity<List<FixedBillResponse>> findAll() {
         return ResponseEntity.ok(fixedBillService.findAll());
     }
 

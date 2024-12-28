@@ -5,6 +5,7 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
@@ -12,7 +13,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @ToString
 @Getter
 @Setter
@@ -58,5 +61,31 @@ public class FixedBill {
 
     public boolean isCurrent(final LocalDate baseDate) {
         return status == FixedBillStatus.ACTIVE && !(baseDate.isBefore(startDate) || baseDate.isAfter(endDate));
+    }
+
+    public void validationDays() {
+        log.info("m=validationDays fixedBillDays={}", days);
+        final List<Integer> enabledDays = defineEnableDays(recurrenceType);
+        for (Integer day : days) {
+            boolean isValid = false;
+            for (Integer enabledDay : enabledDays) {
+                if (day.equals(enabledDay)) {
+                    isValid = true;
+                    break;
+                }
+            }
+            if (!isValid) {
+                log.error("m=validationDays, error=InvalidDays,  recurrenceType={}, days={}",  recurrenceType, days);
+                throw new RecurrenceTypeDayInvalidException(recurrenceType, days);
+            }
+        }
+    }
+
+    private List<Integer> defineEnableDays(final RecurrenceType recurrenceType) {
+        List<Integer> numberList = new ArrayList<>();
+        for (int x = recurrenceType.getInitialDay(); x <= recurrenceType.getEndDay(); x++) {
+            numberList.add(x);
+        }
+        return numberList;
     }
 }

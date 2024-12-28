@@ -1,5 +1,6 @@
 package com.bts.personalbudget.core.domain.service.fixedbill;
 
+import com.bts.personalbudget.controller.installmentbill.FixedBillResponse;
 import com.bts.personalbudget.core.domain.entity.CalendarFixedBillEntity;
 import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
@@ -31,7 +32,7 @@ public class FixedBillService {
     public void save(final FixedBill fixedBill) {
         log.info("m=save fixedBill={}", fixedBill);
         validationMandatoryFields(fixedBill);
-        validationDays(fixedBill);
+        fixedBill.validationDays();
         fixedBill.setStatus(FixedBillStatus.ACTIVE);
         final FixedBillEntity fixedBillEntity = buildFixedBillEntity(fixedBill);
         final List<CalendarFixedBillEntity> calendarFixedBillEntityList = buildCalendarFixedBillEntityList(fixedBill, fixedBillEntity);
@@ -69,9 +70,9 @@ public class FixedBillService {
         return fixedBillMapper.toModel(fixedBillEntity);
     }
 
-    public List<FixedBill> findAll() {
+    public List<FixedBillResponse> findAll() {
         final List<FixedBillEntity> fixedBillEntityList = fixedBillRepository.findAllByFlagActiveTrue();
-        return fixedBillMapper.toModelList(fixedBillEntityList);
+        return fixedBillMapper.toResponseList(fixedBillEntityList);
     }
 
     public FixedBill update(final UUID code,
@@ -84,7 +85,11 @@ public class FixedBillService {
                             final FixedBillStatus status,
                             final LocalDate startDate,
                             final LocalDate endDate) {
+        log.info("m=update, code={}, operationType={}, description={}, " +
+                "amount={}, recurrenceType={}, days={}, flgLeapYear={}, " + "status={}, startDate={}, endDate={}",
+                code, operationType, description, amount, recurrenceType, days, flgLeapYear, status, startDate, endDate);
         final FixedBill updateFixedBill = findByCode(code);
+
 
         if(operationType == null &&
                 description == null &&
@@ -109,6 +114,7 @@ public class FixedBillService {
 
     @Transactional
     public void delete(final UUID code) {
+        log.info("m=delete, code={}", code);
         final FixedBillEntity fixedBillEntity = findEntity(code);
         fixedBillEntity.delete();
 
@@ -121,6 +127,7 @@ public class FixedBillService {
 
     @Transactional
     public void updateNextDueDate(final FixedBill fixedBill, final LocalDate baseData) {
+        log.info("m=updateNextDueDate, code={}, baseData={}", fixedBill.getCode(), baseData);
         final Optional<LocalDate> nextDueDate = defineNextDueDate(fixedBill, baseData);
         final Optional<FixedBillEntity> fixedBillEntityOptional = fixedBillRepository.findByCodeAndFlagActiveTrue(fixedBill.getCode());
         final FixedBillEntity fixedBillEntity = fixedBillEntityOptional.orElseThrow();
@@ -136,32 +143,6 @@ public class FixedBillService {
         return Optional.of(calcFixedBill.calcNextDueDate(fixedBill, baseDate));
     }
 
-    private void validationDays(final FixedBill fixedBill) {
-        log.info("m=validationDays fixedBillDays={}", fixedBill.getDays());
-        final List<Integer> enabledDays = defineEnableDays(fixedBill.getRecurrenceType());
-        for (Integer day : fixedBill.getDays()) {
-            boolean isValid = false;
-            for (Integer enabledDay : enabledDays) {
-                if (day.equals(enabledDay)) {
-                    isValid = true;
-                    break;
-                }
-            }
-            if (!isValid) {
-                if (RecurrenceType.WEEKLY == fixedBill.getRecurrenceType()) {
-                    log.error("m=validationDays error=DayOfWeekInvalid RecorrenceType={}", fixedBill.getRecurrenceType());
-                    throw new RuntimeException("Dia da semana inválido");
-                } else if (RecurrenceType.MONTHLY == fixedBill.getRecurrenceType()) {
-                    log.error("m=validationDays error=DayOfMonthInvalid RecorrenceType={}", fixedBill.getRecurrenceType());
-                    throw new RuntimeException("Dia do mês inválido");
-                } else {
-                    log.error("m=validationDays error=DayOfYearInvalid RecorrenceType={}", fixedBill.getRecurrenceType());
-                    throw new RuntimeException("Dia do ano inválido");
-                }
-            }
-        }
-    }
-
     private void validationMandatoryFields(final FixedBill fixedBill) {
         if (fixedBill.getOperationType() == null ||
                 fixedBill.getDescription() == null ||
@@ -175,14 +156,6 @@ public class FixedBillService {
             log.error("m=validationMandatoryFields error=FieldsMandatoryNull fixedBill={}", fixedBill);
             throw new RuntimeException();
         }
-    }
-
-    private List<Integer> defineEnableDays(final RecurrenceType recurrenceType) {
-        List<Integer> numberList = new ArrayList<>();
-        for (int x = recurrenceType.getInitialDay(); x <= recurrenceType.getEndDay(); x++) {
-            numberList.add(x);
-        }
-        return numberList;
     }
 
     public List<FixedBill> findByNextDueDate(final LocalDate nextDueDate) {
