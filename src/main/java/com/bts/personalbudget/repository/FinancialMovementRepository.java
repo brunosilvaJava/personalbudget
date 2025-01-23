@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-@Repository
 public interface FinancialMovementRepository extends JpaRepository<FinancialMovementEntity, Long> {
 
     Optional<FinancialMovementEntity> findByCode(UUID code);
