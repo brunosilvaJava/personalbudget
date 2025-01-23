@@ -163,20 +163,6 @@ http://localhost:8080/swagger-ui/index.html
 
 ---
 
-### Entidade de Auditoria
-
-As tabelas acima herdam os seguintes campos de uma entidade base chamada **`AuditingEntity`**:
-- **Campos de auditoria**:
-  - `created_date`: Data de criação do registro (não modificável).
-  - `last_modified_date`: Data da última atualização do registro.
-
-A entidade de auditoria é implementada na classe `AuditingEntity` no projeto e aplicada via JPA nas tabelas listadas.
-
-
-  - Campos principais: descrição, valor, quantidade de parcelas, status, próximas parcelas.
-
----
-
 ## Automatização e Jobs Agendados
 
 O sistema possui um **job automatizado** para processar contas recorrentes. Ele é executado diariamente, utilizando a seguinte configuração de agendamento:
