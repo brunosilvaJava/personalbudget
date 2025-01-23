@@ -115,7 +115,23 @@ http://localhost:8080/swagger-ui/index.html
     - `created_date`: Data de criação do registro.
     - `last_modified_date`: Data da última atualização do registro.
 
-#### **2. Contas Fixas**
+#### **2. Parcelas**
+- **Tabela**: `installment_bill`
+- **Descrição**: Representa compras parceladas ou financiamentos.
+- **Campos principais**:
+  - `id`: Identificador único (chave primária).
+  - `code`: Código UUID da conta parcelada.
+  - `description`: Descrição da conta parcelada.
+  - `amount`: Valor total da conta.
+  - `installment_total`: Total de parcelas.
+  - `installment_count`: Número de parcelas já pagas.
+  - `last_installment_date`: Data da última parcela paga.
+  - `next_installment_date`: Data da próxima parcela.
+  - **Campos de auditoria**:
+    - `created_date`: Data de criação do registro.
+    - `last_modified_date`: Data da última atualização do registro.
+
+#### **3. Contas Fixas**
 - **Tabela**: `fixed_bill`
 - **Descrição**: Registra as contas fixas e recorrentes (ex.: assinaturas, contas de consumo).
 - **Campos principais**:
@@ -129,22 +145,6 @@ http://localhost:8080/swagger-ui/index.html
   - `end_date`: Data de término.
   - `recurrence_type`: Tipo de recorrência (WEEKLY, MONTHLY ou YEARLY).
   - `next_due_date`: Próxima data de vencimento.
-  - **Campos de auditoria**:
-    - `created_date`: Data de criação do registro.
-    - `last_modified_date`: Data da última atualização do registro.
-
-#### **3. Parcelas**
-- **Tabela**: `installment_bill`
-- **Descrição**: Representa compras parceladas ou financiamentos.
-- **Campos principais**:
-  - `id`: Identificador único (chave primária).
-  - `code`: Código UUID da conta parcelada.
-  - `description`: Descrição da conta parcelada.
-  - `amount`: Valor total da conta.
-  - `installment_total`: Total de parcelas.
-  - `installment_count`: Número de parcelas já pagas.
-  - `last_installment_date`: Data da última parcela paga.
-  - `next_installment_date`: Data da próxima parcela.
   - **Campos de auditoria**:
     - `created_date`: Data de criação do registro.
     - `last_modified_date`: Data da última atualização do registro.
