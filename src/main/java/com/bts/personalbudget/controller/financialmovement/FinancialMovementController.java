@@ -1,14 +1,12 @@
 package com.bts.personalbudget.controller.financialmovement;
 
+import com.bts.personalbudget.controller.financialmovement.config.FinancialMovementControllerApiDocs;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import jakarta.validation.Valid;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
@@ -24,11 +22,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+
 @Slf4j
 @RequiredArgsConstructor
 @RequestMapping("/financial_movement")
 @RestController
-public class FinancialMovementController {
+public class FinancialMovementController implements FinancialMovementControllerApiDocs {
 
     private final FinancialMovementService service;
     private final FinancialMovementMapper mapper;

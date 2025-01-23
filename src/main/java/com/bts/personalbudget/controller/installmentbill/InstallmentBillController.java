@@ -1,8 +1,10 @@
 package com.bts.personalbudget.controller.installmentbill;
 
+import com.bts.personalbudget.controller.installmentbill.config.InstallmentBillControllerApiDocs;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
 import com.bts.personalbudget.mapper.InstallmentBillMapper;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -19,14 +21,16 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "Installment Bill", description = "API for managing installment bills")
 @Slf4j
 @RequiredArgsConstructor
 @RequestMapping("/installment_bill")
 @RestController
-public class InstallmentBillController {
+public class InstallmentBillController implements InstallmentBillControllerApiDocs {
 
     private final InstallmentBillService installmentBillService;
     private final InstallmentBillMapper mapper;
+
 
     @PostMapping
     public ResponseEntity<Void> create(@RequestBody @Valid final InstallmentBillRequest installmentBillRequest) {
