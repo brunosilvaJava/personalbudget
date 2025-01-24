@@ -22,6 +22,8 @@ public class InstallmentBillRepository {
     private final InstallmentBillJpaRepository jpaRepository;
     private final InstallmentBillMapper mapper;
 
+    private static final Boolean FLAG_ACTIVE = Boolean.TRUE;
+
     @Transactional
     public void save(final InstallmentBill installmentBill) {
         log.info("m=save installmentBill={}", installmentBill);
@@ -43,13 +45,31 @@ public class InstallmentBillRepository {
     }
 
     @Transactional(readOnly = true)
-    public List<InstallmentBill> findAllByNextInstallmentDate(final LocalDate nextInstallmentDate,
-                                                              final InstallmentBillStatus installmentBillStatus) {
-        log.info("m=findByNextInstallmentDate date={} status={}", nextInstallmentDate, installmentBillStatus);
+    public List<InstallmentBill> findAllByNextInstallmentDateAndStatus(final LocalDate nextInstallmentDate,
+                                                                       final InstallmentBillStatus installmentBillStatus) {
+        log.info("m=findByNextInstallmentDate nextInstallmentDate={} status={}", nextInstallmentDate, installmentBillStatus);
+
         return mapper.toModel(jpaRepository.findAllByNextInstallmentDateAndStatusAndFlagActive(
                 nextInstallmentDate,
                 installmentBillStatus,
-                Boolean.TRUE));
+                FLAG_ACTIVE));
+    }
+
+    @Transactional(readOnly = true)
+    public List<InstallmentBill> findAllByNextInstallmentDateBetweenAndStatus(final LocalDate initialDate,
+                                                                              final LocalDate endDate,
+                                                                              final InstallmentBillStatus installmentBillStatus) {
+        log.info("m=findAllByStatusAndNextInstallmentDateBetween status={} initialDate={} endDate={}",
+                installmentBillStatus, initialDate, endDate);
+
+        final List<InstallmentBillEntity> installmentBillEntityList =
+                jpaRepository.findAllByNextInstallmentDateBetweenAndStatusAndFlagActive(
+                        initialDate,
+                        endDate,
+                        installmentBillStatus,
+                        FLAG_ACTIVE);
+
+        return mapper.toModel(installmentBillEntityList);
     }
 
     @Transactional

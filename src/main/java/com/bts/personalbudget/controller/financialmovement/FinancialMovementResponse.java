@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import static java.math.BigDecimal.ZERO;
 
 public record FinancialMovementResponse (
 
@@ -47,4 +48,14 @@ public record FinancialMovementResponse (
         @JsonProperty("recurrence_bill_code")
         UUID recurrenceBillCode
 ) {
+    public FinancialMovementResponse {
+        if (operationType == OperationType.DEBIT) {
+            if (amount != null && amount.compareTo(ZERO) < 0) {
+                amount = amount.negate();
+            }
+            if (amountPaid != null && amountPaid.compareTo(ZERO) < 0) {
+                amountPaid = amountPaid.negate();
+            }
+        }
+    }
 }

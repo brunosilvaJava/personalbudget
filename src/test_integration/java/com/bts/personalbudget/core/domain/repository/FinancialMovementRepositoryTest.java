@@ -24,7 +24,7 @@ public class FinancialMovementRepositoryTest {
 
     @Test
     void shouldSaveFinancialMovement() {
-        final FinancialMovementEntity financialMovementEntityMock = FinancialMovementFactory.buildModel();
+        final FinancialMovementEntity financialMovementEntityMock = FinancialMovementFactory.buildEntity();
         financialMovementRepository.save(financialMovementEntityMock);
         final Optional<FinancialMovementEntity> financialMovementModel =
                 financialMovementRepository.findByCode(financialMovementEntityMock.getCode());

@@ -3,11 +3,13 @@ package com.bts.personalbudget.core.domain.model;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.exception.InvalidFieldsException;
+import org.junit.jupiter.api.Test;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
-import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,9 +38,9 @@ class FinancialMovementTest {
 
         assertEquals(FinancialMovement.class, exception.getAClass());
         assertTrue(validations.containsKey("amountPaid"));
-        assertEquals("deve ser informado quando o status for PAID_OUT", validations.get("amountPaid"));
+        assertEquals("deve ser informado um valor válido quando o status for PAID_OUT", validations.get("amountPaid"));
         assertTrue(validations.containsKey("payDate"));
-        assertEquals("deve ser informado quando o status for PAID_OUT", validations.get("payDate"));
+        assertEquals("deve ser informado um valor válido quando o status for PAID_OUT", validations.get("payDate"));
     }
 
     @Test
@@ -63,7 +65,7 @@ class FinancialMovementTest {
 
         assertEquals(FinancialMovement.class, exception.getAClass());
         assertTrue(validations.containsKey("dueDate"));
-        assertEquals("deve ser informado quando o status for LATE", validations.get("dueDate"));
+        assertEquals("deve ser informado um valor válido quando o status for LATE", validations.get("dueDate"));
     }
 
     @Test

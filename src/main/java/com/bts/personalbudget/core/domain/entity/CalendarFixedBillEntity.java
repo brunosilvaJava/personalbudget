@@ -1,5 +1,6 @@
 package com.bts.personalbudget.core.domain.entity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -39,7 +40,7 @@ public class CalendarFixedBillEntity extends AuditingEntity{
     @Column(name = "flg_active")
     private Boolean flgActive;
 
-    @ManyToOne
+    @ManyToOne(cascade = CascadeType.PERSIST)
     @JoinColumn(name = "id_fixed_bill")
     private FixedBillEntity fixedBill;
 

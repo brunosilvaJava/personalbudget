@@ -20,6 +20,13 @@ public class InstallmentBillFactory {
                 null, null, null);
     }
 
+    public static InstallmentBill buildModel(LocalDate nextDueDate, OperationType operationType, String description, BigDecimal amount,
+                                             LocalDate purchaseDate, Integer installmentTotal) {
+        return new InstallmentBill(null, operationType, description,
+                amount, null, purchaseDate, installmentTotal,
+                null, null, null);
+    }
+
     public static InstallmentBill buildModel() {
         return InstallmentBillMapper.INSTANCE.toModel(entityBuilder(DESCRIPTION).build());
     }
@@ -43,7 +50,7 @@ public class InstallmentBillFactory {
                 .flagActive(Boolean.TRUE)
                 .operationType(OperationType.DEBIT)
                 .description(description)
-                .amount(BigDecimal.TEN)
+                .amount(BigDecimal.TEN.negate())
                 .status(InstallmentBillStatus.PENDING)
                 .purchaseDate(LocalDate.now())
                 .installmentTotal(1)
@@ -51,4 +58,11 @@ public class InstallmentBillFactory {
                 .nextInstallmentDate(LocalDate.now().plusMonths(1));
     }
 
+    public static InstallmentBill buildModel(LocalDate nextInstallmentDate, OperationType operationType, String value) {
+        BigDecimal amount = new BigDecimal(value);
+        LocalDate baseDate = nextInstallmentDate.minusDays(30);
+        return new InstallmentBill(null, operationType, "test",
+                amount, InstallmentBillStatus.PENDING, null, 1,
+                null, baseDate, baseDate);
+    }
 }
