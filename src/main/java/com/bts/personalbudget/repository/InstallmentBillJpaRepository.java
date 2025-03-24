@@ -2,6 +2,7 @@ package com.bts.personalbudget.repository;
 
 import com.bts.personalbudget.core.domain.entity.InstallmentBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

@@ -1,6 +1,6 @@
 package com.bts.personalbudget.core.domain.service.fixedbill.calc;
 
-import com.bts.personalbudget.core.domain.model.FixedBill;
+import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;

@@ -1,20 +1,21 @@
 package com.bts.personalbudget.core.domain.service.fixedbill;
 
-import com.bts.personalbudget.controller.fixedbill.FixedBillRepository;
 import com.bts.personalbudget.core.domain.entity.CalendarFixedBillEntity;
 import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
-import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
+import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
-import com.bts.personalbudget.core.domain.model.FixedBill;
+import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.MonthlyCalcFixedBillImpl;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.WeeklyCalcFixedBillImpl;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.YearlyCalcFixedBillImpl;
 import com.bts.personalbudget.mapper.FixedBillMapper;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -31,6 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -38,7 +41,7 @@ import static org.mockito.Mockito.when;
 public class FixedBillServiceTest {
 
     @InjectMocks
-    private FixedBillServiceImpl fixedBillService;
+    private FixedBillService fixedBillService;
 
     @Mock
     private FixedBillRepository fixedBillRepository;
@@ -144,6 +147,8 @@ public class FixedBillServiceTest {
         assertTrue(nextDueDateOptional.isEmpty());
     }
 
+
+
     private void saveTest(FixedBill fixedBill, List<Integer> days) {
         fixedBillService.save(fixedBill);
 
@@ -171,6 +176,74 @@ public class FixedBillServiceTest {
             assertTrue(calendarFixedBillEntityList.get(i).getFlgActive());
             assertFalse(calendarFixedBillEntityList.get(i).getFlgLeapYear());
         }
+    }
+
+    @Test
+    void mustNotUpdateRecurrenceBillWhenParametersIsNull() {
+
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+
+        UUID code = fixedBillEntityMock.getCode();
+        OperationType operationType = null;
+        String description = null;
+        BigDecimal amount = null;
+        RecurrenceType recurrenceType = null;
+        List<Integer> days = null;
+        Boolean flgLeapYear = null;
+        FixedBillStatus status = null;
+        LocalDate startDate = null;
+        LocalDate endDate = null;
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
+
+        FixedBill updatedFixedBill = fixedBillService.update(code, operationType, description, amount, recurrenceType,
+                days, flgLeapYear, status, startDate, endDate);
+
+        verify(fixedBillRepository, never()).save(any());
+
+        assertEquals(fixedBillEntityMock.getOperationType(), updatedFixedBill.getOperationType(), "operation type is not equals");
+        assertEquals(fixedBillEntityMock.getDescription(), updatedFixedBill.getDescription(), "description is not equals");
+        assertEquals(fixedBillEntityMock.getAmount(), updatedFixedBill.getAmount(), "amount is not equals");
+        assertEquals(fixedBillEntityMock.getRecurrenceType(), updatedFixedBill.getRecurrenceType(), "recurrence type is not equals");
+        assertTrue(fixedBillEntityMock.getCalendarFixedBillEntityList().containsAll(fixedBillEntityMock.getCalendarFixedBillEntityList()), "does not contain every day");
+        assertEquals(fixedBillEntityMock.getStatus(), updatedFixedBill.getStatus(), "status is not equals");
+        assertEquals(fixedBillEntityMock.getStartDate(), updatedFixedBill.getStartDate(), "start date is not equals");
+        assertEquals(fixedBillEntityMock.getEndDate(), updatedFixedBill.getEndDate(), "end date is not equals");
+
+    }
+
+    @Test
+    void mustUpdateRecurrenceBillWhenParametersIsNull() {
+
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+
+        UUID code = fixedBillEntityMock.getCode();
+        OperationType operationType = OperationType.CREDIT;
+        String description = "testTwo";
+        BigDecimal amount = BigDecimal.valueOf(25);
+        RecurrenceType recurrenceType = RecurrenceType.MONTHLY;
+        List<Integer> days = List.of(5);
+        Boolean flgLeapYear = Boolean.TRUE;
+        FixedBillStatus status = FixedBillStatus.INACTIVE;
+        LocalDate startDate = LocalDate.now().minusYears(5);
+        LocalDate endDate = LocalDate.now().plusYears(5);
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
+
+        FixedBill updatedFixedBill = fixedBillService.update(code, operationType, description, amount, recurrenceType,
+                days, flgLeapYear, status, startDate, endDate);
+
+        verify(fixedBillRepository).save(any());
+
+        assertEquals(operationType, updatedFixedBill.getOperationType(), "operation type is not equals");
+        assertEquals(description, updatedFixedBill.getDescription(), "description is not equals");
+        assertEquals(amount, updatedFixedBill.getAmount(), "amount is not equals");
+        assertEquals(recurrenceType, updatedFixedBill.getRecurrenceType(), "recurrence type is not equals");
+        assertTrue(fixedBillEntityMock.getCalendarFixedBillEntityList().containsAll(fixedBillEntityMock.getCalendarFixedBillEntityList()), "does not contain every day");
+        assertEquals(status, updatedFixedBill.getStatus(), "status is not equals");
+        assertEquals(startDate, updatedFixedBill.getStartDate(), "start date is not equals");
+        assertEquals(endDate, updatedFixedBill.getEndDate(), "end date is not equals");
+
     }
 
 }

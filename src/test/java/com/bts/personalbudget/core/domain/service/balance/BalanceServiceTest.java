@@ -4,7 +4,7 @@ import com.bts.personalbudget.core.domain.factory.DailyBalanceFactory;
 import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory;
 import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
-import com.bts.personalbudget.core.domain.model.FixedBill;
+import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;

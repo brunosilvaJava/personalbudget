@@ -1,8 +1,8 @@
 package com.bts.personalbudget.core.domain.service.fixedbill.calc;
 
-import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
-import com.bts.personalbudget.core.domain.model.FixedBill;
+import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
+import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(MockitoExtension.class)

@@ -1,9 +1,10 @@
 package com.bts.personalbudget.mapper;
 
 import com.bts.personalbudget.controller.fixedbill.FixedBillRequest;
+import com.bts.personalbudget.controller.installmentbill.FixedBillResponse;
 import com.bts.personalbudget.core.domain.entity.CalendarFixedBillEntity;
 import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
-import com.bts.personalbudget.core.domain.model.FixedBill;
+import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -16,11 +17,13 @@ public interface FixedBillMapper {
 
     FixedBillMapper INSTANCE = Mappers.getMapper(FixedBillMapper.class);
 
-
     FixedBill toModel(FixedBillRequest request);
     @Mapping(target = "days", source = "calendarFixedBillEntityList", qualifiedByName = "calendarEntityToDays")
     FixedBill toModel(FixedBillEntity entity);
-    List<FixedBill> toModel(List<FixedBillEntity> fixedBillEntities);
+    FixedBillResponse toResponse(FixedBill model);
+    List<FixedBill> toModelList(List<FixedBillEntity> fixedBillEntities);
+    List<FixedBillResponse> toResponseList(List<FixedBill> fixedBills);
+    @Mapping(target = "flagActive", constant = "true")
     FixedBillEntity toEntity(FixedBill fixedBill);
 
     @Named("calendarEntityToDays")

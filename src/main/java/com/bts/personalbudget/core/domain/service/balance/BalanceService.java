@@ -1,7 +1,7 @@
 package com.bts.personalbudget.core.domain.service.balance;
 
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
-import com.bts.personalbudget.core.domain.model.FixedBill;
+import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData.PaymentStatus;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;

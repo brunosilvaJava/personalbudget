@@ -67,18 +67,18 @@ public class FinancialMovementService {
 
     public FinancialMovement find(final UUID code) throws NotFoundException {
         log.info("m=find, code={}", code);
-        return mapper.toModel(findModel(code));
+        return mapper.toModel(findEntity(code));
     }
 
     @Transactional
     public FinancialMovement update(final FinancialMovement financialMovement) throws NotFoundException {
         log.info("m=update, financialMovement={}", financialMovement);
-        final FinancialMovementEntity financialMovementEntity = findModel(financialMovement.code());
+        final FinancialMovementEntity financialMovementEntity = findEntity(financialMovement.code());
         update(financialMovement, financialMovementEntity);
         return mapper.toModel(financialMovementEntity);
     }
 
-    private FinancialMovementEntity findModel(final UUID code) throws NotFoundException {
+    private FinancialMovementEntity findEntity(final UUID code) throws NotFoundException {
         return repository.findByCode(code).orElseThrow(NotFoundException::new);
     }
 
@@ -127,7 +127,7 @@ public class FinancialMovementService {
     @Transactional
     public void delete(final UUID code) throws NotFoundException {
         log.info("m=delete, code={}", code);
-        final FinancialMovementEntity financialMovementEntity = findModel(code);
+        final FinancialMovementEntity financialMovementEntity = findEntity(code);
         financialMovementEntity.delete();
     }
 
