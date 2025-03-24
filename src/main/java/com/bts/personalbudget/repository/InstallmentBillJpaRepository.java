@@ -11,10 +11,20 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-@Repository
 public interface InstallmentBillJpaRepository extends JpaRepository<InstallmentBillEntity, Long> {
+
     Optional<InstallmentBillEntity> findByCode(UUID code);
+
     List<InstallmentBillEntity> findAllByFlagActive(Boolean flagActive);
+
     List<InstallmentBillEntity> findAllByNextInstallmentDateAndStatusAndFlagActive(
-            LocalDate nextInstallmentDate, InstallmentBillStatus status, Boolean flagActive);
+            LocalDate nextInstallmentDate,
+            InstallmentBillStatus status,
+            Boolean flagActive);
+
+    List<InstallmentBillEntity> findAllByNextInstallmentDateBetweenAndStatusAndFlagActive(
+            LocalDate initialDate,
+            LocalDate endDate,
+            InstallmentBillStatus status,
+            Boolean flagActives);
 }

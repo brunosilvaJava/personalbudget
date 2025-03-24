@@ -4,8 +4,8 @@ import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
-import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillFactory;
@@ -19,7 +19,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;

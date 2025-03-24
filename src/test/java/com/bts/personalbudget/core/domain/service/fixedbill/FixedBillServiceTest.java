@@ -105,7 +105,9 @@ public class FixedBillServiceTest {
 
     @Test
     public void shouldThrowsExceptionWhenThereIsNullFields() {
-        assertThrows(RuntimeException.class, () -> fixedBillService.save(new FixedBill()));
+        assertThrows(RuntimeException.class, () -> fixedBillService.save(new FixedBill(null, null,
+                null, null, null, null, null, null,
+                null, null, null)));
     }
 
     @Test

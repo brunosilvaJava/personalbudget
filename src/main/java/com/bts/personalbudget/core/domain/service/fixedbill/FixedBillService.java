@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import static com.bts.personalbudget.core.domain.enumerator.FixedBillStatus.ACTIVE;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -150,7 +151,6 @@ public class FixedBillService {
                 fixedBill.getAmount() == null ||
                 fixedBill.getRecurrenceType() == null ||
                 fixedBill.getDays() == null ||
-                fixedBill.getAmount().compareTo(BigDecimal.ZERO) < 1 ||
                 fixedBill.getDays().isEmpty() ||
                 fixedBill.getDescription().isBlank()
         ) {
@@ -163,6 +163,13 @@ public class FixedBillService {
         log.info("m=findByNextDueDate nextDueDate={}", nextDueDate);
         final List<FixedBillEntity> fixedBillEntityList =
                 fixedBillRepository.findAllByNextDueDateAndStatusAndFlagActive(nextDueDate, FixedBillStatus.ACTIVE, Boolean.TRUE);
+        return fixedBillMapper.toModelList(fixedBillEntityList);
+    }
+
+    public List<FixedBill> findAllByNextDueDateBetween(final LocalDate initialDate, final LocalDate endDate) {
+        log.info("m=findAllByNextDueDateBetween initialDate={} endDate={}", initialDate, endDate);
+        final List<FixedBillEntity> fixedBillEntityList =
+                fixedBillRepository.findAllByFlagActiveTrueAndStatusAndNextDueDateBetween(ACTIVE, initialDate, endDate);
         return fixedBillMapper.toModelList(fixedBillEntityList);
     }
 }
