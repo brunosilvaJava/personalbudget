@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @Tag(name = "Fixed Bill", description = "API for managing fixed bills")
 @RequiredArgsConstructor
 @RequestMapping("/fixed_bill")
@@ -33,6 +35,7 @@ public class FixedBillController implements FixedBillControllerApiDocs {
 
     @PostMapping
     public ResponseEntity<Void> create(@Valid @RequestBody FixedBillRequest fixedBillRequest) {
+        log.info("m=create fixedBillRequest={}", fixedBillRequest);
         final FixedBill fixedBill = fixedBillMapper.toModel(fixedBillRequest);
         fixedBillService.save(fixedBill);
         return ResponseEntity.status(HttpStatus.CREATED).build();
@@ -40,18 +43,20 @@ public class FixedBillController implements FixedBillControllerApiDocs {
 
     @GetMapping
     public ResponseEntity<List<FixedBillResponse>> findAll() {
-        return ResponseEntity.ok(fixedBillService.findAll());
+        log.info("m=findAll");
+        return ResponseEntity.ok(fixedBillMapper.toResponseList(fixedBillService.findAll()));
     }
 
     @GetMapping("/{code}")
     public ResponseEntity<FixedBillResponse> findByCode(@PathVariable UUID code) {
+        log.info("m=findByCode code={}", code);
         return ResponseEntity.ok(fixedBillMapper.toResponse(fixedBillService.findByCode(code)));
     }
 
     @PatchMapping("/{code}")
     public ResponseEntity<FixedBillResponse> update(@PathVariable UUID code,
                                                     @RequestBody @Valid final FixedBillUpdateRequest fixedBillUpdateRequest){
-
+        log.info("m=update code={} fixedBillUpdateRequest={}", code, fixedBillUpdateRequest);
         final FixedBill fixedBill = fixedBillService.update(
                 code,
                 fixedBillUpdateRequest.operationType(),
@@ -70,6 +75,7 @@ public class FixedBillController implements FixedBillControllerApiDocs {
 
     @DeleteMapping("/{code}")
     public ResponseEntity<Void> deleteById(@PathVariable UUID code) {
+        log.info("m=deleteById code={}", code);
         fixedBillService.delete(code);
         return ResponseEntity.noContent().build();
     }

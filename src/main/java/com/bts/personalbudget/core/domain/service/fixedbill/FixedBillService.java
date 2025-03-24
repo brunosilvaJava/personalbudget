@@ -1,6 +1,5 @@
 package com.bts.personalbudget.core.domain.service.fixedbill;
 
-import com.bts.personalbudget.controller.installmentbill.FixedBillResponse;
 import com.bts.personalbudget.core.domain.entity.CalendarFixedBillEntity;
 import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
@@ -66,13 +65,15 @@ public class FixedBillService {
     }
 
     public FixedBill findByCode(final UUID code) {
+        log.info("m=findByCode code={}", code);
         final FixedBillEntity fixedBillEntity = findEntity(code);
         return fixedBillMapper.toModel(fixedBillEntity);
     }
 
-    public List<FixedBillResponse> findAll() {
+    public List<FixedBill> findAll() {
+        log.info("m=findAll");
         final List<FixedBillEntity> fixedBillEntityList = fixedBillRepository.findAllByFlagActiveTrue();
-        return fixedBillMapper.toResponseList(fixedBillEntityList);
+        return fixedBillMapper.toModelList(fixedBillEntityList);
     }
 
     public FixedBill update(final UUID code,

@@ -22,7 +22,7 @@ public interface FixedBillMapper {
     FixedBill toModel(FixedBillEntity entity);
     FixedBillResponse toResponse(FixedBill model);
     List<FixedBill> toModelList(List<FixedBillEntity> fixedBillEntities);
-    List<FixedBillResponse> toResponseList(List<FixedBillEntity> fixedBillEntities);
+    List<FixedBillResponse> toResponseList(List<FixedBill> fixedBills);
     @Mapping(target = "flagActive", constant = "true")
     FixedBillEntity toEntity(FixedBill fixedBill);
 
