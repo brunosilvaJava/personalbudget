@@ -12,10 +12,15 @@ import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+
+import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.LATE;
+import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.PAID_OUT;
+import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.PENDING;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -126,4 +131,33 @@ public class FinancialMovementService {
         financialMovementEntity.delete();
     }
 
+    public List<FinancialMovement> findMovementsForBalanceCalculation(final LocalDate initialDate,
+                                                                      final LocalDate endDate) {
+        log.info("m=findMovementsForBalanceCalculation initialDate={} endDate={}", initialDate, endDate);
+        return mapper.toModel(
+                repository.findAllByStatusAndDates(
+                        initialDate.atStartOfDay(),
+                        endDate.atTime(23, 59, 59),
+                        PENDING,
+                        PAID_OUT,
+                        LATE));
+    }
+
+    public BigDecimal findBalance(final LocalDate date) {
+        log.info("m=findBalance, date={}", date);
+        return repository.sumAmountPaidByStatusAndPayDateLessThanEqual(
+                        PAID_OUT,
+                        date.atTime(23, 59, 59))
+                .orElse(BigDecimal.ZERO);
+    }
+
+    public BigDecimal findProjectedBalance(final LocalDate date) {
+        log.info("m=findProjectedBalance, date={}", date);
+        final BigDecimal balance = findBalance(date);
+        final BigDecimal projectedBalance = repository.sumAmountByStatusAndDueDateLessThanEqual(
+                        List.of(PENDING, LATE),
+                        date.atTime(23, 59, 59))
+                .orElse(BigDecimal.ZERO);
+        return balance.add(projectedBalance);
+    }
 }

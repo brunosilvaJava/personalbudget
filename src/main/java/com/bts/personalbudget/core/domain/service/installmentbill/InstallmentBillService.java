@@ -6,12 +6,12 @@ import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDelete
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -37,7 +37,13 @@ public class InstallmentBillService {
 
     public List<InstallmentBill> findByNextInstallmentDate(final LocalDate nextInstallmentDate) {
         log.info("m=findByNextInstallmentDate date={}", nextInstallmentDate);
-        return repository.findAllByNextInstallmentDate(nextInstallmentDate, InstallmentBillStatus.PENDING);
+        return repository.findAllByNextInstallmentDateAndStatus(nextInstallmentDate, InstallmentBillStatus.PENDING);
+    }
+
+    public List<InstallmentBill> findAllByNextInstallmentDateBetween(final LocalDate initialDate,
+                                                                     final LocalDate endDate) {
+        log.info("m=findAllByNextInstallmentDateBetween initialDate={} endDate={}", initialDate, endDate);
+        return repository.findAllByNextInstallmentDateBetweenAndStatus(initialDate, endDate, InstallmentBillStatus.PENDING);
     }
 
     public InstallmentBill update(final UUID code,
@@ -68,4 +74,6 @@ public class InstallmentBillService {
         installmentBill.updateInstallment();
         repository.update(installmentBill);
     }
+
+
 }

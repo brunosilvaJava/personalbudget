@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import static java.math.BigDecimal.ZERO;
 
 @Schema(description = "Response data for an installment bill.")
 public record InstallmentBillResponse(
@@ -36,4 +37,11 @@ public record InstallmentBillResponse(
         @Schema(description = "Total number of installments for the bill", example = "12")
         Integer installmentTotal
 ) {
+    public InstallmentBillResponse {
+        if (operationType == OperationType.DEBIT) {
+            if (amount != null && amount.compareTo(ZERO) < 0) {
+                amount = amount.negate();
+            }
+        }
+    }
 }
