@@ -95,7 +95,7 @@ VALUES
     (1, FALSE, TRUE, 1, NOW(), NOW()),
 
 
-    (15, FALSE, TRUE, 2, NOW(), NOW()),
+    (7, FALSE, TRUE, 2, NOW(), NOW()),
 
 
     (1, FALSE, FALSE, 3, NOW(), NOW()),
@@ -104,4 +104,4 @@ VALUES
     (7, TRUE, TRUE, 4, NOW(), NOW()),
 
 
-    (20, FALSE, FALSE, 5, NOW(), NOW());
+    (2, FALSE, FALSE, 5, NOW(), NOW());

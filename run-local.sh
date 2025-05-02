@@ -17,7 +17,7 @@ fi
 
 wait_for_mysql
 
-docker exec -i mysql mysql -u financialbudgetuser -pcadI1fzFK3t#El%I financialbudgetdb < local/database/insert.sql
+docker exec -i mysql mysql -u financialbudgetuser -p cadI1fzFK3t#El%I financialbudgetdb < local/database/insert.sql
 
 if [ $? -eq 0 ]; then
   echo "Inserts realizados com sucesso."
