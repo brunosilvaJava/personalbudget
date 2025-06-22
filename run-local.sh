@@ -1,28 +1,36 @@
 #!/bin/bash
 
 wait_for_mysql() {
-  until docker exec -i mysql mysql -u financialbudgetuser -pcadI1fzFK3t#El%I -e "SELECT 1" > /dev/null 2>&1; do
-    echo "Aguardando MySQL iniciar..."
-    sleep 5
+  until docker exec -i mysql mysql -u "$DB_USERNAME" -p"$DB_PASSWORD" -e "SELECT 1" > /dev/null 2>&1; do
+    echo "Waiting for MySQL to start..."
+    sleep 10
   done
 }
 
-docker compose up --remove-orphans -d
+# Set default values if variables are not set
+DB_USERNAME=${DB_USERNAME:-financialbudgetuser}
+DB_PASSWORD=${DB_PASSWORD:-cadI1fzFK3t#El%I}
+DB_DATABASE=${DB_DATABASE:-financialbudgetdb}
 
+# Start Docker containers
+docker compose --profile dependents up -d
+
+# Check if MySQL container is running
 container_status=$(docker inspect -f '{{.State.Running}}' mysql)
 if [ "$container_status" != "true" ]; then
-  echo "Container MySQL não está em execução. Verifique se o nome do contêiner está correto e se o MySQL está sendo iniciado corretamente."
+  echo "MySQL container is not running. Check the container name and startup logs."
   exit 1
 fi
 
+# Wait for MySQL to be ready
 wait_for_mysql
 
-docker exec -i mysql mysql -u financialbudgetuser -p cadI1fzFK3t#El%I financialbudgetdb < local/database/insert.sql
+# Execute SQL inserts
+docker exec -i mysql mysql -u "$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" < local/database/insert.sql
 
 if [ $? -eq 0 ]; then
-  echo "Inserts realizados com sucesso."
+  echo "Inserts executed successfully."
 else
-  echo "Erro ao realizar inserts no banco de dados." >&2
+  echo "Error executing inserts in the database." >&2
   exit 1
 fi
-
