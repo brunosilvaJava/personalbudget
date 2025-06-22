@@ -69,7 +69,7 @@ class FinancialMovementServiceTest {
         final LocalDate startDate = LocalDate.now();
         final LocalDate endDate = LocalDate.now();
 
-        when(repository.findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetween(
+        when(repository.findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
                 description, Arrays.stream(OperationType.values()).toList(),
                 Arrays.stream(FinancialMovementStatus.values()).toList(),
                 startDate.atStartOfDay(), endDate.atStartOfDay().plusDays(1)))

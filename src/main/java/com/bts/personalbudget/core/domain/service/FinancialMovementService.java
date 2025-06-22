@@ -56,7 +56,7 @@ public class FinancialMovementService {
                 statuses : Arrays.stream(FinancialMovementStatus.values()).toList();
 
         return mapper.toModel(
-                repository.findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetween(
+                repository.findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
                                 description,
                                 filterOperationTypes,
                                 filterStatuses,

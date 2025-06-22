@@ -34,7 +34,7 @@ public interface FinancialMovementRepository extends JpaRepository<FinancialMove
             @Param("statuses") List<FinancialMovementStatus> statuses,
             @Param("dueDate") LocalDateTime dueDate);
 
-    Optional<List<FinancialMovementEntity>> findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetween(
+    Optional<List<FinancialMovementEntity>> findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
             String description, List<OperationType> operationTypes, List<FinancialMovementStatus> statuses,
             LocalDateTime startDate, LocalDateTime endDate);
 
@@ -63,5 +63,3 @@ public interface FinancialMovementRepository extends JpaRepository<FinancialMove
             @Param("status") FinancialMovementStatus status,
             @Param("date") LocalDateTime dateTime);
 }
-
-
