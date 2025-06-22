@@ -53,11 +53,6 @@ public class FixedBill implements BalanceCalcData {
         if (isNew) {
             this.code = UUID.randomUUID();
         }
-//        if (operationType == OperationType.DEBIT) {
-//            if (amount != null && amount.compareTo(ZERO) > 0) {
-//                amount = amount.negate();
-//            }
-//        }
     }
 
     void update(final OperationType operationType,
@@ -121,11 +116,6 @@ public class FixedBill implements BalanceCalcData {
 
     @Override
     public BigDecimal getBalanceCalcValue() {
-        if (operationType == OperationType.DEBIT) {
-            if (amount != null && amount.compareTo(ZERO) > 0) {
-                return amount.negate();
-            }
-        }
         return amount;
     }
 
