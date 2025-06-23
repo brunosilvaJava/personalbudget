@@ -54,22 +54,20 @@ public record FinancialMovement(
         if (code == null) {
             code = UUID.randomUUID();
         }
-        if (operationType == OperationType.DEBIT) {
-            if (amount != null && amount.compareTo(ZERO) > 0) {
-                amount = amount.negate();
-            }
-            if (amountPaid != null && amountPaid.compareTo(ZERO) > 0) {
-                amountPaid = amountPaid.negate();
-            }
-        }
     }
 
     @Override
     public BigDecimal getBalanceCalcValue() {
-        return switch (status) {
+        final BigDecimal balanceCalcValue = switch (status) {
             case PENDING, LATE -> amount;
             case PAID_OUT -> amountPaid;
         };
+        if (operationType == OperationType.DEBIT) {
+            if (balanceCalcValue != null && balanceCalcValue.compareTo(ZERO) > 0) {
+                return amount.negate();
+            }
+        }
+        return balanceCalcValue;
     }
 
     @Override

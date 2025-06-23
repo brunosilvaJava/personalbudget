@@ -116,6 +116,11 @@ public class FixedBill implements BalanceCalcData {
 
     @Override
     public BigDecimal getBalanceCalcValue() {
+        if (operationType == OperationType.DEBIT) {
+            if (amount != null && amount.compareTo(ZERO) > 0) {
+                return amount.negate();
+            }
+        }
         return amount;
     }
 

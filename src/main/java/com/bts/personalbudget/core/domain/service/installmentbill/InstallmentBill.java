@@ -63,11 +63,6 @@ public class InstallmentBill implements BalanceCalcData {
             this.nextInstallmentDate = calculateNextInstallmentDate()
                     .orElseThrow(() -> new RuntimeException("next installment inaccessible"));
         }
-        if (operationType == OperationType.DEBIT) {
-            if (amount != null && amount.compareTo(ZERO) > 0) {
-                amount = amount.negate();
-            }
-        }
         log.info("m=init isNew={} code={}", isNew, this.code);
     }
 
@@ -94,7 +89,7 @@ public class InstallmentBill implements BalanceCalcData {
             throw new RuntimeException("Installment concluded, code=" + code);
         }
         installmentCount++;
-        lastInstallmentDate = LocalDate.from(nextInstallmentDate);
+        lastInstallmentDate = nextInstallmentDate;
         nextInstallmentDate = calculateNextInstallmentDate().orElse(null);
         if (!containsNextInstallment()) {
             conclude();
@@ -132,6 +127,11 @@ public class InstallmentBill implements BalanceCalcData {
 
     @Override
     public BigDecimal getBalanceCalcValue() {
+        if (operationType == OperationType.DEBIT) {
+            if (amount != null && amount.compareTo(ZERO) > 0) {
+                return amount.negate();
+            }
+        }
         return amount;
     }
 
