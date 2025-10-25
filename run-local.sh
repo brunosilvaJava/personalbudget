@@ -25,8 +25,8 @@ fi
 # Wait for MySQL to be ready
 wait_for_mysql
 
-# Execute SQL inserts
-docker exec -i mysql mysql -u "$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" < local/database/insert.sql
+# Execute SQL inserts with UTF-8 charset
+docker exec -i mysql mysql -u "$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" --default-character-set=utf8mb4 < local/database/insert.sql
 
 if [ $? -eq 0 ]; then
   echo "Inserts executed successfully."

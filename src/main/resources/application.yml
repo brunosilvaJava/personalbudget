@@ -1,6 +1,13 @@
 ﻿spring:
   application:
     name: personalbudget
-flyway:
-  enabled: true
-  locations: classpath:db/migration
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    encoding: UTF-8
+
+server:
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
