@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Fixed Bill", description = "API for managing fixed bills")
 public interface FixedBillControllerApiDocs {
 
     @Operation(
@@ -45,13 +47,55 @@ public interface FixedBillControllerApiDocs {
             @Parameter(description = "Sort direction (ASC or DESC)") String sortDirection
     );
 
+    @Operation(
+            summary = "Retrieve a fixed bill by code",
+            description = "Fetches a fixed bill by its unique identifier (UUID).")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Fixed bill found and returned"),
+            @ApiResponse(responseCode = "404", description = "Fixed bill not found")
+    })
     @GetMapping("/{code}")
     ResponseEntity<FixedBillResponse> findByCode(@PathVariable UUID code);
 
+    @Operation(
+            summary = "Update an existing fixed bill",
+            description = "Updates an existing fixed bill identified by its UUID.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Fixed bill successfully updated"),
+            @ApiResponse(responseCode = "404", description = "Fixed bill not found"),
+            @ApiResponse(responseCode = "400", description = "Invalid request data")
+    })
     @PatchMapping("/{code}")
     ResponseEntity<FixedBillResponse> update(@PathVariable UUID code,
                                              @RequestBody @Valid FixedBillUpdateRequest fixedBillUpdateRequest);
 
+    @Operation(
+            summary = "Inactivate a fixed bill",
+            description = "Changes the status of a fixed bill to INACTIVE.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Fixed bill successfully inactivated"),
+            @ApiResponse(responseCode = "404", description = "Fixed bill not found")
+    })
+    @PatchMapping("/{code}/inactivate")
+    ResponseEntity<FixedBillResponse> inactivate(@PathVariable UUID code);
+
+    @Operation(
+            summary = "Activate a fixed bill",
+            description = "Changes the status of a fixed bill to ACTIVE.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Fixed bill successfully activated"),
+            @ApiResponse(responseCode = "404", description = "Fixed bill not found")
+    })
+    @PatchMapping("/{code}/activate")
+    ResponseEntity<FixedBillResponse> activate(@PathVariable UUID code);
+
+    @Operation(
+            summary = "Delete a fixed bill by code",
+            description = "Soft deletes a fixed bill by setting flagActive to false.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Fixed bill successfully deleted"),
+            @ApiResponse(responseCode = "404", description = "Fixed bill not found")
+    })
     @DeleteMapping("/{code}")
     ResponseEntity<Void> deleteById(@PathVariable UUID code);
 }

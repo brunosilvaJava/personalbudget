@@ -15,7 +15,7 @@ import lombok.*;
 
 
 @Data
-@EqualsAndHashCode(of = {"id", "fixedBill"}, callSuper = false)
+@EqualsAndHashCode(of = {"dayLaunch", "fixedBill"}, callSuper = false)
 @Entity
 @Table(name = "calendar_fixed_bill")
 public class CalendarFixedBillEntity extends AuditingEntity{
@@ -28,11 +28,7 @@ public class CalendarFixedBillEntity extends AuditingEntity{
     @Column(name = "day_launch", columnDefinition = "SMALLINT")
     private Integer dayLaunch;
 
-    @Column(name = "flg_active")
-    private Boolean flgActive;
-
     @ManyToOne(cascade = CascadeType.PERSIST)
     @JoinColumn(name = "id_fixed_bill")
     private FixedBillEntity fixedBill;
-
 }

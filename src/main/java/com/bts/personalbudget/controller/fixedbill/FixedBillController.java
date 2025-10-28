@@ -101,6 +101,22 @@ public class FixedBillController implements FixedBillControllerApiDocs {
         return ResponseEntity.ok(fixedBillMapper.toResponse(fixedBill));
     }
 
+    @PatchMapping("/{code}/inactivate")
+    @Override
+    public ResponseEntity<FixedBillResponse> inactivate(@PathVariable UUID code) {
+        log.info("m=inactivate code={}", code);
+        final FixedBill fixedBill = fixedBillService.changeStatus(code, FixedBillStatus.INACTIVE);
+        return ResponseEntity.ok(fixedBillMapper.toResponse(fixedBill));
+    }
+
+    @PatchMapping("/{code}/activate")
+    @Override
+    public ResponseEntity<FixedBillResponse> activate(@PathVariable UUID code) {
+        log.info("m=activate code={}", code);
+        final FixedBill fixedBill = fixedBillService.changeStatus(code, FixedBillStatus.ACTIVE);
+        return ResponseEntity.ok(fixedBillMapper.toResponse(fixedBill));
+    }
+
     @DeleteMapping("/{code}")
     @Override
     public ResponseEntity<Void> deleteById(@PathVariable UUID code) {
@@ -108,5 +124,4 @@ public class FixedBillController implements FixedBillControllerApiDocs {
         fixedBillService.delete(code);
         return ResponseEntity.noContent().build();
     }
-
 }

@@ -79,7 +79,7 @@ public class FixedBillEntity extends AuditingEntity implements Serializable {
     @Column(name = "reference_year")
     private Integer referenceYear;
 
-    @OneToMany(mappedBy = "fixedBill", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @OneToMany(mappedBy = "fixedBill", cascade = {CascadeType.ALL}, orphanRemoval = true)
     private Set<CalendarFixedBillEntity> calendarFixedBillEntityList;
 
     public void delete() {

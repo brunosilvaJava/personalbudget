@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import static com.bts.personalbudget.core.domain.enumerator.FixedBillStatus.ACTIVE;
+import static com.bts.personalbudget.core.domain.enumerator.FixedBillStatus.INACTIVE;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -53,7 +54,6 @@ public class FixedBillService {
             } else {
                 CalendarFixedBillEntity calendarFixedBillEntity = new CalendarFixedBillEntity();
                 calendarFixedBillEntity.setDayLaunch(day);
-                calendarFixedBillEntity.setFlgActive(Boolean.TRUE);
                 calendarFixedBillEntity.setFixedBill(fixedBillEntity);
                 calendarFixedBillEntityList.add(calendarFixedBillEntity);
             }
@@ -138,6 +138,8 @@ public class FixedBillService {
 
         if (hasChanges) {
             log.info("m=update, message=ChangesDetected, code={}, savingToDatabase=true", code);
+            validationMandatoryFields(updateFixedBill);
+            updateFixedBill.validationDays();
             final FixedBillEntity updateEntity = fixedBillMapper.toEntity(updateFixedBill);
             updateEntity.setCalendarFixedBillEntityList(buildCalendarFixedBillEntityList(updateFixedBill, fixedBillEntity));
             fixedBillRepository.save(updateEntity);
@@ -146,6 +148,27 @@ public class FixedBillService {
         }
 
         return updateFixedBill;
+    }
+
+    @Transactional
+    public FixedBill changeStatus(final UUID code, final FixedBillStatus newStatus) {
+        log.info("m=changeStatus, code={}, newStatus={}", code, newStatus);
+
+        final FixedBillEntity fixedBillEntity = findEntity(code);
+
+        if (fixedBillEntity.getStatus() == newStatus) {
+            log.warn("m=changeStatus, message=Status is already {}, code={}", newStatus, code);
+            return fixedBillMapper.toModel(fixedBillEntity);
+        }
+
+        fixedBillEntity.setStatus(newStatus);
+
+        final FixedBillEntity savedEntity = fixedBillRepository.save(fixedBillEntity);
+
+        log.info("m=changeStatus, message=Status changed successfully, code={}, oldStatus={}, newStatus={}",
+                code, fixedBillEntity.getStatus(), newStatus);
+
+        return fixedBillMapper.toModel(savedEntity);
     }
 
     @Transactional
