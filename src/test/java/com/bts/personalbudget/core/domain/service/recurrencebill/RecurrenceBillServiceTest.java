@@ -13,6 +13,8 @@ import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBil
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -47,7 +49,7 @@ public class RecurrenceBillServiceTest {
         // Cenário - lançar contas da data estipulada
         InstallmentBill installmentBillMock = InstallmentBillFactory.buildModel();
         LocalDate dueDate = installmentBillMock.getNextInstallmentDate();
-        FixedBill fixedBillMock = FixedBillFactory.buildModel(RecurrenceType.MONTHLY, List.of(1));
+        FixedBill fixedBillMock = FixedBillFactory.buildModel(RecurrenceType.MONTHLY, Set.of(1));
         FinancialMovement installmentBillFinancialMovementMock = financialMovementMapper.toFinancialMovement(installmentBillMock, FinancialMovementStatus.PENDING);
         FinancialMovement fixedBillFinancialMovementMock = financialMovementMapper.toFinancialMovement(fixedBillMock, FinancialMovementStatus.PENDING);
 

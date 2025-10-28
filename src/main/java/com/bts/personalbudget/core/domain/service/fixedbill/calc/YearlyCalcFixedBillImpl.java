@@ -18,7 +18,7 @@ public class YearlyCalcFixedBillImpl implements CalcFixedBill {
     @Override
     public LocalDate calcNextDueDate(final FixedBill fixedBill,
                                      final LocalDate baseDate) {
-        final Set<Integer> dueDays = fixedBill.getDays();
+        final List<Integer> dueDays = fixedBill.getDays().stream().sorted().toList();
         final int dayOfYearBaseDate = baseDate.getDayOfYear();
         Year yearDueDate = Year.of(baseDate.getYear());
 

@@ -18,7 +18,7 @@ public class WeeklyCalcFixedBillImpl implements CalcFixedBill {
     public LocalDate calcNextDueDate(final FixedBill fixedBill,
                                      final LocalDate baseDate) {
         LocalDate nextDueDate = LocalDate.of(baseDate.getYear(), baseDate.getMonth(), baseDate.getDayOfMonth());
-        final Set<Integer> dueDayList = fixedBill.getDays();
+        final List<Integer> dueDayList = fixedBill.getDays().stream().sorted().toList();
         final int baseDay = nextDueDate.getDayOfWeek().getValue() + 1;
         int auxDay = 0;
         for (Integer dueDay : dueDayList) {

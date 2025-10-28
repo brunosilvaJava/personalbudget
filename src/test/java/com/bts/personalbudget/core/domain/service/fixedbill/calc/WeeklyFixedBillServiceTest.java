@@ -5,6 +5,8 @@ import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -19,7 +21,7 @@ public class WeeklyFixedBillServiceTest {
 
     @Test
     void shouldReturnWeeklyFixedBillNextDueDateWhenDueDateNextWeekly() {
-        FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.WEEKLY, List.of(2, 4));
+        FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.WEEKLY, Set.of(2, 4));
         LocalDate paramDate = LocalDate.of(2024, 10, 10);
         LocalDate nextDueDate = weeklyFixedBillService.calcNextDueDate(fixedBill, paramDate);
         assertEquals(LocalDate.of(2024, 10, 14), nextDueDate);
@@ -27,7 +29,7 @@ public class WeeklyFixedBillServiceTest {
 
     @Test
     void shouldReturnWeeklyFixedBillNextDueDateWhenDueDateSameWeekly() {
-        FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.WEEKLY, List.of(2, 7));
+        FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.WEEKLY, Set.of(2, 7));
         LocalDate paramDate = LocalDate.of(2024, 10, 10);
         LocalDate nextDueDate = weeklyFixedBillService.calcNextDueDate(fixedBill, paramDate);
         assertEquals(LocalDate.of(2024, 10, 12), nextDueDate);
@@ -35,7 +37,7 @@ public class WeeklyFixedBillServiceTest {
 
     @Test
     void shouldReturnWeeklyFixedBillNextDueDateWhenDueDateSameDay() {
-        FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.WEEKLY, List.of(2, 5));
+        FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.WEEKLY, Set.of(2, 5));
         LocalDate paramDate = LocalDate.of(2024, 10, 10);
         LocalDate nextDueDate = weeklyFixedBillService.calcNextDueDate(fixedBill, paramDate);
         assertEquals(LocalDate.of(2024, 10, 10), nextDueDate);
@@ -43,7 +45,7 @@ public class WeeklyFixedBillServiceTest {
 
     @Test
     void shouldReturnWeeklyFixedBillNextDueDate() {
-        FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.WEEKLY, List.of(2, 6));
+        FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.WEEKLY, Set.of(2, 6));
         LocalDate paramDate = LocalDate.of(2024, 10, 10);
         LocalDate nextDueDate = weeklyFixedBillService.calcNextDueDate(fixedBill, paramDate);
         assertEquals(LocalDate.of(2024, 10, 11), nextDueDate);

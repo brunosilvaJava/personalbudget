@@ -6,18 +6,20 @@ import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class FixedBillFactory {
 
-    private static final boolean COMMONS_YEAR = false;
     private static final String BLANK_DESCRIPTION = "     ";
-    private static final List<Integer> EMPTY_DAYS = List.of();
+    private static final Set<Integer> EMPTY_DAYS = Set.of();
     private static final BigDecimal ZERO_AMOUNT = BigDecimal.ZERO;
 
     public static final String OPERATION_TYPE = "operationType";
@@ -25,7 +27,7 @@ public class FixedBillFactory {
     public static final String AMOUNT = "amount";
     public static final String RECURRENCE_TYPE = "recurrenceType";
     public static final String DAYS = "days";
-    public static final String FLG_LEAP_YEAR = "flgLeapYear";
+    public static final String REFERENCE_YEAR = "referenceYear";
     public static final String STATUS = "status";
     public static final String START_DATE = "startDate";
     public static final String END_DATE = "endDate";
@@ -35,32 +37,27 @@ public class FixedBillFactory {
             OPERATION_TYPE, OperationType.DEBIT,
             DESCRIPTION, "test",
             AMOUNT, BigDecimal.valueOf(50),
-            RECURRENCE_TYPE, RecurrenceType.WEEKLY,
-            DAYS, List.of(1),
-            FLG_LEAP_YEAR, COMMONS_YEAR,
+            RECURRENCE_TYPE, RecurrenceType.YEARLY,
+            DAYS, Set.of(1, 180),
+            REFERENCE_YEAR, 2025,
             STATUS, FixedBillStatus.ACTIVE,
-            START_DATE, LocalDate.now().minusYears(10),
-            END_DATE, LocalDate.now().plusYears(10),
-            NEXT_DUE_DATE, LocalDate.now()
+            START_DATE, LocalDate.now(),
+            END_DATE, LocalDate.now().plusYears(1),
+            NEXT_DUE_DATE, LocalDate.now().plusDays(1)
     );
 
-    public static FixedBill buildModelWithEmptyMandatoryFields() {
-        return buildFixedBill(Map.of(
-                RECURRENCE_TYPE, RecurrenceType.WEEKLY,
-                DESCRIPTION, BLANK_DESCRIPTION,
-                AMOUNT, ZERO_AMOUNT,
-                DAYS, EMPTY_DAYS,
-                FLG_LEAP_YEAR, false,
-                STATUS, FixedBillStatus.ACTIVE
-        ));
+    public static FixedBill buildModel(RecurrenceType recurrenceType, Set<Integer> days) {
+        return new FixedBill(null, UUID.randomUUID(), (OperationType) PARAMS.get(OPERATION_TYPE),
+                (String) PARAMS.get(DESCRIPTION), (BigDecimal) PARAMS.get(AMOUNT),
+                recurrenceType, days,  (Integer) PARAMS.get(REFERENCE_YEAR),
+                FixedBillStatus.ACTIVE, LocalDate.now(), LocalDate.now().plusYears(1), null);
     }
 
-    public static FixedBill buildModel(RecurrenceType type, List<Integer> days) {
-        return buildFixedBill(Map.of(RECURRENCE_TYPE, type, DAYS, days));
-    }
-
-    public static FixedBill buildModel(RecurrenceType type, List<Integer> days, Boolean flgLeapYear) {
-        return buildFixedBill(Map.of(RECURRENCE_TYPE, type, DAYS, days, FLG_LEAP_YEAR, flgLeapYear));
+    public static FixedBill buildModel(RecurrenceType recurrenceType, Set<Integer> days, Integer referenceYear) {
+        return new FixedBill(null, UUID.randomUUID(), (OperationType) PARAMS.get(OPERATION_TYPE),
+                (String) PARAMS.get(DESCRIPTION), (BigDecimal) PARAMS.get(AMOUNT),
+                recurrenceType, days,  referenceYear,
+                FixedBillStatus.ACTIVE, LocalDate.now(), LocalDate.now().plusYears(1), null);
     }
 
     public static FixedBill buildModel(LocalDate date, OperationType operationType, String value) {
@@ -70,21 +67,27 @@ public class FixedBillFactory {
                 FixedBillFactory.NEXT_DUE_DATE, date));
     }
 
+    public static FixedBill buildModelWithEmptyMandatoryFields() {
+        return new FixedBill(null, UUID.randomUUID(), (OperationType) PARAMS.get(OPERATION_TYPE),
+                BLANK_DESCRIPTION, ZERO_AMOUNT,
+                null, EMPTY_DAYS,  (Integer) PARAMS.get(REFERENCE_YEAR),
+                FixedBillStatus.ACTIVE, LocalDate.now(), LocalDate.now().plusYears(1), null);
+    }
+
     public static FixedBill buildFixedBill(Map<String, Object> params) {
-        final FixedBill fixedBill =
-                new FixedBill(
-                        null,
-                        UUID.randomUUID(),
-                        params.get(OPERATION_TYPE) == null ? (OperationType) PARAMS.get(OPERATION_TYPE) : (OperationType) params.get(OPERATION_TYPE),
-                        params.get(DESCRIPTION) == null ? (String) PARAMS.get(DESCRIPTION) : (String) params.get(DESCRIPTION),
-                        params.get(AMOUNT) == null ? (BigDecimal) PARAMS.get(AMOUNT) : (BigDecimal) params.get(AMOUNT),
-                        params.get(RECURRENCE_TYPE) == null ? (RecurrenceType) PARAMS.get(RECURRENCE_TYPE) : (RecurrenceType) params.get(RECURRENCE_TYPE),
-                        params.get(DAYS) == null ? (List) PARAMS.get(DAYS) : (List) params.get(DAYS),
-                        params.get(STATUS) == null ? (FixedBillStatus) PARAMS.get(STATUS) : (FixedBillStatus) params.get(STATUS),
-                        params.get(START_DATE) == null ? (LocalDate) PARAMS.get(START_DATE) : (LocalDate) params.get(START_DATE),
-                        params.get(END_DATE) == null ? (LocalDate) PARAMS.get(END_DATE) : (LocalDate) params.get(END_DATE),
-                        params.get(NEXT_DUE_DATE) == null ? (LocalDate) PARAMS.get(NEXT_DUE_DATE) : (LocalDate) params.get(NEXT_DUE_DATE));
-        return fixedBill;
+        return new FixedBill(
+                null,
+                UUID.randomUUID(),
+                params.get(OPERATION_TYPE) == null ? (OperationType) PARAMS.get(OPERATION_TYPE) : (OperationType) params.get(OPERATION_TYPE),
+                params.get(DESCRIPTION) == null ? (String) PARAMS.get(DESCRIPTION) : (String) params.get(DESCRIPTION),
+                params.get(AMOUNT) == null ? (BigDecimal) PARAMS.get(AMOUNT) : (BigDecimal) params.get(AMOUNT),
+                params.get(RECURRENCE_TYPE) == null ? (RecurrenceType) PARAMS.get(RECURRENCE_TYPE) : (RecurrenceType) params.get(RECURRENCE_TYPE),
+                params.get(DAYS) == null ? (Set<Integer>) PARAMS.get(DAYS) : (Set<Integer>) params.get(DAYS),
+                params.get(REFERENCE_YEAR) == null ? (Integer) PARAMS.get(REFERENCE_YEAR) : (Integer) params.get(REFERENCE_YEAR),
+                params.get(STATUS) == null ? (FixedBillStatus) PARAMS.get(STATUS) : (FixedBillStatus) params.get(STATUS),
+                params.get(START_DATE) == null ? (LocalDate) PARAMS.get(START_DATE) : (LocalDate) params.get(START_DATE),
+                params.get(END_DATE) == null ? (LocalDate) PARAMS.get(END_DATE) : (LocalDate) params.get(END_DATE),
+                params.get(NEXT_DUE_DATE) == null ? (LocalDate) PARAMS.get(NEXT_DUE_DATE) : (LocalDate) params.get(NEXT_DUE_DATE));
     }
 
     public static FixedBillEntity buildFixedBillEntity(Map<String, Object> params) {
@@ -97,23 +100,18 @@ public class FixedBillFactory {
         fixedBill.setStartDate(params.get(START_DATE) == null ? (LocalDate) PARAMS.get(START_DATE) : (LocalDate) params.get(START_DATE));
         fixedBill.setEndDate(params.get(END_DATE) == null ? (LocalDate) PARAMS.get(END_DATE) : (LocalDate) params.get(END_DATE));
         fixedBill.setStatus(params.get(STATUS) == null ? (FixedBillStatus) PARAMS.get(STATUS) : (FixedBillStatus) params.get(STATUS));
+        fixedBill.setReferenceYear(params.get(REFERENCE_YEAR) == null ? (Integer) PARAMS.get(REFERENCE_YEAR) : (Integer) params.get(REFERENCE_YEAR));
 
         if(fixedBill.getOperationType() == OperationType.DEBIT) {
             fixedBill.setAmount(fixedBill.getAmount().negate());
         }
 
-        final Boolean flagLeapYear = (Boolean) params.get(FLG_LEAP_YEAR);
-        final List<Integer> days = (List<Integer>) PARAMS.get(DAYS);
+        final Set<Integer> days = (Set<Integer>) PARAMS.get(DAYS);
 
-        final List<CalendarFixedBillEntity> calendarFixedBillEntityList =
+        final Set<CalendarFixedBillEntity> calendarFixedBillEntityList =
                 days.stream().map(day ->
-                        CalendarFixedBillEntity.builder()
-                        .dayLaunch(day)
-                        .flgActive(Boolean.TRUE)
-                        .flgLeapYear(flagLeapYear != null ? flagLeapYear : Boolean.FALSE)
-                        .fixedBill(fixedBill)
-                        .build()
-                ).toList();
+                        new CalendarFixedBillEntity(day, fixedBill)
+                ).collect(Collectors.toSet());
 
         fixedBill.setCalendarFixedBillEntityList(calendarFixedBillEntityList);
 
@@ -122,5 +120,4 @@ public class FixedBillFactory {
 
         return fixedBill;
     }
-
 }

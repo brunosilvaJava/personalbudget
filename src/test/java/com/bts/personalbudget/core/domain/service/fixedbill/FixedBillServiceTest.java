@@ -10,12 +10,11 @@ import com.bts.personalbudget.core.domain.service.fixedbill.calc.MonthlyCalcFixe
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.WeeklyCalcFixedBillImpl;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.YearlyCalcFixedBillImpl;
 import com.bts.personalbudget.mapper.FixedBillMapper;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -25,15 +24,16 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static com.bts.personalbudget.core.domain.factory.FixedBillFactory.END_DATE;
+import static com.bts.personalbudget.core.domain.factory.FixedBillFactory.REFERENCE_YEAR;
 import static com.bts.personalbudget.core.domain.factory.FixedBillFactory.START_DATE;
 import static com.bts.personalbudget.core.domain.factory.FixedBillFactory.STATUS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,7 +55,7 @@ public class FixedBillServiceTest {
     @Test
     public void shouldSaveYearlyFixedBill() {
         when(calcFixedBillFactory.build(RecurrenceType.YEARLY)).thenReturn(new YearlyCalcFixedBillImpl());
-        List<Integer> days = List.of(1, 365);
+        Set<Integer> days = Set.of(1, 365);
         FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.YEARLY, days);
         saveTest(fixedBill, days);
     }
@@ -63,7 +63,7 @@ public class FixedBillServiceTest {
     @Test
     public void shouldSaveMonthlyFixedBill() {
         when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
-        List<Integer> days = List.of(1, 31);
+        Set<Integer> days = Set.of(1, 31);
         FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.MONTHLY, days);
         saveTest(fixedBill, days);
     }
@@ -71,35 +71,35 @@ public class FixedBillServiceTest {
     @Test
     public void shouldSaveWeeklyFixedBill() {
         when(calcFixedBillFactory.build(RecurrenceType.WEEKLY)).thenReturn(new WeeklyCalcFixedBillImpl());
-        List<Integer> days = List.of(7, 1);
+        Set<Integer> days = Set.of(1, 7);
         FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.WEEKLY, days);
         saveTest(fixedBill, days);
     }
 
     @Test
     public void shouldThrowsExceptionWhenDayIsInvalidForYearlyFixedBill() {
-        List<Integer> days = List.of(366);
+        Set<Integer> days = Set.of(366);
         FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.YEARLY, days);
         assertThrows(RuntimeException.class, () -> fixedBillService.save(fixedBill));
     }
 
     @Test
     public void shouldThrowsExceptionWhenDayIsInvalidForMonthlyFixedBill() {
-        List<Integer> days = List.of(32);
+        Set<Integer> days = Set.of(32);
         FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.MONTHLY, days);
         assertThrows(RuntimeException.class, () -> fixedBillService.save(fixedBill));
     }
 
     @Test
     public void shouldThrowsExceptionWhenDayIsInvalidForWeeklyFixedBill() {
-        List<Integer> days = List.of(8);
+        Set<Integer> days = Set.of(8);
         FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.WEEKLY, days);
         assertThrows(RuntimeException.class, () -> fixedBillService.save(fixedBill));
     }
 
     @Test
     public void shouldThrowsExceptionWhenThereIsEmptyMandatoryFields() {
-        FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.YEARLY, List.of());
+        FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.YEARLY, Set.of());
         assertThrows(RuntimeException.class, () -> fixedBillService.save(fixedBill));
     }
 
@@ -107,7 +107,7 @@ public class FixedBillServiceTest {
     public void shouldThrowsExceptionWhenThereIsNullFields() {
         assertThrows(RuntimeException.class, () -> fixedBillService.save(new FixedBill(null, null,
                 null, null, null, null, null, null,
-                null, null, null)));
+                null, null, null, null)));
     }
 
     @Test
@@ -117,7 +117,7 @@ public class FixedBillServiceTest {
     }
 
     @Test
-    void shouldReturnOptionalEmptyWhenFixedBillStatusIsInactive(){
+    void shouldReturnOptionalEmptyWhenFixedBillStatusIsInactive() {
         FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
                 STATUS, FixedBillStatus.INACTIVE
         ));
@@ -126,7 +126,7 @@ public class FixedBillServiceTest {
     }
 
     @Test
-    void shouldReturnOptionalEmptyWhenBaseDateIsBeforeStartDate(){
+    void shouldReturnOptionalEmptyWhenBaseDateIsBeforeStartDate() {
         LocalDate startDate = LocalDate.now();
         FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
                 START_DATE, startDate,
@@ -137,7 +137,7 @@ public class FixedBillServiceTest {
     }
 
     @Test
-    void shouldReturnOptionalEmptyWhenBaseDateIsAfterEndDate(){
+    void shouldReturnOptionalEmptyWhenBaseDateIsAfterEndDate() {
         LocalDate endDate = LocalDate.now();
         FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
                 START_DATE, endDate.minusMonths(1),
@@ -147,9 +147,7 @@ public class FixedBillServiceTest {
         assertTrue(nextDueDateOptional.isEmpty());
     }
 
-
-
-    private void saveTest(FixedBill fixedBill, List<Integer> days) {
+    private void saveTest(FixedBill fixedBill, Set<Integer> days) {
         fixedBillService.save(fixedBill);
 
         ArgumentCaptor<FixedBillEntity> argumentCaptor = ArgumentCaptor.forClass(FixedBillEntity.class);
@@ -168,19 +166,13 @@ public class FixedBillServiceTest {
         assertTrue(entity.getFlagActive());
         assertEquals(FixedBillStatus.ACTIVE, entity.getStatus());
 
-        List<CalendarFixedBillEntity> calendarFixedBillEntityList = entity.getCalendarFixedBillEntityList();
+        Set<CalendarFixedBillEntity> calendarFixedBillEntityList = entity.getCalendarFixedBillEntityList();
 
         assertEquals(days.size(), calendarFixedBillEntityList.size());
-        for (int i = 0; i < days.size(); i++) {
-            assertEquals(days.get(i), calendarFixedBillEntityList.get(i).getDayLaunch());
-            assertTrue(calendarFixedBillEntityList.get(i).getFlgActive());
-            assertFalse(calendarFixedBillEntityList.get(i).getFlgLeapYear());
-        }
     }
 
     @Test
-    void mustNotUpdateRecurrenceBillWhenParametersIsNull() {
-
+    void mustNotUpdateFixedBillWhenAllParametersAreNull() {
         FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
 
         UUID code = fixedBillEntityMock.getCode();
@@ -188,8 +180,8 @@ public class FixedBillServiceTest {
         String description = null;
         BigDecimal amount = null;
         RecurrenceType recurrenceType = null;
-        List<Integer> days = null;
-        Boolean flgLeapYear = null;
+        Set<Integer> days = null;
+        Integer referenceYear = null;
         FixedBillStatus status = null;
         LocalDate startDate = null;
         LocalDate endDate = null;
@@ -197,53 +189,150 @@ public class FixedBillServiceTest {
         when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
 
         FixedBill updatedFixedBill = fixedBillService.update(code, operationType, description, amount, recurrenceType,
-                days, flgLeapYear, status, startDate, endDate);
+                days, referenceYear, status, startDate, endDate);
 
         verify(fixedBillRepository, never()).save(any());
 
-        assertEquals(fixedBillEntityMock.getOperationType(), updatedFixedBill.getOperationType(), "operation type is not equals");
-        assertEquals(fixedBillEntityMock.getDescription(), updatedFixedBill.getDescription(), "description is not equals");
-        assertEquals(fixedBillEntityMock.getAmount(), updatedFixedBill.getAmount(), "amount is not equals");
-        assertEquals(fixedBillEntityMock.getRecurrenceType(), updatedFixedBill.getRecurrenceType(), "recurrence type is not equals");
-        assertTrue(fixedBillEntityMock.getCalendarFixedBillEntityList().containsAll(fixedBillEntityMock.getCalendarFixedBillEntityList()), "does not contain every day");
-        assertEquals(fixedBillEntityMock.getStatus(), updatedFixedBill.getStatus(), "status is not equals");
-        assertEquals(fixedBillEntityMock.getStartDate(), updatedFixedBill.getStartDate(), "start date is not equals");
-        assertEquals(fixedBillEntityMock.getEndDate(), updatedFixedBill.getEndDate(), "end date is not equals");
-
+        assertEquals(fixedBillEntityMock.getOperationType(), updatedFixedBill.getOperationType());
+        assertEquals(fixedBillEntityMock.getDescription(), updatedFixedBill.getDescription());
+        assertEquals(fixedBillEntityMock.getAmount(), updatedFixedBill.getAmount());
     }
 
     @Test
-    void mustUpdateRecurrenceBillWhenParametersIsNull() {
-
+    void mustUpdateFixedBillWhenParametersAreProvided() {
         FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
 
         UUID code = fixedBillEntityMock.getCode();
         OperationType operationType = OperationType.CREDIT;
-        String description = "testTwo";
-        BigDecimal amount = BigDecimal.valueOf(25);
+        String description = "Updated Description";
+        BigDecimal amount = BigDecimal.valueOf(250.00);
         RecurrenceType recurrenceType = RecurrenceType.MONTHLY;
-        List<Integer> days = List.of(5);
-        Boolean flgLeapYear = Boolean.TRUE;
+        Set<Integer> days = Set.of(5, 15);
+        Integer referenceYear = 2024;
         FixedBillStatus status = FixedBillStatus.INACTIVE;
-        LocalDate startDate = LocalDate.now().minusYears(5);
-        LocalDate endDate = LocalDate.now().plusYears(5);
+        LocalDate startDate = LocalDate.now().minusYears(1);
+        LocalDate endDate = LocalDate.now().plusYears(1);
 
         when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
+        when(fixedBillRepository.save(any(FixedBillEntity.class))).thenReturn(fixedBillEntityMock);
 
         FixedBill updatedFixedBill = fixedBillService.update(code, operationType, description, amount, recurrenceType,
-                days, flgLeapYear, status, startDate, endDate);
+                days, referenceYear, status, startDate, endDate);
 
-        verify(fixedBillRepository).save(any());
+        verify(fixedBillRepository, times(1)).save(any(FixedBillEntity.class));
 
         assertEquals(operationType, updatedFixedBill.getOperationType(), "operation type is not equals");
         assertEquals(description, updatedFixedBill.getDescription(), "description is not equals");
         assertEquals(amount, updatedFixedBill.getAmount(), "amount is not equals");
         assertEquals(recurrenceType, updatedFixedBill.getRecurrenceType(), "recurrence type is not equals");
-        assertTrue(fixedBillEntityMock.getCalendarFixedBillEntityList().containsAll(fixedBillEntityMock.getCalendarFixedBillEntityList()), "does not contain every day");
         assertEquals(status, updatedFixedBill.getStatus(), "status is not equals");
         assertEquals(startDate, updatedFixedBill.getStartDate(), "start date is not equals");
         assertEquals(endDate, updatedFixedBill.getEndDate(), "end date is not equals");
-
+        assertEquals(referenceYear, updatedFixedBill.getReferenceYear(), "reference year is not equals");
     }
 
+    @Test
+    void mustUpdateOnlyProvidedFields() {
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+
+        String originalDescription = fixedBillEntityMock.getDescription();
+        BigDecimal originalAmount = fixedBillEntityMock.getAmount();
+
+        UUID code = fixedBillEntityMock.getCode();
+        OperationType operationType = OperationType.CREDIT;
+        String description = null;
+        BigDecimal amount = null;
+        RecurrenceType recurrenceType = null;
+        Set<Integer> days = null;
+        Integer referenceYear = null;
+        FixedBillStatus status = null;
+        LocalDate startDate = null;
+        LocalDate endDate = null;
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
+        when(fixedBillRepository.save(any(FixedBillEntity.class))).thenReturn(fixedBillEntityMock);
+
+        FixedBill updatedFixedBill = fixedBillService.update(code, operationType, description, amount, recurrenceType,
+                days, referenceYear, status, startDate, endDate);
+
+        verify(fixedBillRepository, times(1)).save(any(FixedBillEntity.class));
+
+        assertEquals(operationType, updatedFixedBill.getOperationType());
+        assertEquals(originalDescription, updatedFixedBill.getDescription());
+        assertEquals(originalAmount, updatedFixedBill.getAmount());
+    }
+
+    @Test
+    void shouldChangeStatusToInactive() {
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        fixedBillEntityMock.setStatus(FixedBillStatus.ACTIVE);
+
+        UUID code = fixedBillEntityMock.getCode();
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
+        when(fixedBillRepository.save(any(FixedBillEntity.class))).thenReturn(fixedBillEntityMock);
+
+        FixedBill result = fixedBillService.changeStatus(code, FixedBillStatus.INACTIVE);
+
+        verify(fixedBillRepository, times(1)).save(fixedBillEntityMock);
+        assertEquals(FixedBillStatus.INACTIVE, fixedBillEntityMock.getStatus());
+        assertEquals(FixedBillStatus.INACTIVE, result.getStatus());
+    }
+
+    @Test
+    void shouldChangeStatusToActive() {
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        fixedBillEntityMock.setStatus(FixedBillStatus.INACTIVE);
+
+        UUID code = fixedBillEntityMock.getCode();
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
+        when(fixedBillRepository.save(any(FixedBillEntity.class))).thenReturn(fixedBillEntityMock);
+
+        FixedBill result = fixedBillService.changeStatus(code, FixedBillStatus.ACTIVE);
+
+        verify(fixedBillRepository, times(1)).save(fixedBillEntityMock);
+        assertEquals(FixedBillStatus.ACTIVE, fixedBillEntityMock.getStatus());
+        assertEquals(FixedBillStatus.ACTIVE, result.getStatus());
+    }
+
+    @Test
+    void shouldNotChangeStatusWhenAlreadyInDesiredState() {
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        fixedBillEntityMock.setStatus(FixedBillStatus.ACTIVE);
+
+        UUID code = fixedBillEntityMock.getCode();
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
+
+        FixedBill result = fixedBillService.changeStatus(code, FixedBillStatus.ACTIVE);
+
+        verify(fixedBillRepository, never()).save(any());
+        assertEquals(FixedBillStatus.ACTIVE, result.getStatus());
+    }
+
+    @Test
+    void shouldSaveYearlyFixedBillWithReferenceYear() {
+        when(calcFixedBillFactory.build(RecurrenceType.YEARLY)).thenReturn(new YearlyCalcFixedBillImpl());
+
+        Set<Integer> days = Set.of(1, 182, 365);
+        Integer referenceYear = 2024;
+
+        FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
+                REFERENCE_YEAR, referenceYear
+        ));
+        fixedBill.setRecurrenceType(RecurrenceType.YEARLY);
+        fixedBill.setDays(days);
+
+        fixedBillService.save(fixedBill);
+
+        ArgumentCaptor<FixedBillEntity> argumentCaptor = ArgumentCaptor.forClass(FixedBillEntity.class);
+        verify(fixedBillRepository).save(argumentCaptor.capture());
+
+        FixedBillEntity entity = argumentCaptor.getValue();
+
+        assertEquals(RecurrenceType.YEARLY, entity.getRecurrenceType());
+        assertEquals(referenceYear, entity.getReferenceYear());
+        assertEquals(days.size(), entity.getCalendarFixedBillEntityList().size());
+    }
 }

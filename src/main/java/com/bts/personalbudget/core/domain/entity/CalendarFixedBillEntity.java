@@ -15,6 +15,7 @@ import lombok.*;
 
 
 @Data
+@NoArgsConstructor
 @EqualsAndHashCode(of = {"dayLaunch", "fixedBill"}, callSuper = false)
 @Entity
 @Table(name = "calendar_fixed_bill")
@@ -31,4 +32,9 @@ public class CalendarFixedBillEntity extends AuditingEntity{
     @ManyToOne(cascade = CascadeType.PERSIST)
     @JoinColumn(name = "id_fixed_bill")
     private FixedBillEntity fixedBill;
+
+    public CalendarFixedBillEntity(Integer dayLaunch, FixedBillEntity fixedBill) {
+        this.dayLaunch = dayLaunch;
+        this.fixedBill = fixedBill;
+    }
 }

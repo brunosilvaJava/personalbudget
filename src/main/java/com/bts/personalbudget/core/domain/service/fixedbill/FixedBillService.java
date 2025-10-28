@@ -52,10 +52,7 @@ public class FixedBillService {
             if (calendarByDay.isPresent()) {
                 calendarFixedBillEntityList.add(calendarByDay.get());
             } else {
-                CalendarFixedBillEntity calendarFixedBillEntity = new CalendarFixedBillEntity();
-                calendarFixedBillEntity.setDayLaunch(day);
-                calendarFixedBillEntity.setFixedBill(fixedBillEntity);
-                calendarFixedBillEntityList.add(calendarFixedBillEntity);
+                calendarFixedBillEntityList.add(new CalendarFixedBillEntity(day, fixedBillEntity));
             }
         }
         return calendarFixedBillEntityList;
