@@ -10,18 +10,13 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.util.Objects;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+
+import lombok.*;
 
 
-@AllArgsConstructor
+@Data
 @NoArgsConstructor
-@Getter
-@Setter
-@Builder
+@EqualsAndHashCode(of = {"dayLaunch", "fixedBill"}, callSuper = false)
 @Entity
 @Table(name = "calendar_fixed_bill")
 public class CalendarFixedBillEntity extends AuditingEntity{
@@ -34,27 +29,12 @@ public class CalendarFixedBillEntity extends AuditingEntity{
     @Column(name = "day_launch", columnDefinition = "SMALLINT")
     private Integer dayLaunch;
 
-    @Column(name = "flg_leap_year")
-    private Boolean flgLeapYear;
-
-    @Column(name = "flg_active")
-    private Boolean flgActive;
-
     @ManyToOne(cascade = CascadeType.PERSIST)
     @JoinColumn(name = "id_fixed_bill")
     private FixedBillEntity fixedBill;
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        CalendarFixedBillEntity that = (CalendarFixedBillEntity) o;
-        return id.equals(that.id);
+    public CalendarFixedBillEntity(Integer dayLaunch, FixedBillEntity fixedBill) {
+        this.dayLaunch = dayLaunch;
+        this.fixedBill = fixedBill;
     }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id);
-    }
-
 }

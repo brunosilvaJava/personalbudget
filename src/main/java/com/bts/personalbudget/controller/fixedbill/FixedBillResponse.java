@@ -1,4 +1,4 @@
-package com.bts.personalbudget.controller.installmentbill;
+package com.bts.personalbudget.controller.fixedbill;
 
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
@@ -36,6 +36,10 @@ public record FixedBillResponse (
         @Schema(description = "determines if it is a leap year")
         @JsonProperty("flg_leap_year")
         Boolean flgLeapYear,
+
+        @Schema(description = "Reference year for YEARLY recurrence", example = "2024")
+        @JsonProperty("reference_year")
+        Integer referenceYear,
 
         @Schema(description = "Current status of the fixed bill (e.g., ACTIVE, COMPLETED, CANCELED)", example = "ACTIVE")
         FixedBillStatus status,

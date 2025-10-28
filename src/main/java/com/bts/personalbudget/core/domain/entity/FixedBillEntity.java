@@ -24,6 +24,8 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -67,20 +69,32 @@ public class FixedBillEntity extends AuditingEntity implements Serializable {
     @Column(name = "next_due_date")
     private LocalDate nextDueDate;
 
-    @Column(name = "end_date", nullable = false)
+    @Column(name = "end_date")
     private LocalDate endDate;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "recurrence_type", nullable = false, columnDefinition = "varchar")
     private RecurrenceType recurrenceType;
 
-    @OneToMany(mappedBy = "fixedBill", cascade = CascadeType.PERSIST)
-    private List<CalendarFixedBillEntity> calendarFixedBillEntityList;
+    @Column(name = "reference_year")
+    private Integer referenceYear;
+
+    @OneToMany(mappedBy = "fixedBill", cascade = {CascadeType.ALL}, orphanRemoval = true)
+    private Set<CalendarFixedBillEntity> calendarFixedBillEntityList;
 
     public void delete() {
         if (flagActive) {
             flagActive = false;
         }
+    }
+
+    public Optional<CalendarFixedBillEntity> findCalendarByDay(final Integer day) {
+        if (calendarFixedBillEntityList == null || calendarFixedBillEntityList.isEmpty()) {
+            return Optional.empty();
+        }
+        return calendarFixedBillEntityList.stream()
+                .filter(calendarFixedBillEntity -> calendarFixedBillEntity.getDayLaunch().equals(day))
+                .findFirst();
     }
 
 }

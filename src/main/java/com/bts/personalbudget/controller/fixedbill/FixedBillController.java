@@ -1,8 +1,6 @@
 package com.bts.personalbudget.controller.fixedbill;
 
 import com.bts.personalbudget.controller.fixedbill.config.FixedBillControllerApiDocs;
-import com.bts.personalbudget.controller.installmentbill.FixedBillResponse;
-import com.bts.personalbudget.controller.installmentbill.FixedBillUpdateRequest;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
@@ -15,6 +13,10 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -40,17 +42,35 @@ public class FixedBillController implements FixedBillControllerApiDocs {
 
     @GetMapping
     @Override
-    public ResponseEntity<List<FixedBillResponse>> find(
+    public ResponseEntity<PagedFixedBillResponse> find(
             @RequestParam(defaultValue = "") String description,
             @RequestParam(value = "operation_type", required = false) List<OperationType> operationTypes,
             @RequestParam(value = "status", required = false) List<FixedBillStatus> statuses,
-            @RequestParam(value = "recurrence_type", required = false) List<RecurrenceType> recurrenceTypes) {
+            @RequestParam(value = "recurrence_type", required = false) List<RecurrenceType> recurrenceTypes,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "description") String sortBy,
+            @RequestParam(defaultValue = "ASC") String sortDirection) {
 
-        log.info("m=findAll, description={}, operationTypes={}, statuses={}, recurrenceTypes={}",
-                description, operationTypes, statuses, recurrenceTypes);
+        log.info("m=find, description={}, operationTypes={}, statuses={}, recurrenceTypes={}, page={}, size={}, sortBy={}, sortDirection={}",
+                description, operationTypes, statuses, recurrenceTypes, page, size, sortBy, sortDirection);
 
-        List<FixedBill> fixedBills = fixedBillService.find(description, operationTypes, statuses, recurrenceTypes);
-        return ResponseEntity.ok(fixedBillMapper.toResponseList(fixedBills));
+        Sort.Direction direction = sortDirection.equalsIgnoreCase("ASC") ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+        Page<FixedBill> pagedResult = fixedBillService.find(description, operationTypes, statuses, recurrenceTypes, pageable);
+
+        PagedFixedBillResponse response = new PagedFixedBillResponse(
+                fixedBillMapper.toResponseList(pagedResult.getContent()),
+                pagedResult.getNumber(),
+                pagedResult.getSize(),
+                pagedResult.getTotalElements(),
+                pagedResult.getTotalPages(),
+                pagedResult.isFirst(),
+                pagedResult.isLast()
+        );
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{code}")
@@ -72,12 +92,28 @@ public class FixedBillController implements FixedBillControllerApiDocs {
                 fixedBillUpdateRequest.amount(),
                 fixedBillUpdateRequest.recurrenceType(),
                 fixedBillUpdateRequest.days(),
-                fixedBillUpdateRequest.flgLeapYear(),
+                fixedBillUpdateRequest.referenceYear(),
                 fixedBillUpdateRequest.status(),
                 fixedBillUpdateRequest.startDate(),
                 fixedBillUpdateRequest.endDate()
         );
 
+        return ResponseEntity.ok(fixedBillMapper.toResponse(fixedBill));
+    }
+
+    @PatchMapping("/{code}/inactivate")
+    @Override
+    public ResponseEntity<FixedBillResponse> inactivate(@PathVariable UUID code) {
+        log.info("m=inactivate code={}", code);
+        final FixedBill fixedBill = fixedBillService.changeStatus(code, FixedBillStatus.INACTIVE);
+        return ResponseEntity.ok(fixedBillMapper.toResponse(fixedBill));
+    }
+
+    @PatchMapping("/{code}/activate")
+    @Override
+    public ResponseEntity<FixedBillResponse> activate(@PathVariable UUID code) {
+        log.info("m=activate code={}", code);
+        final FixedBill fixedBill = fixedBillService.changeStatus(code, FixedBillStatus.ACTIVE);
         return ResponseEntity.ok(fixedBillMapper.toResponse(fixedBill));
     }
 
@@ -88,5 +124,4 @@ public class FixedBillController implements FixedBillControllerApiDocs {
         fixedBillService.delete(code);
         return ResponseEntity.noContent().build();
     }
-
 }

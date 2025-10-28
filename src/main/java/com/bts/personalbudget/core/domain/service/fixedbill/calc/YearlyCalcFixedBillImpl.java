@@ -4,6 +4,8 @@ import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import java.time.LocalDate;
 import java.time.Year;
 import java.util.List;
+import java.util.Set;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +18,7 @@ public class YearlyCalcFixedBillImpl implements CalcFixedBill {
     @Override
     public LocalDate calcNextDueDate(final FixedBill fixedBill,
                                      final LocalDate baseDate) {
-        final List<Integer> dueDays = fixedBill.getDays();
+        final List<Integer> dueDays = fixedBill.getDays().stream().sorted().toList();
         final int dayOfYearBaseDate = baseDate.getDayOfYear();
         Year yearDueDate = Year.of(baseDate.getYear());
 
@@ -35,7 +37,7 @@ public class YearlyCalcFixedBillImpl implements CalcFixedBill {
             }
         }
         if (nextDueDay == 0) {
-            nextDueDay = dueDays.getFirst();
+            nextDueDay = dueDays.stream().findFirst().orElseThrow();
             yearDueDate = yearDueDate.plusYears(1);
             if (nextDueDay > LAST_FIXED_YEAR_DAY) {
                 if (fixedBill.isLeapYear() && !yearDueDate.isLeap()) {

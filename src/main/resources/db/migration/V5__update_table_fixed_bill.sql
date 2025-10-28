@@ -1,1 +1,0 @@
- alter table fixed_bill ADD next_due_date DATE COMMENT 'next due date';

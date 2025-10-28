@@ -1,4 +1,4 @@
-package com.bts.personalbudget.controller.installmentbill;
+package com.bts.personalbudget.controller.fixedbill;
 
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Schema(description = "Request data for updating an existing fixed bill.")
@@ -37,11 +37,11 @@ public record FixedBillUpdateRequest (
         RecurrenceType recurrenceType,
 
         @Schema(description = "Update days of the fixed bill", example = "4,19")
-        List<Integer> days,
+        Set<Integer> days,
 
-        @Schema(description = "Update whether it is a leap year or not")
-        @JsonProperty("flg_leap_year")
-        Boolean flgLeapYear,
+        @Schema(description = "Update reference year for YEARLY recurrence", example = "2024")
+        @JsonProperty("reference_year")
+        Integer referenceYear,
 
         @Schema(description = "Update status of the fixed bill", example = "INACTIVE")
         FixedBillStatus status,
@@ -55,4 +55,3 @@ public record FixedBillUpdateRequest (
         LocalDate endDate
 ){
 }
-

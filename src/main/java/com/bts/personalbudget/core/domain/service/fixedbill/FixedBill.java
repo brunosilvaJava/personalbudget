@@ -4,15 +4,20 @@ import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
+
 import static java.math.BigDecimal.ZERO;
 
 @Slf4j
@@ -21,26 +26,30 @@ import static java.math.BigDecimal.ZERO;
 @Setter
 public class FixedBill implements BalanceCalcData {
 
+    private Long id;
     private UUID code;
     private OperationType operationType;
     private String description;
     private BigDecimal amount;
     private RecurrenceType recurrenceType;
-    private List<Integer> days;
-    private Boolean flgLeapYear;
+    private Set<Integer> days;
+    private Integer referenceYear;
     private FixedBillStatus status;
     private LocalDate startDate;
     private LocalDate endDate;
     private LocalDate nextDueDate;
 
-    public FixedBill(UUID code, OperationType operationType, String description, BigDecimal amount, RecurrenceType recurrenceType, List<Integer> days, Boolean flgLeapYear, FixedBillStatus status, LocalDate startDate, LocalDate endDate, LocalDate nextDueDate) {
+    public FixedBill(Long id, UUID code, OperationType operationType, String description, BigDecimal amount,
+                     RecurrenceType recurrenceType, Set<Integer> days, Integer referenceYear, FixedBillStatus status,
+                     LocalDate startDate, LocalDate endDate, LocalDate nextDueDate) {
+        this.id = id;
         this.code = code;
         this.operationType = operationType;
         this.description = description;
         this.amount = amount;
         this.recurrenceType = recurrenceType;
         this.days = days;
-        this.flgLeapYear = flgLeapYear;
+        this.referenceYear = referenceYear;
         this.status = status;
         this.startDate = startDate;
         this.endDate = endDate;
@@ -55,32 +64,80 @@ public class FixedBill implements BalanceCalcData {
         }
     }
 
-    void update(final OperationType operationType,
-                final String description,
-                final BigDecimal amount,
-                final RecurrenceType recurrenceType,
-                final List<Integer> days,
-                final Boolean flgLeapYear,
-                final FixedBillStatus status,
-                final LocalDate startDate,
-                final LocalDate endDate) {
-        this.operationType = operationType != null ? operationType : this.operationType;
-        this.description = description != null ? description : this.description;
-        this.amount = amount != null ? amount : this.amount;
-        this.recurrenceType = recurrenceType != null ? recurrenceType : this.recurrenceType;
-        this.days = days != null ? days : this.days;
-        this.flgLeapYear = flgLeapYear != null ? flgLeapYear : this.flgLeapYear;
-        this.status = status != null ? status : this.status;
-        this.startDate = startDate != null ? startDate : this.startDate;
-        this.endDate = endDate != null ? endDate : this.endDate;
+    boolean update(final OperationType operationType,
+                   final String description,
+                   final BigDecimal amount,
+                   final RecurrenceType recurrenceType,
+                   final Set<Integer> days,
+                   final Integer referenceYear,
+                   final FixedBillStatus status,
+                   final LocalDate startDate,
+                   final LocalDate endDate) {
+
+        boolean hasChanges = false;
+
+        if (operationType != null && this.operationType != operationType) {
+            this.operationType = operationType;
+            hasChanges = true;
+        }
+
+        if (description != null && !this.description.equals(description)) {
+            this.description = description;
+            hasChanges = true;
+        }
+
+        if (amount != null && (this.amount == null || this.amount.compareTo(amount) != 0)) {
+            this.amount = amount;
+            hasChanges = true;
+        }
+
+        if (recurrenceType != null && this.recurrenceType != recurrenceType) {
+            this.recurrenceType = recurrenceType;
+            hasChanges = true;
+        }
+
+        if (days != null && !this.days.equals(days)) {
+            this.days = days;
+            hasChanges = true;
+        }
+
+        if (referenceYear != null && (this.referenceYear == null || !this.referenceYear.equals(referenceYear))) {
+            this.referenceYear = referenceYear;
+            hasChanges = true;
+        }
+
+        if (status != null && this.status != status) {
+            this.status = status;
+            hasChanges = true;
+        }
+
+        if (startDate != null && (this.startDate == null || !this.startDate.equals(startDate))) {
+            this.startDate = startDate;
+            hasChanges = true;
+        }
+
+        if (endDate != null && (this.endDate == null || !this.endDate.equals(endDate))) {
+            this.endDate = endDate;
+            hasChanges = true;
+        }
+
+        return hasChanges;
     }
 
     public boolean isLeapYear() {
-        return flgLeapYear != null && flgLeapYear;
+        return Year.isLeap(referenceYear);
     }
 
     public boolean isCurrent(final LocalDate baseDate) {
-        return status == FixedBillStatus.ACTIVE && !(baseDate.isBefore(startDate) || baseDate.isAfter(endDate));
+        if (status != FixedBillStatus.ACTIVE) {
+            return false;
+        }
+
+        if (baseDate.isBefore(startDate)) {
+            return false;
+        }
+
+        return endDate == null || !baseDate.isAfter(endDate);
     }
 
     public void validationDays() {
@@ -95,7 +152,7 @@ public class FixedBill implements BalanceCalcData {
                 }
             }
             if (!isValid) {
-                log.error("m=validationDays, error=InvalidDays,  recurrenceType={}, days={}",  recurrenceType, days);
+                log.error("m=validationDays, error=InvalidDays,  recurrenceType={}, days={}", recurrenceType, days);
                 throw new RecurrenceTypeDayInvalidException(recurrenceType, days);
             }
         }
