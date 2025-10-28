@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import static java.math.BigDecimal.ZERO;
 
+@Schema(description = "Response representation of a financial movement")
 public record FinancialMovementResponse (
 
         @Schema(description = "Unique identifier for the financial movement", example = "123e4567-e89b-12d3-a456-426614174000")

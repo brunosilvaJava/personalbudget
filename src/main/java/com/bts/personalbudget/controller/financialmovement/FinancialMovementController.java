@@ -10,6 +10,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -36,6 +40,7 @@ public class FinancialMovementController implements FinancialMovementControllerA
     private final FinancialMovementMapper mapper;
 
     @PostMapping
+    @Override
     public ResponseEntity<Void> create(@RequestBody @Valid final FinancialMovementRequest request) {
         log.info("m=create, request={}", request);
         service.create(mapper.toModel(request));
@@ -43,22 +48,42 @@ public class FinancialMovementController implements FinancialMovementControllerA
     }
 
     @GetMapping
-    public ResponseEntity<List<FinancialMovementResponse>> find(@RequestParam(defaultValue = "")
-                                                                String description,
-                                                                @RequestParam(value = "operation_type", required = false)
-                                                                List<OperationType> operationTypes,
-                                                                @RequestParam(value = "status", required = false)
-                                                                List<FinancialMovementStatus> statuses,
-                                                                @RequestParam("start_date")
-                                                                LocalDate startDate,
-                                                                @RequestParam("end_date")
-                                                                LocalDate endDate) {
-        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}",
-                description, operationTypes, statuses, startDate, endDate);
-        return ResponseEntity.ok(mapper.toResponse(service.find(description, operationTypes, statuses, startDate, endDate)));
+    @Override
+    public ResponseEntity<PagedFinancialMovementResponse> find(
+            @RequestParam(defaultValue = "") String description,
+            @RequestParam(value = "operation_type", required = false) List<OperationType> operationTypes,
+            @RequestParam(value = "status", required = false) List<FinancialMovementStatus> statuses,
+            @RequestParam("start_date") LocalDate startDate,
+            @RequestParam("end_date") LocalDate endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "movementDate") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDirection) {
+
+        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, page={}, size={}, sortBy={}, sortDirection={}",
+                description, operationTypes, statuses, startDate, endDate, page, size, sortBy, sortDirection);
+
+        Sort.Direction direction = sortDirection.equalsIgnoreCase("ASC") ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+        Page<FinancialMovement> pagedResult = service.find(
+                description, operationTypes, statuses, startDate, endDate, pageable);
+
+        PagedFinancialMovementResponse response = new PagedFinancialMovementResponse(
+                mapper.toResponse(pagedResult.getContent()),
+                pagedResult.getNumber(),
+                pagedResult.getSize(),
+                pagedResult.getTotalElements(),
+                pagedResult.getTotalPages(),
+                pagedResult.isFirst(),
+                pagedResult.isLast()
+        );
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{code}")
+    @Override
     public ResponseEntity<FinancialMovementResponse> find(@PathVariable UUID code) throws NotFoundException {
         log.info("m=find, code={}", code);
         FinancialMovement financialMovement = service.find(code);
@@ -67,6 +92,7 @@ public class FinancialMovementController implements FinancialMovementControllerA
     }
 
     @PatchMapping("/{code}")
+    @Override
     public ResponseEntity<?> update(@PathVariable UUID code,
                                     @RequestBody @Valid final FinancialMovementUpdateRequest updateRequest) throws NotFoundException {
         log.info("m=update, updateRequest={}", updateRequest);
@@ -74,6 +100,7 @@ public class FinancialMovementController implements FinancialMovementControllerA
     }
 
     @DeleteMapping("/{code}")
+    @Override
     public ResponseEntity<Void> delete(@PathVariable UUID code) throws NotFoundException {
         log.info("m=delete, code={}", code);
         service.delete(code);

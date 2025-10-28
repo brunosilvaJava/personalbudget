@@ -71,9 +71,22 @@ public class FixedBillService {
         return fixedBillMapper.toModel(fixedBillEntity);
     }
 
-    public List<FixedBill> findAll() {
-        log.info("m=findAll");
-        final List<FixedBillEntity> fixedBillEntityList = fixedBillRepository.findAllByFlagActiveTrue();
+    public List<FixedBill> find(
+            final String description,
+            final List<OperationType> operationTypes,
+            final List<FixedBillStatus> statuses,
+            final List<RecurrenceType> recurrenceTypes) {
+
+        log.info("m=find, description={}, operationTypes={}, statuses={}, recurrenceTypes={}",
+                description, operationTypes, statuses, recurrenceTypes);
+
+        List<FixedBillEntity> fixedBillEntityList = fixedBillRepository.findByFilters(
+                description,
+                operationTypes,
+                statuses,
+                recurrenceTypes
+        );
+
         return fixedBillMapper.toModelList(fixedBillEntityList);
     }
 

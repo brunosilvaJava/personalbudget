@@ -9,6 +9,8 @@ import com.bts.personalbudget.repository.FinancialMovementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,28 +43,32 @@ public class FinancialMovementService {
         financialMovementList.forEach(this::create);
     }
 
-    public List<FinancialMovement> find(
+    public Page<FinancialMovement> find(
             final String description,
             final List<OperationType> operationTypes,
             final List<FinancialMovementStatus> statuses,
             final LocalDate startDate,
-            final LocalDate endDate) {
-        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}",
-                description, operationTypes, statuses, startDate, endDate);
+            final LocalDate endDate,
+            final Pageable pageable) {
+
+        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, pageable={}",
+                description, operationTypes, statuses, startDate, endDate, pageable);
 
         final List<OperationType> filterOperationTypes = operationTypes != null && !operationTypes.isEmpty() ?
                 operationTypes : Arrays.stream(OperationType.values()).toList();
         final List<FinancialMovementStatus> filterStatuses = statuses != null && !statuses.isEmpty() ?
                 statuses : Arrays.stream(FinancialMovementStatus.values()).toList();
 
-        return mapper.toModel(
+        Page<FinancialMovementEntity> pagedEntities =
                 repository.findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
-                                description,
-                                filterOperationTypes,
-                                filterStatuses,
-                                startDate.atStartOfDay(),
-                                endDate.atStartOfDay().plusDays(1))
-                        .orElseThrow());
+                        description,
+                        filterOperationTypes,
+                        filterStatuses,
+                        startDate.atStartOfDay(),
+                        endDate.atStartOfDay().plusDays(1),
+                        pageable);
+
+        return pagedEntities.map(mapper::toModel);
     }
 
     public FinancialMovement find(final UUID code) throws NotFoundException {

@@ -3,10 +3,11 @@ package com.bts.personalbudget.repository;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -18,48 +19,52 @@ public interface FinancialMovementRepository extends JpaRepository<FinancialMove
 
     Optional<FinancialMovementEntity> findByCode(UUID code);
 
-    @Query("SELECT SUM(f.amountPaid) " +
-            "FROM FinancialMovementEntity f " +
-            "WHERE f.status = :status " +
-            "AND f.payDate <= :payDate")
-    Optional<BigDecimal> sumAmountPaidByStatusAndPayDateLessThanEqual(
-            @Param("status") FinancialMovementStatus status,
-            @Param("payDate") LocalDateTime payDate);
-
-    @Query("SELECT SUM(f.amount) " +
-            "FROM FinancialMovementEntity f " +
-            "WHERE f.status in :statuses " +
-            "AND f.dueDate <= :dueDate")
-    Optional<BigDecimal> sumAmountByStatusAndDueDateLessThanEqual(
-            @Param("statuses") List<FinancialMovementStatus> statuses,
-            @Param("dueDate") LocalDateTime dueDate);
+    Page<FinancialMovementEntity> findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
+            String description,
+            List<OperationType> operationTypes,
+            List<FinancialMovementStatus> statuses,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Pageable pageable
+    );
 
     Optional<List<FinancialMovementEntity>> findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
-            String description, List<OperationType> operationTypes, List<FinancialMovementStatus> statuses,
-            LocalDateTime startDate, LocalDateTime endDate);
-
-    @Query("select fm from FinancialMovementEntity fm " +
-            "WHERE" +
-            " (fm.status = ?3 AND fm.dueDate BETWEEN ?1 AND ?2)" +
-            "OR" +
-            " (fm.status = ?4 AND fm.payDate BETWEEN ?1 AND ?2)" +
-            "OR" +
-            " fm.status = ?5")
-    List<FinancialMovementEntity> findAllByStatusAndDates(
-            LocalDateTime InitialDate,
-            LocalDateTime endDate,
-            FinancialMovementStatus statusByDueDate,
-            FinancialMovementStatus statusByPayDate,
-            FinancialMovementStatus status);
+            String description,
+            List<OperationType> operationTypes,
+            List<FinancialMovementStatus> statuses,
+            LocalDateTime startDate,
+            LocalDateTime endDate
+    );
 
     @Query("""
-            SELECT SUM(fm.amountPaid)
-            FROM FinancialMovementEntity fm
-            WHERE fm.flagActive = TRUE
-            AND fm.status = :status
-            AND fm.payDate <= :date
+            SELECT fm FROM FinancialMovementEntity fm WHERE fm.flagActive = true 
+                        AND ((fm.status = :pending AND fm.dueDate BETWEEN :startDate AND :endDate) 
+                        OR (fm.status = :paidOut AND fm.payDate BETWEEN :startDate AND :endDate) 
+                        OR (fm.status = :late AND fm.dueDate BETWEEN :startDate AND :endDate))
             """)
-    Optional<BigDecimal> findBalance(
+    List<FinancialMovementEntity> findAllByStatusAndDates(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("pending") FinancialMovementStatus pending,
+            @Param("paidOut") FinancialMovementStatus paidOut,
+            @Param("late") FinancialMovementStatus late
+    );
+
+    @Query("""
+            SELECT SUM(fm.amountPaid) FROM FinancialMovementEntity fm
+                        WHERE fm.status = :status AND fm.payDate <= :payDate AND fm.flagActive = true
+            """)
+    Optional<BigDecimal> sumAmountPaidByStatusAndPayDateLessThanEqual(
             @Param("status") FinancialMovementStatus status,
-            @Param("date") LocalDateTime dateTime);
+            @Param("payDate") LocalDateTime payDate
+    );
+
+    @Query("""
+            SELECT SUM(fm.amount) FROM FinancialMovementEntity fm 
+                    WHERE fm.status IN :statuses AND fm.dueDate <= :dueDate AND fm.flagActive = true
+            """)
+    Optional<BigDecimal> sumAmountByStatusAndDueDateLessThanEqual(
+            @Param("statuses") List<FinancialMovementStatus> statuses,
+            @Param("dueDate") LocalDateTime dueDate
+    );
 }
