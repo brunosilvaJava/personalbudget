@@ -22,7 +22,7 @@ public class MonthlyCalcFixedBillImpl implements CalcFixedBill {
         }
         if (nexDueDay == 0) {
             nextDueDate = nextDueDate.plusMonths(1);
-            nexDueDay = fixedBill.getDays().getFirst();
+            nexDueDay = fixedBill.getDays().stream().findFirst().orElseThrow();
         }
         int monthLength = nextDueDate.getMonth().length(nextDueDate.isLeapYear());
         if (nexDueDay > monthLength) {

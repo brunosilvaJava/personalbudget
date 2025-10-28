@@ -1,8 +1,9 @@
 package com.bts.personalbudget.controller.fixedbill.config;
 
 import com.bts.personalbudget.controller.fixedbill.FixedBillRequest;
-import com.bts.personalbudget.controller.installmentbill.FixedBillResponse;
-import com.bts.personalbudget.controller.installmentbill.FixedBillUpdateRequest;
+import com.bts.personalbudget.controller.fixedbill.FixedBillResponse;
+import com.bts.personalbudget.controller.fixedbill.FixedBillUpdateRequest;
+import com.bts.personalbudget.controller.fixedbill.PagedFixedBillResponse;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
@@ -27,17 +28,21 @@ public interface FixedBillControllerApiDocs {
             @ApiResponse(responseCode = "400", description = "Invalid request data")
     })
     @PostMapping
-    public ResponseEntity<Void> create(@Valid @RequestBody FixedBillRequest fixedBillRequest);
+    ResponseEntity<Void> create(@Valid @RequestBody FixedBillRequest fixedBillRequest);
 
     @Operation(
             summary = "Retrieve all fixed bills",
-            description = "Returns a list of fixed bills based on search parameters.")
-    @ApiResponse(responseCode = "200", description = "List of fixed bills")
-    ResponseEntity<List<FixedBillResponse>> find(
+            description = "Returns a paginated list of fixed bills based on search parameters.")
+    @ApiResponse(responseCode = "200", description = "Paginated list of fixed bills")
+    ResponseEntity<PagedFixedBillResponse> find(
             @Parameter(description = "Filter by description (partial match)") String description,
             @Parameter(description = "Filter by operation type(s)") List<OperationType> operationTypes,
             @Parameter(description = "Filter by status(es)") List<FixedBillStatus> statuses,
-            @Parameter(description = "Filter by recurrence type(s)") List<RecurrenceType> recurrenceTypes
+            @Parameter(description = "Filter by recurrence type(s)") List<RecurrenceType> recurrenceTypes,
+            @Parameter(description = "Page number (0-indexed)") int page,
+            @Parameter(description = "Number of items per page") int size,
+            @Parameter(description = "Field to sort by") String sortBy,
+            @Parameter(description = "Sort direction (ASC or DESC)") String sortDirection
     );
 
     @GetMapping("/{code}")

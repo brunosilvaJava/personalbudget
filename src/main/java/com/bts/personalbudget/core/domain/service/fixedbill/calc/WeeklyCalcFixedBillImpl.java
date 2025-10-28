@@ -3,6 +3,8 @@ package com.bts.personalbudget.core.domain.service.fixedbill.calc;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +18,7 @@ public class WeeklyCalcFixedBillImpl implements CalcFixedBill {
     public LocalDate calcNextDueDate(final FixedBill fixedBill,
                                      final LocalDate baseDate) {
         LocalDate nextDueDate = LocalDate.of(baseDate.getYear(), baseDate.getMonth(), baseDate.getDayOfMonth());
-        final List<Integer> dueDayList = fixedBill.getDays();
+        final Set<Integer> dueDayList = fixedBill.getDays();
         final int baseDay = nextDueDate.getDayOfWeek().getValue() + 1;
         int auxDay = 0;
         for (Integer dueDay : dueDayList) {
@@ -29,7 +31,7 @@ public class WeeklyCalcFixedBillImpl implements CalcFixedBill {
         if (auxDay > 0) {
             nextDay = auxDay;
         } else {
-            nextDay = dueDayList.getFirst();
+            nextDay = dueDayList.stream().findFirst().orElseThrow();
         }
         if (nextDay == baseDay) {
             return nextDueDate;

@@ -1,7 +1,6 @@
 create table if not exists calendar_fixed_bill (
 id                         BIGINT          PRIMARY KEY AUTO_INCREMENT  COMMENT 'Primary key',
 day_launch                 SMALLINT        NOT NULL                    COMMENT 'value corresponding to the launch day',
-flg_leap_year              TINYINT(1)      NOT NULL                    COMMENT 'referring to leap year',
 flg_active                 TINYINT(1)      NOT NULL                    COMMENT 'logical delete field',
 created_date               DATETIME        NOT NULL                    COMMENT 'Date of creation of the bill',
 last_modified_date         DATETIME        NOT NULL                    COMMENT 'Last modified date of the bill',

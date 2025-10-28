@@ -50,7 +50,11 @@ public class FixedBillRequest {
 
     @Schema(description = "Determines whether the record is from a leap year.")
     @JsonProperty("flg_leap_year")
-    private Boolean flgLeapYear;
+    private Boolean flgLeapYear = Boolean.FALSE;
+
+    @Schema(description = "Reference year for YEARLY recurrence type.", example = "2025")
+    @JsonProperty("reference_year")
+    private Integer referenceYear;
 
     @Schema(description = "Fixed bill starting date.", format = "date")
     @JsonProperty("start_date")

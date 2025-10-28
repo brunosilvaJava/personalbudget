@@ -73,13 +73,13 @@ public class FixedBillFactory {
     public static FixedBill buildFixedBill(Map<String, Object> params) {
         final FixedBill fixedBill =
                 new FixedBill(
+                        null,
                         UUID.randomUUID(),
                         params.get(OPERATION_TYPE) == null ? (OperationType) PARAMS.get(OPERATION_TYPE) : (OperationType) params.get(OPERATION_TYPE),
                         params.get(DESCRIPTION) == null ? (String) PARAMS.get(DESCRIPTION) : (String) params.get(DESCRIPTION),
                         params.get(AMOUNT) == null ? (BigDecimal) PARAMS.get(AMOUNT) : (BigDecimal) params.get(AMOUNT),
                         params.get(RECURRENCE_TYPE) == null ? (RecurrenceType) PARAMS.get(RECURRENCE_TYPE) : (RecurrenceType) params.get(RECURRENCE_TYPE),
                         params.get(DAYS) == null ? (List) PARAMS.get(DAYS) : (List) params.get(DAYS),
-                        params.get(FLG_LEAP_YEAR) == null ? (Boolean) PARAMS.get(FLG_LEAP_YEAR) : (Boolean) params.get(FLG_LEAP_YEAR),
                         params.get(STATUS) == null ? (FixedBillStatus) PARAMS.get(STATUS) : (FixedBillStatus) params.get(STATUS),
                         params.get(START_DATE) == null ? (LocalDate) PARAMS.get(START_DATE) : (LocalDate) params.get(START_DATE),
                         params.get(END_DATE) == null ? (LocalDate) PARAMS.get(END_DATE) : (LocalDate) params.get(END_DATE),

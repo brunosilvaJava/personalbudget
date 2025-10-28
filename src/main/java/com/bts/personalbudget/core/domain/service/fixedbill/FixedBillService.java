@@ -8,16 +8,18 @@ import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.CalcFixedBill;
 import com.bts.personalbudget.mapper.FixedBillMapper;
 import jakarta.persistence.EntityNotFoundException;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import static com.bts.personalbudget.core.domain.enumerator.FixedBillStatus.ACTIVE;
 
 @Slf4j
@@ -35,22 +37,26 @@ public class FixedBillService {
         fixedBill.validationDays();
         fixedBill.setStatus(FixedBillStatus.ACTIVE);
         final FixedBillEntity fixedBillEntity = buildFixedBillEntity(fixedBill);
-        final List<CalendarFixedBillEntity> calendarFixedBillEntityList = buildCalendarFixedBillEntityList(fixedBill, fixedBillEntity);
+        final Set<CalendarFixedBillEntity> calendarFixedBillEntityList = buildCalendarFixedBillEntityList(fixedBill, fixedBillEntity);
         fixedBillEntity.setCalendarFixedBillEntityList(calendarFixedBillEntityList);
         fixedBillRepository.save(fixedBillEntity);
     }
 
-    private List<CalendarFixedBillEntity> buildCalendarFixedBillEntityList(FixedBill fixedBill, FixedBillEntity fixedBillEntity) {
+    private Set<CalendarFixedBillEntity> buildCalendarFixedBillEntityList(FixedBill fixedBill, FixedBillEntity fixedBillEntity) {
         log.info("m=buildCalendarFixedBillEntityList fixedBillDays={} fixedBillCode={}", fixedBill.getDays(), fixedBillEntity.getCode());
-        final List<CalendarFixedBillEntity> calendarFixedBillEntityList = new ArrayList<>();
+        final Set<CalendarFixedBillEntity> calendarFixedBillEntityList = new HashSet<>();
 
         for (Integer day : fixedBill.getDays()) {
-            CalendarFixedBillEntity calendarFixedBillEntity = new CalendarFixedBillEntity();
-            calendarFixedBillEntity.setDayLaunch(day);
-            calendarFixedBillEntity.setFlgLeapYear(fixedBill.getFlgLeapYear());
-            calendarFixedBillEntity.setFlgActive(Boolean.TRUE);
-            calendarFixedBillEntity.setFixedBill(fixedBillEntity);
-            calendarFixedBillEntityList.add(calendarFixedBillEntity);
+            final Optional<CalendarFixedBillEntity> calendarByDay = fixedBillEntity.findCalendarByDay(day);
+            if (calendarByDay.isPresent()) {
+                calendarFixedBillEntityList.add(calendarByDay.get());
+            } else {
+                CalendarFixedBillEntity calendarFixedBillEntity = new CalendarFixedBillEntity();
+                calendarFixedBillEntity.setDayLaunch(day);
+                calendarFixedBillEntity.setFlgActive(Boolean.TRUE);
+                calendarFixedBillEntity.setFixedBill(fixedBillEntity);
+                calendarFixedBillEntityList.add(calendarFixedBillEntity);
+            }
         }
         return calendarFixedBillEntityList;
     }
@@ -71,58 +77,73 @@ public class FixedBillService {
         return fixedBillMapper.toModel(fixedBillEntity);
     }
 
-    public List<FixedBill> find(
+    public Page<FixedBill> find(
             final String description,
             final List<OperationType> operationTypes,
             final List<FixedBillStatus> statuses,
-            final List<RecurrenceType> recurrenceTypes) {
+            final List<RecurrenceType> recurrenceTypes,
+            final Pageable pageable) {
 
-        log.info("m=find, description={}, operationTypes={}, statuses={}, recurrenceTypes={}",
-                description, operationTypes, statuses, recurrenceTypes);
+        log.info("m=find, description={}, operationTypes={}, statuses={}, recurrenceTypes={}, pageable={}",
+                description, operationTypes, statuses, recurrenceTypes, pageable);
 
-        List<FixedBillEntity> fixedBillEntityList = fixedBillRepository.findByFilters(
+        final List<OperationType> filterOperationTypes = operationTypes != null && !operationTypes.isEmpty() ?
+                operationTypes : Arrays.stream(OperationType.values()).toList();
+        final List<FixedBillStatus> filterStatuses = statuses != null && !statuses.isEmpty() ?
+                statuses : Arrays.stream(FixedBillStatus.values()).toList();
+        final List<RecurrenceType> filterRecurrenceTypes = recurrenceTypes != null && !recurrenceTypes.isEmpty() ?
+                recurrenceTypes : Arrays.stream(RecurrenceType.values()).toList();
+
+        final Page<FixedBillEntity> pagedEntities = fixedBillRepository.findByFilters(
                 description,
-                operationTypes,
-                statuses,
-                recurrenceTypes
+                filterOperationTypes,
+                filterStatuses,
+                filterRecurrenceTypes,
+                pageable
         );
 
-        return fixedBillMapper.toModelList(fixedBillEntityList);
+        return pagedEntities.map(fixedBillMapper::toModel);
     }
 
+    @Transactional
     public FixedBill update(final UUID code,
                             final OperationType operationType,
                             final String description,
                             final BigDecimal amount,
                             final RecurrenceType recurrenceType,
-                            final List<Integer> days,
-                            final Boolean flgLeapYear,
+                            final Set<Integer> days,
+                            final Integer referenceYear,
                             final FixedBillStatus status,
                             final LocalDate startDate,
                             final LocalDate endDate) {
-        log.info("m=update, code={}, operationType={}, description={}, " +
-                "amount={}, recurrenceType={}, days={}, flgLeapYear={}, " + "status={}, startDate={}, endDate={}",
-                code, operationType, description, amount, recurrenceType, days, flgLeapYear, status, startDate, endDate);
-        final FixedBill updateFixedBill = findByCode(code);
+        log.info("m=update, code={}, operationType={}, description={}, amount={}, recurrenceType={}, days={}, referenceYear={}, status={}, startDate={}, endDate={}",
+                code, operationType, description, amount, recurrenceType, days, referenceYear, status, startDate, endDate);
 
+        final FixedBillEntity fixedBillEntity = findEntity(code);
+        final FixedBill updateFixedBill = fixedBillMapper.toModel(fixedBillEntity);
 
-        if(operationType == null &&
+        if (operationType == null &&
                 description == null &&
                 amount == null &&
                 recurrenceType == null &&
                 days == null &&
-                flgLeapYear == null &&
+                referenceYear == null &&
                 status == null &&
                 startDate == null &&
                 endDate == null) {
-
             return updateFixedBill;
         }
 
-        updateFixedBill.update(operationType, description, amount, recurrenceType, days,
-                flgLeapYear, status, startDate, endDate);
+        final boolean hasChanges = updateFixedBill.update(operationType, description, amount, recurrenceType, days, referenceYear, status, startDate, endDate);
 
-        fixedBillRepository.save(fixedBillMapper.toEntity(updateFixedBill));
+        if (hasChanges) {
+            log.info("m=update, message=ChangesDetected, code={}, savingToDatabase=true", code);
+            final FixedBillEntity updateEntity = fixedBillMapper.toEntity(updateFixedBill);
+            updateEntity.setCalendarFixedBillEntityList(buildCalendarFixedBillEntityList(updateFixedBill, fixedBillEntity));
+            fixedBillRepository.save(updateEntity);
+        } else {
+            log.info("m=update, message=NoChangesDetected, code={}, savingToDatabase=false", code);
+        }
 
         return updateFixedBill;
     }
@@ -132,7 +153,6 @@ public class FixedBillService {
         log.info("m=delete, code={}", code);
         final FixedBillEntity fixedBillEntity = findEntity(code);
         fixedBillEntity.delete();
-
     }
 
     private FixedBillEntity findEntity(final UUID code) {
