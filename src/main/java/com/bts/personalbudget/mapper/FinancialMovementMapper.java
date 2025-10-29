@@ -5,17 +5,24 @@ import com.bts.personalbudget.controller.financialmovement.FinancialMovementResp
 import com.bts.personalbudget.controller.financialmovement.FinancialMovementUpdateRequest;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
+import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
+
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.ReportingPolicy;
+import org.mapstruct.*;
 import org.mapstruct.factory.Mappers;
 
-@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
+import static com.bts.personalbudget.core.domain.enumerator.OperationType.CREDIT;
+import static com.bts.personalbudget.core.domain.enumerator.OperationType.DEBIT;
+
+@Mapper(
+        componentModel = "spring",
+        unmappedTargetPolicy = ReportingPolicy.IGNORE
+)
 public interface FinancialMovementMapper {
 
     FinancialMovementMapper INSTANCE = Mappers.getMapper(FinancialMovementMapper.class);
@@ -24,6 +31,8 @@ public interface FinancialMovementMapper {
     FinancialMovement toModel(FinancialMovementUpdateRequest updateRequest, UUID code);
     FinancialMovement toModel(FinancialMovementEntity entity);
     List<FinancialMovement> toModel(List<FinancialMovementEntity> financialMovementEntities);
+    @Mapping(target = "amount", expression = "java(normalizeValue(financialMovement.amount(), financialMovement.operationType()))")
+    @Mapping(target = "amountPaid", expression = "java(normalizeValue(financialMovement.amountPaid(), financialMovement.operationType()))")
     FinancialMovementEntity toEntity(FinancialMovement financialMovement);
     List<FinancialMovementResponse> toResponse(List<FinancialMovement> financialMovement);
     FinancialMovementResponse toResponse(FinancialMovement financialMovement);
@@ -32,6 +41,7 @@ public interface FinancialMovementMapper {
     @Mapping(target = "movementDate", source = "installmentBill.purchaseDate")
     @Mapping(target = "dueDate", source = "installmentBill.nextInstallmentDate")
     @Mapping(target = "status", source = "financialMovementStatus")
+    @Mapping(target = "amount", expression = "java(normalizeValue(installmentBill.getAmount(), installmentBill.getOperationType()))")
     FinancialMovement toFinancialMovement(InstallmentBill installmentBill, FinancialMovementStatus financialMovementStatus);
 
     default List<FinancialMovement> toFinancialMovementList(List<InstallmentBill> installmentBillList, FinancialMovementStatus financialMovementStatus) {
@@ -44,11 +54,24 @@ public interface FinancialMovementMapper {
     @Mapping(target = "movementDate", source = "fixedBill.nextDueDate")
     @Mapping(target = "dueDate", source = "fixedBill.nextDueDate")
     @Mapping(target = "status", source = "financialMovementStatus")
+    @Mapping(target = "amount", expression = "java(normalizeValue(fixedBill.getAmount(), fixedBill.getOperationType()))")
     FinancialMovement toFinancialMovement(FixedBill fixedBill, FinancialMovementStatus financialMovementStatus);
 
     default List<FinancialMovement> toFinancialMovementListFromFixedBill(List<FixedBill> fixedBillList, FinancialMovementStatus financialMovementStatus) {
         return fixedBillList.stream()
                 .map(fixedBill -> toFinancialMovement(fixedBill, financialMovementStatus))
                 .toList();
+    }
+
+    default BigDecimal normalizeValue(final BigDecimal value, final OperationType operationType) {
+        if (value == null) {
+            return null;
+        }
+        if (operationType == DEBIT) {
+            return value.compareTo(BigDecimal.ZERO) > 0 ? value.negate() : value;
+        } else if (operationType == CREDIT) {
+            return value.compareTo(BigDecimal.ZERO) < 0 ? value.negate() : value;
+        }
+        return value;
     }
 }

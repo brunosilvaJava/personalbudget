@@ -23,6 +23,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.GenericGenerator;
 
+import static java.math.BigDecimal.ZERO;
+
 @Getter
 @Setter
 @Builder
@@ -98,5 +100,25 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
         if (flagActive) {
             flagActive = false;
         }
+    }
+
+    public void setAmount(BigDecimal amount) {
+        if (operationType == OperationType.DEBIT) {
+            if (amount != null && amount.compareTo(ZERO) > 0) {
+                this.amount = amount.negate();
+                return;
+            }
+        }
+        this.amount = amount;
+    }
+
+    public void setAmountPaid(BigDecimal amountPaid) {
+        if (operationType == OperationType.DEBIT) {
+            if (amountPaid != null && amountPaid.compareTo(ZERO) > 0) {
+                this.amountPaid = amountPaid.negate();
+                return;
+            }
+        }
+        this.amountPaid = amountPaid;
     }
 }
