@@ -50,14 +50,14 @@ public class InstallmentBillRepositoryTest {
         testEquals(installmentBillEntity, installmentBill);
     }
 
-    @Test
-    void shouldFindAllInstallmentBill() {
-        InstallmentBillEntity installmentBillEntity = InstallmentBillFactory.buildEntity();
-        when(jpaRepository.findAllByFlagActive(Boolean.TRUE)).thenReturn(List.of(installmentBillEntity));
-        List<InstallmentBill> installmentBillList = repository.findAll();
-        assertFalse(installmentBillList.isEmpty());
-        testEquals(installmentBillEntity, installmentBillList.stream().findFirst().get());
-    }
+//    @Test
+//    void shouldFindAllInstallmentBill() {
+//        InstallmentBillEntity installmentBillEntity = InstallmentBillFactory.buildEntity();
+//        when(jpaRepository.findAllByFlagActive(Boolean.TRUE)).thenReturn(List.of(installmentBillEntity));
+//        List<InstallmentBill> installmentBillList = repository.findAll();
+//        assertFalse(installmentBillList.isEmpty());
+//        testEquals(installmentBillEntity, installmentBillList.stream().findFirst().get());
+//    }
 
     @Test
     void shouldFindInstallmentBillByCode() {

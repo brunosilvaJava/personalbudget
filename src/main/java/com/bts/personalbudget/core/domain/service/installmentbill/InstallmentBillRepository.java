@@ -2,11 +2,14 @@ package com.bts.personalbudget.core.domain.service.installmentbill;
 
 import com.bts.personalbudget.core.domain.entity.InstallmentBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
+import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import com.bts.personalbudget.mapper.InstallmentBillMapper;
 import com.bts.personalbudget.repository.InstallmentBillJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,9 +36,20 @@ public class InstallmentBillRepository {
     }
 
     @Transactional(readOnly = true)
-    public List<InstallmentBill> findAll() {
-        log.info("m=findAll");
-        return mapper.toModel(jpaRepository.findAllByFlagActive(Boolean.TRUE));
+    public Page<InstallmentBill> findByFilters(final String description,
+                                               final List<OperationType> operationTypes,
+                                               final List<InstallmentBillStatus> statuses,
+                                               final Pageable pageable) {
+        log.info("m=findByFilters description={} operationTypes={} statuses={} pageable={}",
+                description, operationTypes, statuses, pageable);
+        final Page<InstallmentBillEntity> entityPage = jpaRepository.findByFilters(
+                description,
+                operationTypes,
+                statuses,
+                FLAG_ACTIVE,
+                pageable
+        );
+        return entityPage.map(mapper::toModel);
     }
 
     @Transactional(readOnly = true)

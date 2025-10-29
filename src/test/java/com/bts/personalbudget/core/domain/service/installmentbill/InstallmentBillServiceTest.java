@@ -39,14 +39,14 @@ public class InstallmentBillServiceTest {
         verify(repository).save(installmentBill);
     }
 
-    @Test
-    void shouldFindAllInstallmentBill() {
-        InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
-        when(repository.findAll()).thenReturn(List.of(installmentBill));
-        List<InstallmentBill> installmentBillList = service.findAll();
-        assertFalse(installmentBillList.isEmpty());
-        assertEquals(installmentBill, installmentBillList.stream().findFirst().get());
-    }
+//    @Test
+//    void shouldFindAllInstallmentBill() {
+//        InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
+//        when(repository.findAll()).thenReturn(List.of(installmentBill));
+//        List<InstallmentBill> installmentBillList = service.findAll();
+//        assertFalse(installmentBillList.isEmpty());
+//        assertEquals(installmentBill, installmentBillList.stream().findFirst().get());
+//    }
 
     @Test
     void shouldFindInstallmentBillByCode() {

@@ -5,6 +5,8 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,9 +27,16 @@ public class InstallmentBillService {
         repository.save(installmentBill);
     }
 
-    public List<InstallmentBill> findAll() {
-        log.info("m=findAll");
-        return repository.findAll();
+    public Page<InstallmentBill> findAll(
+            final String description,
+            final List<OperationType> operationTypes,
+            final List<InstallmentBillStatus> statuses,
+            final Pageable pageable) {
+
+        log.info("m=findAll, description={}, operationTypes={}, statuses={}, pageable={}",
+                description, operationTypes, statuses, pageable);
+
+        return repository.findByFilters(description, operationTypes, statuses, pageable);
     }
 
     public InstallmentBill findByCode(final UUID code) {
@@ -74,6 +83,4 @@ public class InstallmentBillService {
         installmentBill.updateInstallment();
         repository.update(installmentBill);
     }
-
-
 }
