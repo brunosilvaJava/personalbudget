@@ -132,7 +132,8 @@ public class FixedBillServiceTest {
                 START_DATE, startDate,
                 END_DATE, startDate.plusMonths(1)
         ));
-        Optional<LocalDate> nextDueDateOptional = fixedBillService.defineNextDueDate(fixedBill, startDate.minusDays(1));
+        LocalDate baseDate = startDate.minusDays(1);
+        Optional<LocalDate> nextDueDateOptional = fixedBillService.defineNextDueDate(fixedBill, baseDate);
         assertTrue(nextDueDateOptional.isEmpty());
     }
 

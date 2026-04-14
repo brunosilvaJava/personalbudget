@@ -18,7 +18,6 @@ import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementSta
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.PAID_OUT;
 import static java.math.BigDecimal.ZERO;
 
-@Builder
 @Slf4j
 public record FinancialMovement(
         UUID code,

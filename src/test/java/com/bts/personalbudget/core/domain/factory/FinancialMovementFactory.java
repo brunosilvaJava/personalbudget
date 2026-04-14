@@ -92,17 +92,17 @@ public class FinancialMovementFactory {
         BigDecimal amountPaid = new BigDecimal(data.get(AMOUNT_PAID));
         BigDecimal amount = new BigDecimal(data.get(AMOUNT));
         FinancialMovementStatus status = FinancialMovementStatus.valueOf(data.get(STATUS));
-        return FinancialMovement.builder()
-                .code(UUID.fromString(data.get(CODE)))
-                .operationType(OperationType.valueOf(data.get(OPERATION_TYPE)))
-                .description(data.get(DESCRIPTION))
-                .amount(amount.equals(BigDecimal.ZERO) ? new BigDecimal(data().get(AMOUNT)): amount)
-                .amountPaid(status == FinancialMovementStatus.PAID_OUT ? amountPaid : BigDecimal.ZERO)
-                .movementDate(LocalDateTime.parse(data.get(MOVEMENT_DATE)))
-                .dueDate(LocalDateTime.parse(data.get(DUE_DATE)))
-                .payDate(status == FinancialMovementStatus.PAID_OUT ? LocalDateTime.parse(data.get(PAY_DATE)) : null)
-                .status(status)
-                .build();
+        return new FinancialMovement(UUID.fromString(data.get(CODE)),
+                OperationType.valueOf(data.get(OPERATION_TYPE)),
+                data.get(DESCRIPTION),
+                amount.equals(BigDecimal.ZERO) ? new BigDecimal(data().get(AMOUNT)): amount,
+                amountPaid.equals(BigDecimal.ZERO) ? BigDecimal.ZERO : amountPaid,
+                LocalDateTime.parse(data.get(MOVEMENT_DATE)),
+                LocalDateTime.parse(data.get(DUE_DATE)),
+                status == FinancialMovementStatus.PAID_OUT ? LocalDateTime.parse(data.get(PAY_DATE)) : null,
+                status,
+                Boolean.TRUE,
+                null);
     }
 
     @Getter
