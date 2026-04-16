@@ -4,12 +4,13 @@ services:
     profiles: [app, dependents]
     image: mysql:latest
     restart: always
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-time-zone=-03:00
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: financialbudgetdb
       MYSQL_USER: financialbudgetuser
       MYSQL_PASSWORD: cadI1fzFK3t#El%I
+      TZ: America/Sao_Paulo
     ports:
       - "3306:3306"
     networks:
