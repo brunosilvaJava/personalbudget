@@ -8,6 +8,8 @@ O projeto inclui funcionalidades para gerenciar diferentes tipos de movimentaç�
 
 ---
 
+
+
 ## Tecnologias Utilizadas
 
 - **Java - OpenJDK (`21`)** - Linguagem de programação principal.
