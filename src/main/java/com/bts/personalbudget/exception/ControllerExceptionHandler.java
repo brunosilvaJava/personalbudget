@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+@Slf4j
 @RestControllerAdvice
 public class ControllerExceptionHandler {
 
@@ -92,6 +94,14 @@ public class ControllerExceptionHandler {
                 new ValidationResponse("Parâmetros inválidos",
                         Map.of(exception.getName(), exception.getMessage())),
                 HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGenericException(Exception exception) {
+        log.error("m=handleGenericException, message={}", exception.getMessage(), exception);
+        return new ResponseEntity<>(
+                new ErrorResponse("Erro interno no servidor"),
+                HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
 }
