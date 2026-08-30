@@ -31,9 +31,12 @@ e execute o passo a passo operacional descrito na skill `feature-scaffolding`
    a última migration em `src/main/resources/db/migration/` para manter
    consistência de estilo e descobrir o próximo número de migration.
 
-3. **Gerar todos os arquivos** conforme a skill `feature-scaffolding`:
-   Entity, Repository, Mapper, DTOs, Service, Controller + `{Feature}ControllerApiDocs`,
-   migration Flyway e testes unitários com factory.
+3. **Gerar apenas os arquivos necessários** conforme a skill
+   `feature-scaffolding` e o conjunto de endpoints solicitado:
+   Entity, Repository, Mapper, DTOs, Service, Controller +
+   `{Feature}ControllerApiDocs`, migration Flyway e testes unitários com
+   factory, sempre de forma condicional às operações pedidas (ex.: leitura vs.
+   escrita).
 
 4. **Resumir o resultado** ao final: liste todos os arquivos criados/editados
    e sugira rodar `./gradlew test` para validar a compilação e os testes.

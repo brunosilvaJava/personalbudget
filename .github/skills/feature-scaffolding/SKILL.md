@@ -36,11 +36,12 @@ Antes de escrever qualquer arquivo:
 
 ## 3. Gerar os arquivos
 
-Para uma feature `{Feature}` (ex.: `Category`), gerar, nesta ordem:
+Para uma feature `{Feature}` (ex.: `Category`), gerar, nesta ordem, **somente os
+artefatos necessários ao conjunto de endpoints solicitado pelo usuário**:
 
 ### 3.1 Migration Flyway
 `src/main/resources/db/migration/V{n}__create_table_{feature_snake_case}.sql`
-- Tabela com PK `id BIGINT AUTO_INCREMENT`, `code CHAR(36)` (UUID) único,
+- Tabela com PK `id BIGINT AUTO_INCREMENT`, `code BINARY(16)` (UUID) único,
   colunas para cada campo, `flag_active TINYINT(1) DEFAULT 1`,
   `created_date DATETIME`, `last_modified_date DATETIME`.
 - FKs para relações informadas pelo usuário.
@@ -58,15 +59,24 @@ Para uma feature `{Feature}` (ex.: `Category`), gerar, nesta ordem:
 
 ### 3.5 Mapper (MapStruct)
 `mapper/{Feature}Mapper.java` — `@Mapper(componentModel = "spring")`, métodos:
-- `{Feature}Entity toEntity({Feature}Request request)`
+- `{Feature} toDomain({Feature}Request request)` (somente se houver `create`)
+- `{Feature} toDomain({Feature}UpdateRequest request)` (somente se houver
+  `update`)
+- `{Feature}Entity toEntity({Feature} domain)`
 - `{Feature} toDomain({Feature}Entity entity)`
 - `{Feature}Response toResponse({Feature} domain)`
-- `Paged{Feature}Response toPagedResponse(Page<{Feature}> page)` (se houver listagem)
+- `List<{Feature}Response> toResponseList(List<{Feature}> domains)` (se houver
+  listagem)
+- `Paged{Feature}Response` deve ser montado explicitamente no
+  Controller/Service a partir de `page.getContent()` + metadados de paginação
+  (não mapear `Page` diretamente no MapStruct).
 
 ### 3.6 DTOs
 `controller/{feature}/dto/` (ou pacote de DTOs já usado no projeto):
-- `{Feature}Request` — campos de entrada com Bean Validation, `@JsonProperty` em snake_case.
-- `{Feature}UpdateRequest` — campos opcionais para atualização parcial/total.
+- `{Feature}Request` — **somente se houver `create`**; campos de entrada com
+  Bean Validation, `@JsonProperty` em snake_case.
+- `{Feature}UpdateRequest` — **somente se houver `update`**; campos opcionais para
+  atualização parcial/total.
 - `{Feature}Response` — campos de saída (inclui `code`, nunca `id`), `@JsonProperty` em snake_case.
 - `Paged{Feature}Response` — se houver listagem paginada.
 
@@ -74,17 +84,26 @@ Para uma feature `{Feature}` (ex.: `Category`), gerar, nesta ordem:
 `core/domain/service/{feature}/{Feature}Service.java`
 - `@Slf4j`, `@RequiredArgsConstructor`, `@Transactional` nos métodos de escrita.
 - Log `log.info("m={método}, param={valor}")` no início de cada método público.
-- Métodos: `create`, `update` (soft delete via `flagActive=false` quando aplicável), `findByCode`, `findAll`/`findAllPaged`.
+- Métodos: incluir apenas os necessários para os endpoints solicitados
+  (`create`, `update`, `delete`, `findByCode`, `findAll`/`findAllPaged`).
+- Soft delete: aplicar `flagActive=false` em método `delete`; `update` mantém o
+  registro ativo.
 - Lança exceções de domínio existentes (ex.: `EntityNotFoundException` já usada no projeto) quando `code` não é encontrado.
 
 ### 3.8 Controller + ApiDocs
 - `controller/{feature}/config/{Feature}ControllerApiDocs.java` — interface com todas as anotações Swagger/OpenAPI (`@Operation`, `@ApiResponse`, etc.).
-- `controller/{feature}/{Feature}Controller.java` — `@RestController`, `@RequestMapping("/{feature_snake_case}")`, `@RequiredArgsConstructor`, `implements {Feature}ControllerApiDocs`; delega tudo ao Service e usa o Mapper só para request→domain e domain→response.
+- `controller/{feature}/{Feature}Controller.java` — `@RestController`,
+  `@RequestMapping("/{feature_snake_case}")`, `@RequiredArgsConstructor`,
+  `implements {Feature}ControllerApiDocs`; cria apenas os endpoints solicitados,
+  delega tudo ao Service e usa o Mapper só para request→domain e
+  domain→response.
 
 ### 3.9 Testes
 - `src/test/java/.../core/domain/factory/{Feature}Factory.java` — builder de dados de teste válidos.
 - Testes unitários do Service (`{Feature}ServiceTest`) e do Mapper, se relevante, com nomenclatura `should{Ação}{Condição}` (ex.: `shouldThrowExceptionWhenCategoryCodeNotFound`).
-- Cobrir: criação com sucesso, validação de erro, atualização, soft delete, busca por code inexistente.
+- Cobrir somente os casos correspondentes aos endpoints solicitados
+  (ex.: criação com sucesso, validação de erro, atualização, soft delete,
+  busca por code inexistente).
 
 ## 4. Validar
 
