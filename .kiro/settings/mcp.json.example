@@ -9,12 +9,11 @@
       "env": {
         "MYSQL_HOST": "127.0.0.1",
         "MYSQL_PORT": "3306",
-        "MYSQL_USER": "financialbudgetuser",
-        "MYSQL_PASS": "cadI1fzFK3t#El%I",
-        "MYSQL_DB": "financialbudgetdb"
+        "MYSQL_USER": "CHANGE_ME",
+        "MYSQL_PASS": "CHANGE_ME",
+        "MYSQL_DB": "CHANGE_ME"
       },
       "autoApprove": [
-        "mysql_query",
         "mysql_query"
       ]
     }
