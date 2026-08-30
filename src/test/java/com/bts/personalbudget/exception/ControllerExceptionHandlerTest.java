@@ -27,8 +27,8 @@ class ControllerExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("Handler específico de InvalidFieldsException deve continuar funcionando sem regressão")
-    void shouldStillHandleInvalidFieldsExceptionSpecifically() {
+    @DisplayName("Deve retornar 400 para InvalidFieldsException")
+    void shouldReturnBadRequestForInvalidFieldsException() {
         final InvalidFieldsException exception = new InvalidFieldsException(
                 "Campos inválidos", String.class, Map.of("campo", "mensagem"));
 
