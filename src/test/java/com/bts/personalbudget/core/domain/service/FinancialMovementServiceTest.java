@@ -10,6 +10,7 @@ import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -34,6 +35,7 @@ import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactor
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.OPERATION_TYPE;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.PAY_DATE;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.STATUS;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -151,5 +153,79 @@ class FinancialMovementServiceTest {
         // never touches it: it is set once, at generation time, and stays immutable.
         assertEquals(newDueDate, financialMovementEntity.getDueDate());
         assertEquals(originalOccurrenceDate, financialMovementEntity.getOccurrenceDate());
+    }
+
+    @Test
+    void shouldStoreNegativeAmountsWhenDebitIsCreatedAsPaidOut() {
+        final LocalDateTime now = LocalDateTime.now();
+        final FinancialMovement financialMovement = new FinancialMovement(
+                UUID.randomUUID(), OperationType.DEBIT, "Padaria", new BigDecimal("12.50"), new BigDecimal("12.50"),
+                now, now, now, FinancialMovementStatus.PAID_OUT, Boolean.TRUE, null, null);
+
+        financialMovementService.create(financialMovement);
+
+        final ArgumentCaptor<FinancialMovementEntity> captor = ArgumentCaptor.forClass(FinancialMovementEntity.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getAmount()).isEqualByComparingTo("-12.50");
+        assertThat(captor.getValue().getAmountPaid()).isEqualByComparingTo("-12.50");
+    }
+
+    @Test
+    void shouldStoreNegativeAmountPaidWhenDebitIsPaidOutViaPatch() throws NotFoundException {
+        final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
+        final FinancialMovement payment = new FinancialMovement(
+                entity.getCode(), null, null, null, new BigDecimal("30.00"),
+                null, null, LocalDateTime.now(), FinancialMovementStatus.PAID_OUT, null, null, null);
+        when(repository.findByCode(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(payment);
+
+        assertEquals(FinancialMovementStatus.PAID_OUT, entity.getStatus());
+        assertThat(entity.getAmountPaid()).isEqualByComparingTo("-30.00");
+        assertThat(entity.getAmount()).isEqualByComparingTo("-30.00");
+    }
+
+    @Test
+    void shouldStoreNegativeAmountWhenOnlyOperationTypeChangesToDebit() throws NotFoundException {
+        final FinancialMovementEntity entity = pendingEntity(OperationType.CREDIT, new BigDecimal("30.00"));
+        final FinancialMovement change = onlyOperationType(entity.getCode(), OperationType.DEBIT);
+        when(repository.findByCode(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(change);
+
+        assertEquals(OperationType.DEBIT, entity.getOperationType());
+        assertThat(entity.getAmount()).isEqualByComparingTo("-30.00");
+    }
+
+    @Test
+    void shouldStorePositiveAmountWhenOnlyOperationTypeChangesToCredit() throws NotFoundException {
+        final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
+        final FinancialMovement change = onlyOperationType(entity.getCode(), OperationType.CREDIT);
+        when(repository.findByCode(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(change);
+
+        assertEquals(OperationType.CREDIT, entity.getOperationType());
+        assertThat(entity.getAmount()).isEqualByComparingTo("30.00");
+    }
+
+    private static FinancialMovementEntity pendingEntity(final OperationType operationType, final BigDecimal amount) {
+        final LocalDateTime now = LocalDateTime.now();
+        final FinancialMovementEntity entity = FinancialMovementEntity.builder()
+                .code(UUID.randomUUID())
+                .operationType(operationType)
+                .description("Teste")
+                .amount(amount)
+                .movementDate(now)
+                .dueDate(now)
+                .status(FinancialMovementStatus.PENDING)
+                .build();
+        entity.prePersist();
+        return entity;
+    }
+
+    private static FinancialMovement onlyOperationType(final UUID code, final OperationType operationType) {
+        return new FinancialMovement(code, operationType, null, null, null,
+                null, null, null, null, null, null, null);
     }
 }

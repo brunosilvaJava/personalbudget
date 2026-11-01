@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -94,5 +95,55 @@ class FinancialMovementTest {
         assertEquals(FinancialMovement.class, exception.getAClass());
         assertTrue(validations.containsKey("dueDate"));
         assertEquals("a data de vencimento deve ser anterior à data atual", validations.get("dueDate"));
+    }
+
+    @Test
+    void shouldAcceptPositiveAmountPaidWhenDebitIsPaidOut() {
+        // The API sends amount_paid positive for a debit too; the sign is applied when it is
+        // stored. Guards the quick "already paid" expense of the front-end.
+        assertDoesNotThrow(() -> paidOut(OperationType.DEBIT, new BigDecimal("10.00"), new BigDecimal("10.00")));
+    }
+
+    @Test
+    void shouldUseAmountPaidInBalanceWhenDebitIsPartiallyPaid() {
+        final FinancialMovement financialMovement =
+                paidOut(OperationType.DEBIT, new BigDecimal("100.00"), new BigDecimal("60.00"));
+
+        assertEquals(0, new BigDecimal("-60.00").compareTo(financialMovement.getBalanceCalcValue()));
+    }
+
+    @Test
+    void shouldKeepStoredNegativeAmountPaidInBalanceWhenDebitIsPaidOut() {
+        final FinancialMovement financialMovement =
+                paidOut(OperationType.DEBIT, new BigDecimal("-100.00"), new BigDecimal("-60.00"));
+
+        assertEquals(0, new BigDecimal("-60.00").compareTo(financialMovement.getBalanceCalcValue()));
+    }
+
+    @Test
+    void shouldUseAmountPaidInBalanceWhenCreditIsPaidOut() {
+        final FinancialMovement financialMovement =
+                paidOut(OperationType.CREDIT, new BigDecimal("100.00"), new BigDecimal("60.00"));
+
+        assertEquals(0, new BigDecimal("60.00").compareTo(financialMovement.getBalanceCalcValue()));
+    }
+
+    private static FinancialMovement paidOut(final OperationType operationType,
+                                             final BigDecimal amount,
+                                             final BigDecimal amountPaid) {
+        final LocalDateTime now = LocalDateTime.now();
+        return new FinancialMovement(
+                UUID.randomUUID(),
+                operationType,
+                "teste pago",
+                amount,
+                amountPaid,
+                now,
+                now,
+                now,
+                FinancialMovementStatus.PAID_OUT,
+                Boolean.TRUE,
+                null,
+                null);
     }
 }

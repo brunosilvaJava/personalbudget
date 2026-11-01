@@ -155,6 +155,20 @@ public class FinancialMovementService {
                 !financialMovement.status().equals(financialMovementEntity.getStatus())) {
             financialMovementEntity.setStatus(financialMovement.status());
         }
+
+        normalizeAmountSigns(financialMovementEntity);
+    }
+
+    /**
+     * Re-applies the sign convention (DEBIT negative, CREDIT positive) to the stored values with
+     * the movement's current operation type. The entity setters only negate a positive debit
+     * value being set, so a PATCH that changes only operation_type would otherwise keep the old
+     * sign and the movement would count on the wrong side of the balance.
+     */
+    private void normalizeAmountSigns(final FinancialMovementEntity financialMovementEntity) {
+        final OperationType operationType = financialMovementEntity.getOperationType();
+        financialMovementEntity.setAmount(mapper.normalizeValue(financialMovementEntity.getAmount(), operationType));
+        financialMovementEntity.setAmountPaid(mapper.normalizeValue(financialMovementEntity.getAmountPaid(), operationType));
     }
 
     @Transactional
