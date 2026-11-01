@@ -1,5 +1,6 @@
 package com.bts.personalbudget.controller.financialmovement;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
@@ -15,9 +16,11 @@ public record PagedFinancialMovementResponse(
         int size,
 
         @Schema(description = "Total number of items", example = "100")
+        @JsonProperty("total_elements")
         long totalElements,
 
         @Schema(description = "Total number of pages", example = "10")
+        @JsonProperty("total_pages")
         int totalPages,
 
         @Schema(description = "Whether this is the first page", example = "true")

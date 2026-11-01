@@ -1,5 +1,6 @@
 package com.bts.personalbudget.controller.dashboard;
 
+import com.bts.personalbudget.controller.dashboard.config.DashboardControllerApiDocs;
 import com.bts.personalbudget.core.domain.service.dashboard.Dashboard;
 import com.bts.personalbudget.core.domain.service.dashboard.DashboardService;
 import com.bts.personalbudget.mapper.DashboardMapper;
@@ -14,7 +15,7 @@ import java.time.YearMonth;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/dashboard")
-public class DashboardController {
+public class DashboardController implements DashboardControllerApiDocs {
 
     private final DashboardService dashboardService;
     private final DashboardMapper mapper;
@@ -24,6 +25,7 @@ public class DashboardController {
      * Retorna dados do dashboard para o mês atual
      */
     @GetMapping
+    @Override
     public ResponseEntity<DashboardResponse> getDashboard() {
         log.info("m=getDashboard");
 
@@ -38,6 +40,7 @@ public class DashboardController {
      * Retorna dados do dashboard para um mês específico
      */
     @GetMapping(params = "month")
+    @Override
     public ResponseEntity<DashboardResponse> getDashboardForMonth(
             @RequestParam("month") String month
     ) {

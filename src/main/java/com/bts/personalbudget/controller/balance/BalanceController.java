@@ -1,5 +1,6 @@
 package com.bts.personalbudget.controller.balance;
 
+import com.bts.personalbudget.controller.balance.config.BalanceControllerApiDocs;
 import com.bts.personalbudget.core.domain.service.balance.BalanceService;
 import com.bts.personalbudget.mapper.BalanceMapper;
 import java.time.LocalDate;
@@ -15,14 +16,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/balance")
 @RestController
-public class BalanceController {
+public class BalanceController implements BalanceControllerApiDocs {
 
     private final BalanceService balanceService;
     private final BalanceMapper mapper;
 
     @GetMapping("/daily")
-    public Set<DailyBalanceResponse> balance(@RequestParam LocalDate initialDate,
-                                             @RequestParam LocalDate endDate) {
+    @Override
+    public Set<DailyBalanceResponse> balance(@RequestParam("initial_date") LocalDate initialDate,
+                                             @RequestParam("end_date") LocalDate endDate) {
         log.info("m=balance, initialDate={}, endDate={}", initialDate, endDate);
         return mapper.toResponses(balanceService.findDailyBalanceBetween(initialDate, endDate));
     }

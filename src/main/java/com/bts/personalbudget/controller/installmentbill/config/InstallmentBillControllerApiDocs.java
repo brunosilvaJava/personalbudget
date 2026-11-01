@@ -35,14 +35,17 @@ public interface InstallmentBillControllerApiDocs {
 
     @Operation(summary = "Retrieve all installment bills with pagination and filters",
             description = "Returns a paginated list of installment bills based on search parameters.")
-    @ApiResponse(responseCode = "200", description = "Paginated list of installment bills")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Paginated list of installment bills"),
+            @ApiResponse(responseCode = "400", description = "Invalid parameters, including an unknown sort_by")
+    })
     ResponseEntity<PagedInstallmentBillResponse> findAll(
             @Parameter(description = "Filter by description (partial match)") String description,
             @Parameter(description = "Filter by operation type(s)") List<OperationType> operationTypes,
             @Parameter(description = "Filter by status(es)") List<InstallmentBillStatus> statuses,
             @Parameter(description = "Page number (0-indexed)") int page,
             @Parameter(description = "Number of items per page") int size,
-            @Parameter(description = "Field to sort by") String sortBy,
+            @Parameter(description = "Field to sort by: description, amount, operation_type, status, purchase_date, installment_total, installment_count, next_installment_date, last_installment_date") String sortBy,
             @Parameter(description = "Sort direction (ASC or DESC)") String sortDirection
     );
 

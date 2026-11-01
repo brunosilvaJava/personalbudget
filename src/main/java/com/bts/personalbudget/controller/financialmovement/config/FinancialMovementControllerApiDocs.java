@@ -32,7 +32,10 @@ public interface FinancialMovementControllerApiDocs {
     @Operation(
             summary = "Retrieve financial movements",
             description = "Returns a list of financial movements based on search parameters.")
-    @ApiResponse(responseCode = "200", description = "List of financial movements")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "List of financial movements"),
+            @ApiResponse(responseCode = "400", description = "Invalid parameters, including a sort_by outside: description, amount, operation_type, status, movement_date, due_date, pay_date")
+    })
     @GetMapping
     ResponseEntity<PagedFinancialMovementResponse> find(
             @RequestParam(defaultValue = "") String description,
@@ -42,8 +45,8 @@ public interface FinancialMovementControllerApiDocs {
             @RequestParam("end_date") LocalDate endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "movementDate") String sortBy,
-            @RequestParam(defaultValue = "DESC") String sortDirection);
+            @RequestParam(value = "sort_by", defaultValue = "movement_date") String sortBy,
+            @RequestParam(value = "sort_direction", defaultValue = "DESC") String sortDirection);
 
     @Operation(summary = "Retrieve a financial movement by code",
             description = "Fetches a financial movement by its unique identifier (UUID).")
