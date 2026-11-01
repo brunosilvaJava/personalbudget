@@ -1,5 +1,7 @@
 package com.bts.personalbudget.core.domain.service.balance;
 
+import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
+import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.factory.DailyBalanceFactory;
 import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory;
 import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
@@ -13,8 +15,10 @@ import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBil
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -182,6 +186,125 @@ public class BalanceServiceTest {
                                 "-60","100","0","40")));
     }
 
+    private static final LocalDate JULY_1 = LocalDate.of(2026, 7, 1);
+    private static final LocalDate SEPTEMBER_30 = LocalDate.of(2026, 9, 30);
+
+    @Test
+    void shouldProjectAllOccurrencesInPeriodWhenBalanceProjected() {
+        final FixedBill rent = buildMonthlyDebitFixedBill(LocalDate.of(2026, 7, 10));
+        final List<LocalDate> occurrences = List.of(
+                LocalDate.of(2026, 7, 10), LocalDate.of(2026, 8, 10), LocalDate.of(2026, 9, 10));
+
+        stubPeriod(JULY_1, SEPTEMBER_30, List.of());
+        when(fixedBillService.findAllByNextDueDateLessThanEqual(SEPTEMBER_30)).thenReturn(List.of(rent));
+        when(fixedBillService.findOccurrencesUntil(rent, SEPTEMBER_30)).thenReturn(occurrences);
+        when(installmentBillService.findAllByNextInstallmentDateLessThanEqual(SEPTEMBER_30)).thenReturn(List.of());
+
+        Set<DailyBalance> result = balanceService.findDailyBalanceBetween(JULY_1, SEPTEMBER_30);
+
+        occurrences.forEach(date -> assertValue(date, "pendingTotalExpense", new BigDecimal("-100"),
+                findDailyBalance(result, date).orElseThrow().getPendingTotalExpense()));
+        assertValue(SEPTEMBER_30, "projectedClosingBalance", new BigDecimal("-300"),
+                findDailyBalance(result, SEPTEMBER_30).orElseThrow().getProjectedClosingBalance());
+    }
+
+    @Test
+    void shouldNotProjectOccurrenceAlreadyPosted() {
+        final LocalDate july10 = LocalDate.of(2026, 7, 10);
+        final LocalDate august10 = LocalDate.of(2026, 8, 10);
+        final LocalDate september10 = LocalDate.of(2026, 9, 10);
+        final FixedBill rent = buildMonthlyDebitFixedBill(july10);
+
+        // August's occurrence already exists as a movement (e.g. the schedule was edited after
+        // the job posted it): it must count once, as the movement, not again as a projection.
+        final FinancialMovement postedAugust = new FinancialMovement(DEBIT, "rent", new BigDecimal("100.00"),
+                august10.atStartOfDay(), august10.atStartOfDay(), PENDING, rent.getCode(), august10);
+
+        stubPeriod(JULY_1, SEPTEMBER_30, List.of(postedAugust));
+        when(fixedBillService.findAllByNextDueDateLessThanEqual(SEPTEMBER_30)).thenReturn(List.of(rent));
+        when(fixedBillService.findOccurrencesUntil(rent, SEPTEMBER_30)).thenReturn(List.of(july10, august10, september10));
+        when(installmentBillService.findAllByNextInstallmentDateLessThanEqual(SEPTEMBER_30)).thenReturn(List.of());
+        when(financialMovementService.findRecurrenceOccurrencesBetween(Set.of(rent.getCode()), july10, september10))
+                .thenReturn(List.of(postedAugust));
+
+        Set<DailyBalance> result = balanceService.findDailyBalanceBetween(JULY_1, SEPTEMBER_30);
+
+        List.of(july10, august10, september10).forEach(date -> assertValue(date, "pendingTotalExpense",
+                new BigDecimal("-100"), findDailyBalance(result, date).orElseThrow().getPendingTotalExpense()));
+        assertValue(SEPTEMBER_30, "projectedClosingBalance", new BigDecimal("-300"),
+                findDailyBalance(result, SEPTEMBER_30).orElseThrow().getProjectedClosingBalance());
+    }
+
+    @Test
+    void shouldProjectRemainingInstallmentsInPeriod() {
+        // 2 of 6 installments posted: 4 remain, every 30 days from July 5; 3 fall in the period.
+        final InstallmentBill television = new InstallmentBill(UUID.randomUUID(), DEBIT, "television",
+                new BigDecimal("50.00"), InstallmentBillStatus.PENDING, LocalDate.of(2026, 5, 6), 6,
+                2, LocalDate.of(2026, 6, 5), LocalDate.of(2026, 7, 5));
+        // 2 of 3 posted: only July 20 remains, nothing 30 days later.
+        final InstallmentBill almostPaid = new InstallmentBill(UUID.randomUUID(), DEBIT, "almost paid",
+                new BigDecimal("30.00"), InstallmentBillStatus.PENDING, LocalDate.of(2026, 4, 21), 3,
+                2, LocalDate.of(2026, 6, 20), LocalDate.of(2026, 7, 20));
+
+        stubPeriod(JULY_1, SEPTEMBER_30, List.of());
+        when(fixedBillService.findAllByNextDueDateLessThanEqual(SEPTEMBER_30)).thenReturn(List.of());
+        when(installmentBillService.findAllByNextInstallmentDateLessThanEqual(SEPTEMBER_30))
+                .thenReturn(List.of(television, almostPaid));
+
+        Set<DailyBalance> result = balanceService.findDailyBalanceBetween(JULY_1, SEPTEMBER_30);
+
+        List.of(LocalDate.of(2026, 7, 5), LocalDate.of(2026, 8, 4), LocalDate.of(2026, 9, 3))
+                .forEach(date -> assertValue(date, "pendingTotalExpense", new BigDecimal("-50"),
+                        findDailyBalance(result, date).orElseThrow().getPendingTotalExpense()));
+        assertValue(LocalDate.of(2026, 7, 20), "pendingTotalExpense", new BigDecimal("-30"),
+                findDailyBalance(result, LocalDate.of(2026, 7, 20)).orElseThrow().getPendingTotalExpense());
+        assertValue(LocalDate.of(2026, 8, 19), "pendingTotalExpense", BigDecimal.ZERO,
+                findDailyBalance(result, LocalDate.of(2026, 8, 19)).orElseThrow().getPendingTotalExpense());
+        assertValue(SEPTEMBER_30, "projectedClosingBalance", new BigDecimal("-180"),
+                findDailyBalance(result, SEPTEMBER_30).orElseThrow().getProjectedClosingBalance());
+    }
+
+    @Test
+    void shouldAddOccurrencesBeforePeriodToProjectedOpeningBalance() {
+        final LocalDate august1 = LocalDate.of(2026, 8, 1);
+        final LocalDate august31 = LocalDate.of(2026, 8, 31);
+        final LocalDate july10 = LocalDate.of(2026, 7, 10);
+        final LocalDate august10 = LocalDate.of(2026, 8, 10);
+        final FixedBill rent = buildMonthlyDebitFixedBill(july10);
+
+        stubPeriod(august1, august31, List.of());
+        when(fixedBillService.findAllByNextDueDateLessThanEqual(august31)).thenReturn(List.of(rent));
+        when(fixedBillService.findOccurrencesUntil(rent, august31)).thenReturn(List.of(july10, august10));
+        when(installmentBillService.findAllByNextInstallmentDateLessThanEqual(august31)).thenReturn(List.of());
+
+        Set<DailyBalance> result = balanceService.findDailyBalanceBetween(august1, august31);
+
+        final DailyBalance firstDay = findDailyBalance(result, august1).orElseThrow();
+        assertValue(august1, "openingBalance", BigDecimal.ZERO, firstDay.getOpeningBalance());
+        assertValue(august1, "projectedOpeningBalance", new BigDecimal("-100"), firstDay.getProjectedOpeningBalance());
+        assertValue(august10, "pendingTotalExpense", new BigDecimal("-100"),
+                findDailyBalance(result, august10).orElseThrow().getPendingTotalExpense());
+        assertValue(august31, "projectedClosingBalance", new BigDecimal("-200"),
+                findDailyBalance(result, august31).orElseThrow().getProjectedClosingBalance());
+    }
+
+    private void stubPeriod(LocalDate initialDate, LocalDate endDate, List<FinancialMovement> financialMovements) {
+        when(financialMovementService.findBalance(initialDate.minusDays(1))).thenReturn(BigDecimal.ZERO);
+        when(financialMovementService.findProjectedBalance(initialDate.minusDays(1))).thenReturn(BigDecimal.ZERO);
+        when(financialMovementService.findMovementsForBalanceCalculation(initialDate, endDate)).thenReturn(financialMovements);
+    }
+
+    private FixedBill buildMonthlyDebitFixedBill(LocalDate nextDueDate) {
+        return FixedBillFactory.buildFixedBill(Map.of(
+                FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
+                FixedBillFactory.DAYS, Set.of(nextDueDate.getDayOfMonth()),
+                FixedBillFactory.OPERATION_TYPE, DEBIT,
+                FixedBillFactory.AMOUNT, new BigDecimal("100.00"),
+                FixedBillFactory.START_DATE, LocalDate.of(2026, 1, 1),
+                FixedBillFactory.END_DATE, LocalDate.of(2027, 12, 31),
+                FixedBillFactory.NEXT_DUE_DATE, nextDueDate));
+    }
+
     private void mustValidateFinalBalanceList(BigDecimal initialBalance,
                                               BigDecimal projectedOpeningBalance,
                                               LocalDate initialDate,
@@ -194,9 +317,11 @@ public class BalanceServiceTest {
         when(financialMovementService.findBalance(initialDate.minusDays(1))).thenReturn(initialBalance);
         when(financialMovementService.findProjectedBalance(initialDate.minusDays(1))).thenReturn(projectedOpeningBalance);
         when(financialMovementService.findMovementsForBalanceCalculation(initialDate, endDate)).thenReturn(mockFinancialMovementList);
-        when(fixedBillService.findAllByNextDueDateBetween(initialDate, endDate)).thenReturn(mockFixedBillList);
-        when(installmentBillService.findAllByNextInstallmentDateBetween(initialDate, endDate)).thenReturn(mockInstallmentBillList);
-        when(installmentBillService.findAllByNextInstallmentDateBetween(initialDate, endDate)).thenReturn(mockInstallmentBillList);
+        when(fixedBillService.findAllByNextDueDateLessThanEqual(endDate)).thenReturn(mockFixedBillList);
+        // These scenarios have a single occurrence per fixed bill inside the period.
+        mockFixedBillList.forEach(fixedBill -> when(fixedBillService.findOccurrencesUntil(fixedBill, endDate))
+                .thenReturn(List.of(fixedBill.getNextDueDate())));
+        when(installmentBillService.findAllByNextInstallmentDateLessThanEqual(endDate)).thenReturn(mockInstallmentBillList);
 
         Set<DailyBalance> resultDailyBalanceList = balanceService.findDailyBalanceBetween(initialDate, endDate);
 

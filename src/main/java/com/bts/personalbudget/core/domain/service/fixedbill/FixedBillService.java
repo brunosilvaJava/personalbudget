@@ -9,6 +9,7 @@ import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.CalcFixedBill;
+import com.bts.personalbudget.core.domain.service.recurrencebill.RecurrenceCalculator;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.mapper.FixedBillMapper;
 import jakarta.persistence.EntityNotFoundException;
@@ -293,11 +294,33 @@ public class FixedBillService {
         return fixedBillMapper.toModelList(fixedBillEntityList);
     }
 
-    public List<FixedBill> findAllByNextDueDateBetween(final LocalDate initialDate, final LocalDate endDate) {
-        log.info("m=findAllByNextDueDateBetween initialDate={} endDate={}", initialDate, endDate);
+    /**
+     * Active fixed bills with at least one pending occurrence on or before {@code endDate}. Not
+     * BETWEEN a start and end: a bill whose next_due_date is before a period can still have
+     * occurrences inside it.
+     */
+    public List<FixedBill> findAllByNextDueDateLessThanEqual(final LocalDate endDate) {
+        log.info("m=findAllByNextDueDateLessThanEqual endDate={}", endDate);
         final List<FixedBillEntity> fixedBillEntityList =
-                fixedBillRepository.findAllByFlagActiveTrueAndStatusAndNextDueDateBetween(ACTIVE, initialDate, endDate);
+                fixedBillRepository.findAllByNextDueDateLessThanEqualAndStatusAndFlagActive(endDate, ACTIVE, Boolean.TRUE);
         return fixedBillMapper.toModelList(fixedBillEntityList);
+    }
+
+    /**
+     * Every occurrence not posted yet, from next_due_date up to {@code endDate}, following the
+     * same rule the posting loop advances by (defineNextDueDate from the day after each
+     * occurrence) - so the projection shows exactly what the job will post.
+     */
+    public List<LocalDate> findOccurrencesUntil(final FixedBill fixedBill, final LocalDate endDate) {
+        log.info("m=findOccurrencesUntil, code={}, nextDueDate={}, endDate={}", fixedBill.getCode(), fixedBill.getNextDueDate(), endDate);
+        return RecurrenceCalculator.occurrencesUntil(
+                        fixedBill.getNextDueDate(),
+                        endDate,
+                        occurrence -> defineNextDueDate(fixedBill, occurrence.plusDays(1)).orElse(null),
+                        RecurrenceCalculator.MAX_OCCURRENCES)
+                .stream()
+                .filter(fixedBill::isCurrent)
+                .toList();
     }
 
     /**

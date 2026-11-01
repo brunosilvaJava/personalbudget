@@ -25,12 +25,12 @@ public interface FixedBillRepository extends JpaRepository<FixedBillEntity, Long
 
     List<FixedBillEntity> findAllByNextDueDateAndStatusAndFlagActive(LocalDate nextDueDate, FixedBillStatus fixedBillStatus, Boolean flagActive);
 
+    /**
+     * Fetches the calendar too: the balance projection maps every bill to a model (days included)
+     * to enumerate its occurrences.
+     */
+    @EntityGraph(attributePaths = {"calendarFixedBillEntityList"})
     List<FixedBillEntity> findAllByNextDueDateLessThanEqualAndStatusAndFlagActive(LocalDate nextDueDate, FixedBillStatus fixedBillStatus, Boolean flagActive);
-
-    List<FixedBillEntity> findAllByFlagActiveTrueAndStatusAndNextDueDateBetween(
-            FixedBillStatus status,
-            LocalDate startDate,
-            LocalDate endDate);
 
     /**
      * Locks the row for the duration of the transaction so the scheduled job and a concurrent

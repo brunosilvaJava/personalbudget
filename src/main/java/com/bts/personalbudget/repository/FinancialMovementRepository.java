@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,6 +27,15 @@ public interface FinancialMovementRepository extends JpaRepository<FinancialMove
      * recreate it.
      */
     boolean existsByRecurrenceBillCodeAndOccurrenceDate(UUID recurrenceBillCode, LocalDate occurrenceDate);
+
+    /**
+     * Same rule as existsByRecurrenceBillCodeAndOccurrenceDate (not scoped to flagActive), in
+     * bulk: the occurrences of these recurrence bills already generated within the period.
+     */
+    List<FinancialMovementEntity> findAllByRecurrenceBillCodeInAndOccurrenceDateBetween(
+            Collection<UUID> recurrenceBillCodes,
+            LocalDate initialDate,
+            LocalDate endDate);
 
     Page<FinancialMovementEntity> findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
             String description,

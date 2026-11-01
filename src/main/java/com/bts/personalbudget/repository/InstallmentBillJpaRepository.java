@@ -44,13 +44,6 @@ public interface InstallmentBillJpaRepository extends JpaRepository<InstallmentB
     @Query("SELECT ib FROM InstallmentBillEntity ib WHERE ib.code = :code AND ib.flagActive = true")
     Optional<InstallmentBillEntity> findForUpdateByCode(@Param("code") UUID code);
 
-    List<InstallmentBillEntity> findAllByNextInstallmentDateBetweenAndStatusAndFlagActive(
-            LocalDate initialDate,
-            LocalDate endDate,
-            InstallmentBillStatus status,
-            Boolean flagActive
-    );
-
     @Query("SELECT ib FROM InstallmentBillEntity ib WHERE " +
             "(:description IS NULL OR :description = '' OR LOWER(ib.description) LIKE LOWER(CONCAT('%', :description, '%'))) AND " +
             "(:operationTypes IS NULL OR ib.operationType IN :operationTypes) AND " +

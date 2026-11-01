@@ -76,10 +76,14 @@ public class InstallmentBillService {
         return repository.findAllByNextInstallmentDateAndStatus(nextInstallmentDate, InstallmentBillStatus.PENDING);
     }
 
-    public List<InstallmentBill> findAllByNextInstallmentDateBetween(final LocalDate initialDate,
-                                                                     final LocalDate endDate) {
-        log.info("m=findAllByNextInstallmentDateBetween initialDate={} endDate={}", initialDate, endDate);
-        return repository.findAllByNextInstallmentDateBetweenAndStatus(initialDate, endDate, InstallmentBillStatus.PENDING);
+    /**
+     * Pending installment bills with at least one installment not posted yet on or before
+     * {@code endDate}. Not BETWEEN a start and end: a bill whose next installment is before a
+     * period can still have installments inside it.
+     */
+    public List<InstallmentBill> findAllByNextInstallmentDateLessThanEqual(final LocalDate endDate) {
+        log.info("m=findAllByNextInstallmentDateLessThanEqual endDate={}", endDate);
+        return repository.findAllByNextInstallmentDateLessThanEqualAndStatus(endDate, InstallmentBillStatus.PENDING);
     }
 
     public InstallmentBill update(final UUID code,

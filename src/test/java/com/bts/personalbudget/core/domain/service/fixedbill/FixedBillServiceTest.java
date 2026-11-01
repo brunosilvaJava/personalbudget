@@ -670,6 +670,26 @@ public class FixedBillServiceTest {
         assertEquals(TODAY.plusMonths(1), entity.getNextDueDate());
     }
 
+    @Test
+    void shouldFindAllOccurrencesUntilEndDateFollowingSchedule() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        final LocalDate june10 = LocalDate.of(2026, 6, 10);
+        final LocalDate july10 = LocalDate.of(2026, 7, 10);
+        FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
+                FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
+                FixedBillFactory.DAYS, Set.of(10),
+                START_DATE, LocalDate.of(2026, 1, 1),
+                END_DATE, LocalDate.of(2026, 8, 5),
+                FixedBillFactory.NEXT_DUE_DATE, june10
+        ));
+
+        // Every occurrence up to the end of the period, not only next_due_date.
+        assertEquals(List.of(june10), fixedBillService.findOccurrencesUntil(fixedBill, LocalDate.of(2026, 7, 9)));
+        // August 10 is after end_date: the schedule stops at July 10, as the posting loop would.
+        assertEquals(List.of(june10, july10), fixedBillService.findOccurrencesUntil(fixedBill, LocalDate.of(2026, 12, 31)));
+    }
+
     /**
      * Stands in for the persistence context: what the service saves is what the locked read in
      * postDueOccurrences returns, as it would inside the same transaction.

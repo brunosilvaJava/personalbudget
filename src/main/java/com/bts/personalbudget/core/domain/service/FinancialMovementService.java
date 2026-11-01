@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -50,6 +51,23 @@ public class FinancialMovementService {
     public boolean existsByRecurrenceBillCodeAndOccurrenceDate(final UUID recurrenceBillCode, final LocalDate occurrenceDate) {
         log.info("m=existsByRecurrenceBillCodeAndOccurrenceDate, recurrenceBillCode={}, occurrenceDate={}", recurrenceBillCode, occurrenceDate);
         return repository.existsByRecurrenceBillCodeAndOccurrenceDate(recurrenceBillCode, occurrenceDate);
+    }
+
+    /**
+     * Movements already generated for these recurrence bills with occurrence_date in the period,
+     * soft-deleted ones included (same rule as existsByRecurrenceBillCodeAndOccurrenceDate). Used
+     * by the balance projection to skip occurrences that are no longer pending generation.
+     */
+    public List<FinancialMovement> findRecurrenceOccurrencesBetween(final Collection<UUID> recurrenceBillCodes,
+                                                                    final LocalDate initialDate,
+                                                                    final LocalDate endDate) {
+        log.info("m=findRecurrenceOccurrencesBetween, recurrenceBillCodes={}, initialDate={}, endDate={}",
+                recurrenceBillCodes.size(), initialDate, endDate);
+        if (recurrenceBillCodes.isEmpty()) {
+            return List.of();
+        }
+        return mapper.toModel(repository.findAllByRecurrenceBillCodeInAndOccurrenceDateBetween(
+                recurrenceBillCodes, initialDate, endDate));
     }
 
     public Page<FinancialMovement> find(

@@ -4,6 +4,7 @@ import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData;
+import com.bts.personalbudget.core.domain.service.recurrencebill.RecurrenceCalculator;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
@@ -11,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import static java.math.BigDecimal.ZERO;
@@ -118,6 +120,22 @@ public class InstallmentBill implements BalanceCalcData {
 
     public boolean containsNextInstallment() {
         return installmentCount < installmentTotal;
+    }
+
+    /**
+     * Dates of the installments not posted yet, from next_installment_date up to {@code endDate}
+     * (inclusive), stepping the same 30 days updateInstallment() advances by and stopping at
+     * installment_total.
+     */
+    public List<LocalDate> findRemainingInstallmentDatesUntil(final LocalDate endDate) {
+        if (nextInstallmentDate == null || !containsNextInstallment()) {
+            return List.of();
+        }
+        return RecurrenceCalculator.occurrencesUntil(
+                nextInstallmentDate,
+                endDate,
+                installmentDate -> installmentDate.plusDays(DAYS_TO_NEXT_INSTALLMENT),
+                installmentTotal - installmentCount);
     }
 
     @Override
