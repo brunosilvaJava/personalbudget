@@ -50,6 +50,11 @@ public record FixedBillResponse (
 
         @Schema(description = "End date of the fixed bill", example = "2024-09-12")
         @JsonProperty("end_date")
-        LocalDate endDate
+        LocalDate endDate,
+
+        @Schema(description = "Date of the next occurrence that has not been posted yet; null once the fixed bill is concluded",
+                example = "2024-08-12")
+        @JsonProperty("next_due_date")
+        LocalDate nextDueDate
 ){
 }

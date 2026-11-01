@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -517,10 +518,9 @@ public class FixedBillServiceTest {
         FixedBill updatedFixedBill = fixedBillService.update(code, null, null, null, RecurrenceType.MONTHLY,
                 Set.of(10), null, null, null, null);
 
-        LocalDate tomorrow = TODAY.plusDays(1);
-        LocalDate expectedNextDueDate = tomorrow.getDayOfMonth() <= 10
-                ? tomorrow.withDayOfMonth(10)
-                : tomorrow.plusMonths(1).withDayOfMonth(10);
+        LocalDate expectedNextDueDate = TODAY.getDayOfMonth() <= 10
+                ? TODAY.withDayOfMonth(10)
+                : TODAY.plusMonths(1).withDayOfMonth(10);
 
         ArgumentCaptor<FixedBillEntity> argumentCaptor = ArgumentCaptor.forClass(FixedBillEntity.class);
         verify(fixedBillRepository).save(argumentCaptor.capture());
@@ -549,22 +549,138 @@ public class FixedBillServiceTest {
     }
 
     @Test
-    void shouldDefineFirstDueDateAfterTodayWhenDueDayIsToday() {
+    void shouldPostTodayOccurrenceWhenFixedBillCreatedOnDueDate() {
         when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
 
-        LocalDate today = TODAY;
         FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
                 FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
-                FixedBillFactory.DAYS, Set.of(today.getDayOfMonth()),
-                START_DATE, today
+                FixedBillFactory.DAYS, Set.of(TODAY.getDayOfMonth()),
+                START_DATE, TODAY,
+                END_DATE, TODAY.plusYears(1)
         ));
 
-        fixedBillService.save(fixedBill);
+        final AtomicReference<FixedBillEntity> persisted = stubPersistedFixedBill();
+        when(fixedBillRepository.findForUpdateByCode(any())).thenAnswer(invocation -> Optional.of(persisted.get()));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(any(), eq(TODAY))).thenReturn(false);
+
+        FixedBill savedFixedBill = fixedBillService.save(fixedBill);
+
+        final ArgumentCaptor<FinancialMovement> captor = ArgumentCaptor.forClass(FinancialMovement.class);
+        verify(financialMovementService).create(captor.capture());
+        assertEquals(TODAY, captor.getValue().occurrenceDate());
+        assertEquals(persisted.get().getCode(), captor.getValue().recurrenceBillCode());
+
+        assertEquals(TODAY.plusMonths(1), persisted.get().getNextDueDate());
+        assertEquals(TODAY.plusMonths(1), savedFixedBill.getNextDueDate());
+        assertEquals(persisted.get().getCode(), savedFixedBill.getCode());
+    }
+
+    @Test
+    void shouldNotPostRetroactiveOccurrencesWhenStartDateIsInThePast() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
+                FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
+                FixedBillFactory.DAYS, Set.of(10),
+                START_DATE, TODAY.minusMonths(3),
+                END_DATE, TODAY.plusYears(1)
+        ));
+
+        FixedBill savedFixedBill = fixedBillService.save(fixedBill);
 
         ArgumentCaptor<FixedBillEntity> argumentCaptor = ArgumentCaptor.forClass(FixedBillEntity.class);
         verify(fixedBillRepository).save(argumentCaptor.capture());
+        verify(fixedBillRepository, never()).findForUpdateByCode(any());
+        verify(financialMovementService, never()).create(any(FinancialMovement.class));
 
-        assertTrue(argumentCaptor.getValue().getNextDueDate().isAfter(today));
+        final LocalDate expectedNextDueDate = TODAY.getDayOfMonth() <= 10
+                ? TODAY.withDayOfMonth(10)
+                : TODAY.plusMonths(1).withDayOfMonth(10);
+        assertEquals(expectedNextDueDate, argumentCaptor.getValue().getNextDueDate());
+        assertEquals(expectedNextDueDate, savedFixedBill.getNextDueDate());
+    }
+
+    @Test
+    void shouldPostTodayOccurrenceWhenCalendarUpdatedToIncludeToday() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        final FixedBillEntity entity = buildMonthlyFixedBillEntity(10, TODAY.minusYears(1), null,
+                TODAY.plusMonths(1).withDayOfMonth(10));
+        final UUID code = entity.getCode();
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(entity));
+        final AtomicReference<FixedBillEntity> persisted = stubPersistedFixedBill();
+        when(fixedBillRepository.findForUpdateByCode(code)).thenAnswer(invocation -> Optional.of(persisted.get()));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, TODAY)).thenReturn(false);
+
+        FixedBill updatedFixedBill = fixedBillService.update(code, null, null, null, null,
+                Set.of(10, TODAY.getDayOfMonth()), null, null, null, null);
+
+        final ArgumentCaptor<FinancialMovement> captor = ArgumentCaptor.forClass(FinancialMovement.class);
+        verify(financialMovementService).create(captor.capture());
+        assertEquals(TODAY, captor.getValue().occurrenceDate());
+
+        assertEquals(TODAY.plusMonths(1).withDayOfMonth(10), updatedFixedBill.getNextDueDate());
+    }
+
+    @Test
+    void shouldNotDuplicateMovementWhenUpdatedAfterJobPostedToday() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        // The midnight job already posted today's occurrence and advanced next_due_date.
+        final int dueDay = TODAY.getDayOfMonth();
+        final FixedBillEntity entity = buildMonthlyFixedBillEntity(dueDay, TODAY.minusYears(1), null, TODAY.plusMonths(1));
+        final UUID code = entity.getCode();
+        final int extraDay = dueDay + 10;
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(entity));
+        final AtomicReference<FixedBillEntity> persisted = stubPersistedFixedBill();
+        when(fixedBillRepository.findForUpdateByCode(code)).thenAnswer(invocation -> Optional.of(persisted.get()));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, TODAY)).thenReturn(true);
+
+        // Recalculating from today points back at today; exists() finds the job's movement.
+        FixedBill updatedFixedBill = fixedBillService.update(code, null, null, null, null,
+                Set.of(dueDay, extraDay), null, null, null, null);
+
+        verify(financialMovementService, never()).create(any(FinancialMovement.class));
+        assertEquals(TODAY.withDayOfMonth(extraDay), updatedFixedBill.getNextDueDate());
+    }
+
+    @Test
+    void shouldPostTodayOccurrenceWhenBillReactivatedOnDueDate() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        final FixedBillEntity entity = buildMonthlyFixedBillEntity(TODAY.getDayOfMonth(), TODAY.minusYears(1), null, null);
+        entity.setStatus(FixedBillStatus.INACTIVE);
+        final UUID code = entity.getCode();
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(entity));
+        when(fixedBillRepository.save(any(FixedBillEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(fixedBillRepository.findForUpdateByCode(code)).thenReturn(Optional.of(entity));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, TODAY)).thenReturn(false);
+
+        FixedBill result = fixedBillService.changeStatus(code, FixedBillStatus.ACTIVE);
+
+        final ArgumentCaptor<FinancialMovement> captor = ArgumentCaptor.forClass(FinancialMovement.class);
+        verify(financialMovementService).create(captor.capture());
+        assertEquals(TODAY, captor.getValue().occurrenceDate());
+
+        assertEquals(FixedBillStatus.ACTIVE, result.getStatus());
+        assertEquals(TODAY.plusMonths(1), result.getNextDueDate());
+        assertEquals(TODAY.plusMonths(1), entity.getNextDueDate());
+    }
+
+    /**
+     * Stands in for the persistence context: what the service saves is what the locked read in
+     * postDueOccurrences returns, as it would inside the same transaction.
+     */
+    private AtomicReference<FixedBillEntity> stubPersistedFixedBill() {
+        final AtomicReference<FixedBillEntity> persisted = new AtomicReference<>();
+        when(fixedBillRepository.save(any(FixedBillEntity.class))).thenAnswer(invocation -> {
+            persisted.set(invocation.getArgument(0));
+            return invocation.getArgument(0);
+        });
+        return persisted;
     }
 
     /**

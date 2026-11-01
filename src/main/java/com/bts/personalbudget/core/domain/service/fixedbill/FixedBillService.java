@@ -48,7 +48,12 @@ public class FixedBillService {
      */
     static final int CATCH_UP_SAFETY_LIMIT = 400;
 
-    public void save(final FixedBill fixedBill) {
+    /**
+     * Creates the fixed bill and, if its first occurrence is today, posts that occurrence right
+     * away (in this same transaction) instead of waiting for the next midnight run.
+     */
+    @Transactional
+    public FixedBill save(final FixedBill fixedBill) {
         log.info("m=save fixedBill={}", fixedBill);
         validationMandatoryFields(fixedBill);
         fixedBill.validationDays();
@@ -57,6 +62,8 @@ public class FixedBillService {
         final Set<CalendarFixedBillEntity> calendarFixedBillEntityList = buildCalendarFixedBillEntityList(fixedBill, fixedBillEntity);
         fixedBillEntity.setCalendarFixedBillEntityList(calendarFixedBillEntityList);
         fixedBillRepository.save(fixedBillEntity);
+        return postDueOccurrencesIfDue(fixedBillEntity.getCode(), fixedBillEntity.getNextDueDate())
+                .orElseGet(() -> fixedBillMapper.toModel(fixedBillEntity));
     }
 
     private Set<CalendarFixedBillEntity> buildCalendarFixedBillEntityList(FixedBill fixedBill, FixedBillEntity fixedBillEntity) {
@@ -85,14 +92,15 @@ public class FixedBillService {
     }
 
     /**
-     * The recurrence job runs at midnight and selects bills by exact due date, so a due date
-     * set to today after midnight would never be posted. Schedules start from tomorrow or from
-     * the start date, whichever is later.
+     * Schedules start from today or from the start date, whichever is later. Today's own
+     * occurrence is safe to include: save/update/reactivation post it right away
+     * (postDueOccurrencesIfDue), and posting is idempotent if the job already did. A start date
+     * in the past never yields retroactive occurrences, since the base is never before today.
      */
     private LocalDate defineScheduleBaseDate(final FixedBill fixedBill) {
-        final LocalDate tomorrow = LocalDate.now(clock).plusDays(1);
+        final LocalDate today = LocalDate.now(clock);
         final LocalDate startDate = fixedBill.getStartDate();
-        return startDate != null && startDate.isAfter(tomorrow) ? startDate : tomorrow;
+        return startDate != null && startDate.isAfter(today) ? startDate : today;
     }
 
     public FixedBill findByCode(final UUID code) {
@@ -165,7 +173,8 @@ public class FixedBillService {
             log.info("m=update, message=ChangesDetected, code={}, savingToDatabase=true", code);
             validationMandatoryFields(updateFixedBill);
             updateFixedBill.validationDays();
-            if (!previousSchedule.equals(updateFixedBill.schedule())) {
+            final boolean scheduleChanged = !previousSchedule.equals(updateFixedBill.schedule());
+            if (scheduleChanged) {
                 final LocalDate nextDueDate = defineNextDueDate(updateFixedBill, defineScheduleBaseDate(updateFixedBill)).orElse(null);
                 log.info("m=update, message=ScheduleChanged, code={}, nextDueDate={}", code, nextDueDate);
                 updateFixedBill.setNextDueDate(nextDueDate);
@@ -173,6 +182,10 @@ public class FixedBillService {
             final FixedBillEntity updateEntity = fixedBillMapper.toEntity(updateFixedBill);
             updateEntity.setCalendarFixedBillEntityList(buildCalendarFixedBillEntityList(updateFixedBill, fixedBillEntity));
             fixedBillRepository.save(updateEntity);
+            if (scheduleChanged) {
+                // If the job already posted today, exists() finds it and only the date advances.
+                return postDueOccurrencesIfDue(code, updateFixedBill.getNextDueDate()).orElse(updateFixedBill);
+            }
         } else {
             log.info("m=update, message=NoChangesDetected, code={}, savingToDatabase=false", code);
         }
@@ -204,6 +217,13 @@ public class FixedBillService {
 
         log.info("m=changeStatus, message=Status changed successfully, code={}, oldStatus={}, newStatus={}",
                 code, fixedBillEntity.getStatus(), newStatus);
+
+        if (newStatus == ACTIVE) {
+            final Optional<FixedBill> posted = postDueOccurrencesIfDue(code, fixedBillEntity.getNextDueDate());
+            if (posted.isPresent()) {
+                return posted.get();
+            }
+        }
 
         return fixedBillMapper.toModel(savedEntity);
     }
@@ -304,6 +324,30 @@ public class FixedBillService {
     @Transactional
     public void postDueOccurrences(final UUID code, final LocalDate today) {
         log.info("m=postDueOccurrences, code={}, today={}", code, today);
+        lockAndPostDueOccurrences(code, today);
+    }
+
+    /**
+     * Called right after save/update/reactivation, inside that same transaction (REQUIRED, never
+     * REQUIRES_NEW: a new transaction would not see the row just written). Skips the locked read
+     * when nothing is due yet. Returns the bill as it stands after posting, so the caller's
+     * response already shows next_due_date in the following period.
+     */
+    private Optional<FixedBill> postDueOccurrencesIfDue(final UUID code, final LocalDate nextDueDate) {
+        final LocalDate today = LocalDate.now(clock);
+        if (nextDueDate == null || nextDueDate.isAfter(today)) {
+            return Optional.empty();
+        }
+        log.info("m=postDueOccurrencesIfDue, msg=OccurrenceDueOnSave, code={}, nextDueDate={}, today={}", code, nextDueDate, today);
+        return Optional.of(fixedBillMapper.toModel(lockAndPostDueOccurrences(code, today)));
+    }
+
+    /**
+     * The locked read serializes this account between the job and a concurrent request, and -
+     * inside a request that has just saved the bill - flushes that pending write first, so the
+     * row read here is the one just written.
+     */
+    private FixedBillEntity lockAndPostDueOccurrences(final UUID code, final LocalDate today) {
         final FixedBillEntity fixedBillEntity = fixedBillRepository.findForUpdateByCode(code)
                 .orElseThrow(() -> new EntityNotFoundException("FixedBillEntity not found for code " + code));
 
@@ -329,6 +373,7 @@ public class FixedBillService {
                 fixedBillEntity.setNextDueDate(nextDueDate.get());
             }
         }
+        return fixedBillEntity;
     }
 
     private void postOccurrenceIfDue(final FixedBill fixedBill, final LocalDate occurrenceDate) {

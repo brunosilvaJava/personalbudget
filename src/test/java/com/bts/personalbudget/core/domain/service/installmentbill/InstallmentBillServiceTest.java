@@ -15,7 +15,10 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,12 +50,46 @@ public class InstallmentBillServiceTest {
     @Spy
     private FinancialMovementMapper financialMovementMapper = FinancialMovementMapper.INSTANCE;
 
+    private static final ZoneId ZONE_ID = ZoneId.of("America/Sao_Paulo");
+    private static final Instant FIXED_INSTANT = Instant.parse("2026-06-15T10:00:00Z");
+    private static final LocalDate TODAY = LocalDate.ofInstant(FIXED_INSTANT, ZONE_ID);
+
+    @Spy
+    private Clock clock = Clock.fixed(FIXED_INSTANT, ZONE_ID);
+
     @Test
     void shouldCreateInstallmentBill() {
         InstallmentBill installmentBill = InstallmentBillFactory.buildModel(
-                OperationType.CREDIT, "Test", BigDecimal.TEN, LocalDate.now(), 1);
+                OperationType.CREDIT, "Test", BigDecimal.TEN, TODAY, 1);
         service.create(installmentBill);
         verify(repository).save(installmentBill);
+        // First installment is purchase_date + 30 days: nothing is due yet.
+        verify(repository, never()).findForUpdateByCode(any());
+        verify(financialMovementService, never()).create(any(FinancialMovement.class));
+    }
+
+    @Test
+    void shouldPostOverdueInstallmentsWhenPurchaseDateIsInThePast() {
+        final InstallmentBill installmentBill = InstallmentBillFactory.buildModel(
+                OperationType.DEBIT, "Past purchase", BigDecimal.TEN, TODAY.minusDays(45), 3);
+        final UUID code = installmentBill.getCode();
+        final LocalDate firstInstallment = TODAY.minusDays(15);
+        assertEquals(firstInstallment, installmentBill.getNextInstallmentDate());
+
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
+        when(repository.update(any(InstallmentBill.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, firstInstallment)).thenReturn(false);
+
+        service.create(installmentBill);
+
+        verify(repository).save(installmentBill);
+        final ArgumentCaptor<FinancialMovement> captor = ArgumentCaptor.forClass(FinancialMovement.class);
+        verify(financialMovementService).create(captor.capture());
+        assertEquals(firstInstallment, captor.getValue().occurrenceDate());
+
+        assertEquals(1, installmentBill.getInstallmentCount());
+        assertEquals(firstInstallment.plusDays(30), installmentBill.getNextInstallmentDate());
+        assertEquals(InstallmentBillStatus.PENDING, installmentBill.getStatus());
     }
 
 //    @Test

@@ -33,11 +33,11 @@ public class FixedBillController implements FixedBillControllerApiDocs {
 
     @Override
     @PostMapping
-    public ResponseEntity<Void> create(@Valid @RequestBody FixedBillRequest fixedBillRequest) {
+    public ResponseEntity<FixedBillResponse> create(@Valid @RequestBody FixedBillRequest fixedBillRequest) {
         log.info("m=create fixedBillRequest={}", fixedBillRequest);
         final FixedBill fixedBill = fixedBillMapper.toModel(fixedBillRequest);
-        fixedBillService.save(fixedBill);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        final FixedBill savedFixedBill = fixedBillService.save(fixedBill);
+        return ResponseEntity.status(HttpStatus.CREATED).body(fixedBillMapper.toResponse(savedFixedBill));
     }
 
     @GetMapping

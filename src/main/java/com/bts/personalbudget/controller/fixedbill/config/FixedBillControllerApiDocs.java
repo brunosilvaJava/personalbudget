@@ -9,6 +9,8 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,13 +26,16 @@ public interface FixedBillControllerApiDocs {
 
     @Operation(
             summary = "Create a new fixed bill",
-            description = "This endpoint creates a new fixed bill based on the provided request data.")
+            description = "This endpoint creates a new fixed bill based on the provided request data. "
+                    + "If the first occurrence falls on the current day, its PENDING financial movement is "
+                    + "posted immediately and next_due_date already points to the following occurrence.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Fixed bill successfully created"),
+            @ApiResponse(responseCode = "201", description = "Fixed bill successfully created",
+                    content = @Content(schema = @Schema(implementation = FixedBillResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid request data")
     })
     @PostMapping
-    ResponseEntity<Void> create(@Valid @RequestBody FixedBillRequest fixedBillRequest);
+    ResponseEntity<FixedBillResponse> create(@Valid @RequestBody FixedBillRequest fixedBillRequest);
 
     @Operation(
             summary = "Retrieve all fixed bills",
