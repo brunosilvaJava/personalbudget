@@ -27,11 +27,11 @@ public interface InstallmentBillControllerApiDocs {
     @Operation(summary = "Create a new installment bill",
             description = "Creates a new installment bill with the given details.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Installment bill successfully created"),
+            @ApiResponse(responseCode = "201", description = "Installment bill successfully created; returns it, with installments already due posted"),
             @ApiResponse(responseCode = "400", description = "Invalid request data")
     })
     @PostMapping
-    ResponseEntity<Void> create(@RequestBody @Valid final InstallmentBillRequest installmentBillRequest);
+    ResponseEntity<InstallmentBillResponse> create(@RequestBody @Valid final InstallmentBillRequest installmentBillRequest);
 
     @Operation(summary = "Retrieve all installment bills with pagination and filters",
             description = "Returns a paginated list of installment bills based on search parameters.")
@@ -72,7 +72,7 @@ public interface InstallmentBillControllerApiDocs {
     @Operation(summary = "Delete an installment bill by code",
             description = "Deletes an existing installment bill identified by its UUID.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Installment bill successfully deleted"),
+            @ApiResponse(responseCode = "204", description = "Installment bill deleted (also when it was already deleted)"),
             @ApiResponse(responseCode = "404", description = "Installment bill not found")
     })
     @DeleteMapping("/{code}")

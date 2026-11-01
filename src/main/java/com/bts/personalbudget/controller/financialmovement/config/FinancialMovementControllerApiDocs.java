@@ -10,7 +10,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.data.crossstore.ChangeSetPersister;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,8 +25,11 @@ public interface FinancialMovementControllerApiDocs {
     @Operation(
             summary = "Create a new financial movement",
             description = "This endpoint creates a new entry for a financial movement.")
-    @ApiResponse(responseCode = "201", description = "Financial movement successfully created")
-    ResponseEntity<Void> create(FinancialMovementRequest request);
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Financial movement successfully created; returns it, with its code"),
+            @ApiResponse(responseCode = "400", description = "Invalid request data")
+    })
+    ResponseEntity<FinancialMovementResponse> create(FinancialMovementRequest request);
 
     @Operation(
             summary = "Retrieve financial movements",
@@ -54,7 +56,7 @@ public interface FinancialMovementControllerApiDocs {
             @ApiResponse(responseCode = "200", description = "Financial movement found and returned"),
             @ApiResponse(responseCode = "404", description = "Financial movement not found")
     })
-    ResponseEntity<FinancialMovementResponse> find(UUID code) throws ChangeSetPersister.NotFoundException;
+    ResponseEntity<FinancialMovementResponse> find(UUID code);
 
     @Operation(summary = "Update an existing financial movement",
             description = "Updates an existing financial movement identified by its UUID.")
@@ -63,7 +65,7 @@ public interface FinancialMovementControllerApiDocs {
             @ApiResponse(responseCode = "404", description = "Financial movement not found"),
             @ApiResponse(responseCode = "400", description = "Invalid request data")
     })
-    ResponseEntity<?> update(UUID code, FinancialMovementUpdateRequest updateRequest) throws ChangeSetPersister.NotFoundException;
+    ResponseEntity<?> update(UUID code, FinancialMovementUpdateRequest updateRequest);
 
     @Operation(summary = "Delete a financial movement by code",
             description = "Deletes an existing financial movement identified by its UUID.")
@@ -71,6 +73,6 @@ public interface FinancialMovementControllerApiDocs {
             @ApiResponse(responseCode = "204", description = "Financial movement successfully deleted"),
             @ApiResponse(responseCode = "404", description = "Financial movement not found")
     })
-    ResponseEntity<Void> delete(@PathVariable UUID code) throws ChangeSetPersister.NotFoundException;
+    ResponseEntity<Void> delete(@PathVariable UUID code);
 
 }

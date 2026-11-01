@@ -40,9 +40,12 @@ public class InstallmentBillService {
      * Creates the installment bill and, for a purchase whose first installment is already due
      * (purchase_date 30+ days ago), posts the overdue installments right away in this same
      * transaction - the same thing the recovery job would do at the next midnight run.
+     *
+     * @return the bill as stored after that posting, so installment_count and
+     * next_installment_date already reflect the installments posted on save
      */
     @Transactional
-    public void create(final InstallmentBill installmentBill) {
+    public InstallmentBill create(final InstallmentBill installmentBill) {
         log.info("m=create installmentBill={}", installmentBill);
         repository.save(installmentBill);
         final LocalDate today = LocalDate.now(clock);
@@ -52,6 +55,7 @@ public class InstallmentBillService {
                     installmentBill.getCode(), nextInstallmentDate, today);
             postDueInstallments(installmentBill.getCode(), today);
         }
+        return repository.findByCode(installmentBill.getCode());
     }
 
     public Page<InstallmentBill> findAll(

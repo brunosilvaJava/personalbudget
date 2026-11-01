@@ -21,6 +21,8 @@ public interface FinancialMovementRepository extends JpaRepository<FinancialMove
 
     Optional<FinancialMovementEntity> findByCode(UUID code);
 
+    Optional<FinancialMovementEntity> findByCodeAndFlagActiveTrue(UUID code);
+
     /**
      * Deliberately not scoped to flagActive = true: a movement the user soft-deleted still
      * counts as "already generated" for this occurrence, so the recurrence job must not

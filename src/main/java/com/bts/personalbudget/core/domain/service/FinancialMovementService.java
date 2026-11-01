@@ -6,9 +6,9 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -34,9 +34,9 @@ public class FinancialMovementService {
     private final FinancialMovementMapper mapper;
 
     @Transactional
-    public void create(final FinancialMovement financialMovement) {
+    public FinancialMovement create(final FinancialMovement financialMovement) {
         log.info("m=create, financialMovement={}", financialMovement);
-        repository.save(mapper.toEntity(financialMovement));
+        return mapper.toModel(repository.save(mapper.toEntity(financialMovement)));
     }
 
     @Transactional
@@ -98,21 +98,26 @@ public class FinancialMovementService {
         return pagedEntities.map(mapper::toModel);
     }
 
-    public FinancialMovement find(final UUID code) throws NotFoundException {
+    public FinancialMovement find(final UUID code) {
         log.info("m=find, code={}", code);
         return mapper.toModel(findEntity(code));
     }
 
     @Transactional
-    public FinancialMovement update(final FinancialMovement financialMovement) throws NotFoundException {
+    public FinancialMovement update(final FinancialMovement financialMovement) {
         log.info("m=update, financialMovement={}", financialMovement);
         final FinancialMovementEntity financialMovementEntity = findEntity(financialMovement.code());
         update(financialMovement, financialMovementEntity);
         return mapper.toModel(financialMovementEntity);
     }
 
-    private FinancialMovementEntity findEntity(final UUID code) throws NotFoundException {
-        return repository.findByCode(code).orElseThrow(NotFoundException::new);
+    /**
+     * Soft-deleted movements are not found, as in FixedBillService: GET, PATCH and DELETE on them
+     * answer 404 (see ControllerExceptionHandler).
+     */
+    private FinancialMovementEntity findEntity(final UUID code) {
+        return repository.findByCodeAndFlagActiveTrue(code)
+                .orElseThrow(() -> new EntityNotFoundException("FinancialMovementEntity not found for code " + code));
     }
 
     private void update(final FinancialMovement financialMovement, final FinancialMovementEntity financialMovementEntity) {
@@ -172,7 +177,7 @@ public class FinancialMovementService {
     }
 
     @Transactional
-    public void delete(final UUID code) throws NotFoundException {
+    public void delete(final UUID code) {
         log.info("m=delete, code={}", code);
         final FinancialMovementEntity financialMovementEntity = findEntity(code);
         financialMovementEntity.delete();

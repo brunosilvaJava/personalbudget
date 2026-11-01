@@ -46,10 +46,10 @@ public class InstallmentBillController implements InstallmentBillControllerApiDo
     private final InstallmentBillMapper mapper;
 
     @PostMapping
-    public ResponseEntity<Void> create(@RequestBody @Valid final InstallmentBillRequest installmentBillRequest) {
+    public ResponseEntity<InstallmentBillResponse> create(@RequestBody @Valid final InstallmentBillRequest installmentBillRequest) {
         log.info("m=create installmentBillRequest={}", installmentBillRequest);
-        installmentBillService.create(mapper.toModel(installmentBillRequest));
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        final InstallmentBill created = installmentBillService.create(mapper.toModel(installmentBillRequest));
+        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(created));
     }
 
     @GetMapping
@@ -108,6 +108,6 @@ public class InstallmentBillController implements InstallmentBillControllerApiDo
     public ResponseEntity<Void> delete(@PathVariable final UUID code) {
         log.info("m=delete code={}", code);
         installmentBillService.delete(code);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 }
