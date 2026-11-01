@@ -203,7 +203,13 @@ public class FixedBillService {
             return Optional.empty();
         }
         final CalcFixedBill calcFixedBill = calcFixedBillFactory.build(fixedBill.getRecurrenceType());
-        return Optional.of(calcFixedBill.calcNextDueDate(fixedBill, baseDate));
+        final LocalDate nextDueDate = calcFixedBill.calcNextDueDate(fixedBill, baseDate);
+        if (!fixedBill.isCurrent(nextDueDate)) {
+            log.info("m=defineNextDueDate, msg=NextDueDateAfterEndDate, code={}, nextDueDate={}, endDate={}",
+                    fixedBill.getCode(), nextDueDate, fixedBill.getEndDate());
+            return Optional.empty();
+        }
+        return Optional.of(nextDueDate);
     }
 
     private void validationMandatoryFields(final FixedBill fixedBill) {

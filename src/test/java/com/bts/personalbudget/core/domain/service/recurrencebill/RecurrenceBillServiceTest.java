@@ -13,6 +13,7 @@ import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBil
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -80,6 +81,23 @@ public class RecurrenceBillServiceTest {
         verify(fixedBillService, never()).updateNextDueDate(any(), any());
     }
 
+    @Test
+    void shouldNotPostFixedBillWhenDueDateIsAfterEndDate() {
+        LocalDate dueDate = LocalDate.of(2026, 6, 10);
+        FixedBill fixedBillMock = FixedBillFactory.buildFixedBill(Map.of(
+                FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
+                FixedBillFactory.DAYS, Set.of(10),
+                FixedBillFactory.START_DATE, LocalDate.of(2026, 1, 1),
+                FixedBillFactory.END_DATE, LocalDate.of(2026, 5, 15),
+                FixedBillFactory.NEXT_DUE_DATE, dueDate
+        ));
 
+        when(installmentBillService.findByNextInstallmentDate(dueDate)).thenReturn(List.of());
+        when(fixedBillService.findByNextDueDate(dueDate)).thenReturn(List.of(fixedBillMock));
 
+        service.postRecurringBills(dueDate);
+
+        verify(financialMovementService).create(List.of());
+        verify(fixedBillService).updateNextDueDate(fixedBillMock, dueDate.plusDays(1));
+    }
 }

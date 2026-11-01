@@ -413,4 +413,44 @@ public class FixedBillServiceTest {
         assertNull(fixedBill.getStartDate());
         assertTrue(fixedBill.isCurrent(LocalDate.now()));
     }
+
+    @Test
+    void shouldConcludeFixedBillWhenNextOccurrenceIsAfterEndDate() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
+                FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
+                FixedBillFactory.DAYS, Set.of(10),
+                START_DATE, LocalDate.of(2026, 1, 1),
+                END_DATE, LocalDate.of(2026, 5, 15)
+        ));
+
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        fixedBillEntityMock.setStatus(FixedBillStatus.ACTIVE);
+        fixedBillEntityMock.setNextDueDate(LocalDate.of(2026, 5, 10));
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(fixedBill.getCode()))
+                .thenReturn(Optional.of(fixedBillEntityMock));
+
+        fixedBillService.updateNextDueDate(fixedBill, LocalDate.of(2026, 5, 11));
+
+        assertEquals(FixedBillStatus.INACTIVE, fixedBillEntityMock.getStatus());
+        assertNull(fixedBillEntityMock.getNextDueDate());
+    }
+
+    @Test
+    void shouldKeepNextDueDateWhenNextOccurrenceIsOnEndDate() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
+                FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
+                FixedBillFactory.DAYS, Set.of(10),
+                START_DATE, LocalDate.of(2026, 1, 1),
+                END_DATE, LocalDate.of(2026, 6, 10)
+        ));
+
+        Optional<LocalDate> nextDueDate = fixedBillService.defineNextDueDate(fixedBill, LocalDate.of(2026, 5, 11));
+
+        assertEquals(Optional.of(LocalDate.of(2026, 6, 10)), nextDueDate);
+    }
 }
