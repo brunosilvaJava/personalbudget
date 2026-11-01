@@ -5,7 +5,11 @@ import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
+import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
+import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.CalcFixedBill;
+import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.mapper.FixedBillMapper;
 import jakarta.persistence.EntityNotFoundException;
 
@@ -33,6 +37,16 @@ public class FixedBillService {
     private final FixedBillMapper fixedBillMapper;
     private final CalcFixedBillFactory calcFixedBillFactory;
     private final Clock clock;
+    private final FinancialMovementService financialMovementService;
+    private final FinancialMovementMapper financialMovementMapper;
+
+    /**
+     * Upper bound on how many occurrences a single catch-up run will post for one account.
+     * Guards against an endless loop if a FixedBill is somehow misconfigured (e.g. a calendar
+     * that never satisfies isCurrent again) - the job logs a warning and moves on instead of
+     * hanging the whole recurrence run.
+     */
+    static final int CATCH_UP_SAFETY_LIMIT = 400;
 
     public void save(final FixedBill fixedBill) {
         log.info("m=save fixedBill={}", fixedBill);
@@ -264,5 +278,71 @@ public class FixedBillService {
         final List<FixedBillEntity> fixedBillEntityList =
                 fixedBillRepository.findAllByFlagActiveTrueAndStatusAndNextDueDateBetween(ACTIVE, initialDate, endDate);
         return fixedBillMapper.toModelList(fixedBillEntityList);
+    }
+
+    /**
+     * Codes of the fixed bills with at least one occurrence due on or before {@code date}. Used
+     * by RecurrenceBillService to decide which accounts postDueOccurrences needs to process -
+     * each one is then handled in its own transaction.
+     */
+    public List<UUID> findCodesByNextDueDateLessThanEqual(final LocalDate date) {
+        log.info("m=findCodesByNextDueDateLessThanEqual date={}", date);
+        return fixedBillRepository.findAllByNextDueDateLessThanEqualAndStatusAndFlagActive(date, ACTIVE, Boolean.TRUE)
+                .stream()
+                .map(FixedBillEntity::getCode)
+                .toList();
+    }
+
+    /**
+     * Posts every occurrence of this fixed bill that fell due on or before {@code today} and was
+     * not posted yet, then advances next_due_date past today (concluding the bill if there is no
+     * next occurrence). Safe to call from the recovery job after an outage, or right after
+     * save/update/reactivation to post today's own occurrence immediately - either way, posting
+     * is idempotent (see FinancialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate) and
+     * never looks at an occurrence older than the bill's own schedule allows (isCurrent).
+     */
+    @Transactional
+    public void postDueOccurrences(final UUID code, final LocalDate today) {
+        log.info("m=postDueOccurrences, code={}, today={}", code, today);
+        final FixedBillEntity fixedBillEntity = fixedBillRepository.findForUpdateByCode(code)
+                .orElseThrow(() -> new EntityNotFoundException("FixedBillEntity not found for code " + code));
+
+        int iterations = 0;
+        while (fixedBillEntity.getNextDueDate() != null && !fixedBillEntity.getNextDueDate().isAfter(today)) {
+            if (iterations >= CATCH_UP_SAFETY_LIMIT) {
+                log.warn("m=postDueOccurrences, msg=SafetyLimitReached, code={}, nextDueDate={}, limit={}",
+                        code, fixedBillEntity.getNextDueDate(), CATCH_UP_SAFETY_LIMIT);
+                break;
+            }
+            iterations++;
+
+            final FixedBill fixedBill = fixedBillMapper.toModel(fixedBillEntity);
+            final LocalDate occurrenceDate = fixedBill.getNextDueDate();
+            postOccurrenceIfDue(fixedBill, occurrenceDate);
+
+            final Optional<LocalDate> nextDueDate = defineNextDueDate(fixedBill, occurrenceDate.plusDays(1));
+            if (nextDueDate.isEmpty()) {
+                fixedBill.conclude();
+                fixedBillEntity.setStatus(fixedBill.getStatus());
+                fixedBillEntity.setNextDueDate(null);
+            } else {
+                fixedBillEntity.setNextDueDate(nextDueDate.get());
+            }
+        }
+    }
+
+    private void postOccurrenceIfDue(final FixedBill fixedBill, final LocalDate occurrenceDate) {
+        if (!fixedBill.isCurrent(occurrenceDate)) {
+            log.info("m=postOccurrenceIfDue, msg=OccurrenceOutsideValidity, code={}, occurrenceDate={}, endDate={}",
+                    fixedBill.getCode(), occurrenceDate, fixedBill.getEndDate());
+            return;
+        }
+        if (financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(fixedBill.getCode(), occurrenceDate)) {
+            log.info("m=postOccurrenceIfDue, msg=OccurrenceAlreadyPosted, code={}, occurrenceDate={}",
+                    fixedBill.getCode(), occurrenceDate);
+            return;
+        }
+        final FinancialMovement financialMovement = financialMovementMapper.toFinancialMovement(fixedBill, FinancialMovementStatus.PENDING);
+        financialMovementService.create(financialMovement);
     }
 }

@@ -6,9 +6,12 @@ import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
+import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.MonthlyCalcFixedBillImpl;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.WeeklyCalcFixedBillImpl;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.YearlyCalcFixedBillImpl;
+import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.mapper.FixedBillMapper;
 
 import java.math.BigDecimal;
@@ -36,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -62,6 +66,12 @@ public class FixedBillServiceTest {
 
     @Spy
     private Clock clock = Clock.fixed(FIXED_INSTANT, ZONE_ID);
+
+    @Mock
+    private FinancialMovementService financialMovementService;
+
+    @Spy
+    private FinancialMovementMapper financialMovementMapper = FinancialMovementMapper.INSTANCE;
 
     @Test
     public void shouldSaveYearlyFixedBill() {
@@ -555,5 +565,159 @@ public class FixedBillServiceTest {
         verify(fixedBillRepository).save(argumentCaptor.capture());
 
         assertTrue(argumentCaptor.getValue().getNextDueDate().isAfter(today));
+    }
+
+    /**
+     * FixedBillFactory.buildFixedBillEntity() always hardcodes the calendar to days {1, 180},
+     * which is invalid for MONTHLY recurrence - these catch-up tests build the entity directly
+     * instead so the calendar day can be controlled.
+     */
+    private FixedBillEntity buildMonthlyFixedBillEntity(final Integer day,
+                                                         final LocalDate startDate,
+                                                         final LocalDate endDate,
+                                                         final LocalDate nextDueDate) {
+        final FixedBillEntity entity = FixedBillEntity.builder()
+                .code(UUID.randomUUID())
+                .flagActive(Boolean.TRUE)
+                .operationType(OperationType.DEBIT)
+                .description("Catch-up test")
+                .amount(BigDecimal.TEN)
+                .status(FixedBillStatus.ACTIVE)
+                .startDate(startDate)
+                .endDate(endDate)
+                .nextDueDate(nextDueDate)
+                .recurrenceType(RecurrenceType.MONTHLY)
+                .build();
+        entity.setCalendarFixedBillEntityList(Set.of(new CalendarFixedBillEntity(day, entity)));
+        return entity;
+    }
+
+    @Test
+    void shouldPostSingleDueOccurrenceWhenNotYetPosted() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        final UUID code = UUID.randomUUID();
+        final LocalDate dueDate = TODAY.withDayOfMonth(10);
+        final FixedBillEntity entity = buildMonthlyFixedBillEntity(10, TODAY.minusYears(1), null, dueDate);
+        entity.setCode(code);
+
+        when(fixedBillRepository.findForUpdateByCode(code)).thenReturn(Optional.of(entity));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, dueDate)).thenReturn(false);
+
+        fixedBillService.postDueOccurrences(code, TODAY);
+
+        final ArgumentCaptor<FinancialMovement> captor = ArgumentCaptor.forClass(FinancialMovement.class);
+        verify(financialMovementService, times(1)).create(captor.capture());
+        assertEquals(dueDate, captor.getValue().occurrenceDate());
+        assertEquals(code, captor.getValue().recurrenceBillCode());
+
+        assertEquals(dueDate.plusMonths(1), entity.getNextDueDate());
+        assertEquals(FixedBillStatus.ACTIVE, entity.getStatus());
+    }
+
+    @Test
+    void shouldNotDuplicatePostedOccurrenceInCatchUpLoop() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        final UUID code = UUID.randomUUID();
+        final LocalDate dueDate = TODAY.withDayOfMonth(10);
+        final FixedBillEntity entity = buildMonthlyFixedBillEntity(10, TODAY.minusYears(1), null, dueDate);
+        entity.setCode(code);
+
+        when(fixedBillRepository.findForUpdateByCode(code)).thenReturn(Optional.of(entity));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, dueDate)).thenReturn(true);
+
+        fixedBillService.postDueOccurrences(code, TODAY);
+
+        verify(financialMovementService, never()).create(any(FinancialMovement.class));
+        assertEquals(dueDate.plusMonths(1), entity.getNextDueDate());
+    }
+
+    @Test
+    void shouldCatchUpAllMissedOccurrencesWhenJobSkippedDays() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        final UUID code = UUID.randomUUID();
+        final LocalDate firstMissedOccurrence = TODAY.minusMonths(2).withDayOfMonth(20);
+        final FixedBillEntity entity = buildMonthlyFixedBillEntity(20, TODAY.minusYears(1), null, firstMissedOccurrence);
+        entity.setCode(code);
+
+        when(fixedBillRepository.findForUpdateByCode(code)).thenReturn(Optional.of(entity));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(eq(code), any())).thenReturn(false);
+
+        fixedBillService.postDueOccurrences(code, TODAY);
+
+        final ArgumentCaptor<FinancialMovement> captor = ArgumentCaptor.forClass(FinancialMovement.class);
+        verify(financialMovementService, times(2)).create(captor.capture());
+
+        final List<LocalDate> postedOccurrences = captor.getAllValues().stream()
+                .map(FinancialMovement::occurrenceDate)
+                .toList();
+        assertEquals(List.of(firstMissedOccurrence, firstMissedOccurrence.plusMonths(1)), postedOccurrences);
+        assertEquals(firstMissedOccurrence.plusMonths(2), entity.getNextDueDate());
+    }
+
+    @Test
+    void shouldAdvanceNextDueDateAfterTodayWhenCatchUpFinishes() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        final UUID code = UUID.randomUUID();
+        final LocalDate dueDate = TODAY.withDayOfMonth(10);
+        final FixedBillEntity entity = buildMonthlyFixedBillEntity(10, TODAY.minusYears(1), null, dueDate);
+        entity.setCode(code);
+
+        when(fixedBillRepository.findForUpdateByCode(code)).thenReturn(Optional.of(entity));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(eq(code), any())).thenReturn(false);
+
+        fixedBillService.postDueOccurrences(code, TODAY);
+
+        assertNotNull(entity.getNextDueDate());
+        assertTrue(entity.getNextDueDate().isAfter(TODAY));
+    }
+
+    @Test
+    void shouldNotPostOccurrenceAfterEndDate() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        final UUID code = UUID.randomUUID();
+        final LocalDate endDate = TODAY.minusMonths(1).withDayOfMonth(15);
+        final LocalDate firstMissedOccurrence = TODAY.minusMonths(2).withDayOfMonth(10);
+        final FixedBillEntity entity = buildMonthlyFixedBillEntity(10, TODAY.minusYears(1), endDate, firstMissedOccurrence);
+        entity.setCode(code);
+
+        when(fixedBillRepository.findForUpdateByCode(code)).thenReturn(Optional.of(entity));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(eq(code), any())).thenReturn(false);
+
+        fixedBillService.postDueOccurrences(code, TODAY);
+
+        final ArgumentCaptor<FinancialMovement> captor = ArgumentCaptor.forClass(FinancialMovement.class);
+        verify(financialMovementService, times(2)).create(captor.capture());
+
+        final List<LocalDate> postedOccurrences = captor.getAllValues().stream()
+                .map(FinancialMovement::occurrenceDate)
+                .toList();
+        assertTrue(postedOccurrences.stream().noneMatch(occurrence -> occurrence.isAfter(endDate)));
+        assertEquals(FixedBillStatus.INACTIVE, entity.getStatus());
+        assertNull(entity.getNextDueDate());
+    }
+
+    @Test
+    void shouldStopCatchUpLoopWhenSafetyLimitReached() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        final UUID code = UUID.randomUUID();
+        final LocalDate dueDate = LocalDate.of(2026, 1, 10);
+        final LocalDate farFutureToday = LocalDate.of(2100, 1, 1);
+        final FixedBillEntity entity = buildMonthlyFixedBillEntity(10, LocalDate.of(2000, 1, 1), null, dueDate);
+        entity.setCode(code);
+
+        when(fixedBillRepository.findForUpdateByCode(code)).thenReturn(Optional.of(entity));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(eq(code), any())).thenReturn(false);
+
+        fixedBillService.postDueOccurrences(code, farFutureToday);
+
+        verify(financialMovementService, times(FixedBillService.CATCH_UP_SAFETY_LIMIT)).create(any(FinancialMovement.class));
+        assertNotNull(entity.getNextDueDate());
+        assertTrue(entity.getNextDueDate().isBefore(farFutureToday));
     }
 }

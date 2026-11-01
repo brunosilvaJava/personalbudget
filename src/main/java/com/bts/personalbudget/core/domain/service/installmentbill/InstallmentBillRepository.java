@@ -98,7 +98,40 @@ public class InstallmentBillRepository {
         entity.setInstallmentCount(installmentBill.getInstallmentCount());
         entity.setLastInstallmentDate(installmentBill.getLastInstallmentDate());
         entity.setNextInstallmentDate(installmentBill.getNextInstallmentDate());
+        // Fixed in passing: status was never copied here, so InstallmentBill.conclude() (called
+        // from updateInstallment() once the last installment posts) never reached the database -
+        // the bill stayed PENDING forever even after nextInstallmentDate went null.
+        entity.setStatus(installmentBill.getStatus());
         return mapper.toModel(entity);
+    }
+
+    /**
+     * Locks the row for the duration of the transaction - see
+     * InstallmentBillJpaRepository.findForUpdateByCode.
+     */
+    @Transactional
+    public InstallmentBill findForUpdateByCode(final UUID code) {
+        log.info("m=findForUpdateByCode code={}", code);
+        final InstallmentBillEntity entity = jpaRepository.findForUpdateByCode(code).orElseThrow(() -> {
+            log.error("m=findForUpdateByCode code={} error=installmentBill_not_found", code);
+            return new RuntimeException("InstallmentBill NotFoundException by code=" + code);
+        });
+        return mapper.toModel(entity);
+    }
+
+    /**
+     * Codes of the pending installment bills with at least one installment due on or before
+     * {@code date}. Used by RecurrenceBillService to decide which accounts postDueInstallments
+     * needs to process - each one is then handled in its own transaction.
+     */
+    @Transactional(readOnly = true)
+    public List<UUID> findAllCodesByNextInstallmentDateLessThanEqualAndStatus(final LocalDate date,
+                                                                               final InstallmentBillStatus installmentBillStatus) {
+        log.info("m=findAllCodesByNextInstallmentDateLessThanEqualAndStatus date={} status={}", date, installmentBillStatus);
+        return jpaRepository.findAllByNextInstallmentDateLessThanEqualAndStatusAndFlagActive(date, installmentBillStatus, FLAG_ACTIVE)
+                .stream()
+                .map(InstallmentBillEntity::getCode)
+                .toList();
     }
 
     @Transactional

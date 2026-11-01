@@ -3,9 +3,11 @@ package com.bts.personalbudget.repository;
 import com.bts.personalbudget.core.domain.entity.InstallmentBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -27,6 +29,20 @@ public interface InstallmentBillJpaRepository extends JpaRepository<InstallmentB
             InstallmentBillStatus status,
             Boolean flagActive
     );
+
+    List<InstallmentBillEntity> findAllByNextInstallmentDateLessThanEqualAndStatusAndFlagActive(
+            LocalDate nextInstallmentDate,
+            InstallmentBillStatus status,
+            Boolean flagActive
+    );
+
+    /**
+     * Locks the row for the duration of the transaction so the scheduled job and a concurrent
+     * request serialize on the same InstallmentBill instead of racing each other.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ib FROM InstallmentBillEntity ib WHERE ib.code = :code AND ib.flagActive = true")
+    Optional<InstallmentBillEntity> findForUpdateByCode(@Param("code") UUID code);
 
     List<InstallmentBillEntity> findAllByNextInstallmentDateBetweenAndStatusAndFlagActive(
             LocalDate initialDate,

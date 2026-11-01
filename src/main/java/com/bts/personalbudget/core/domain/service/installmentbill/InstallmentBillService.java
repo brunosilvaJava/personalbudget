@@ -1,8 +1,12 @@
 package com.bts.personalbudget.core.domain.service.installmentbill;
 
+import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
+import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -21,6 +25,14 @@ import java.util.UUID;
 public class InstallmentBillService {
 
     private final InstallmentBillRepository repository;
+    private final FinancialMovementService financialMovementService;
+    private final FinancialMovementMapper financialMovementMapper;
+
+    /**
+     * Upper bound on how many installments a single catch-up run will post for one account. See
+     * FixedBillService.CATCH_UP_SAFETY_LIMIT for the same guard on fixed bills.
+     */
+    static final int CATCH_UP_SAFETY_LIMIT = 400;
 
     public void create(final InstallmentBill installmentBill) {
         log.info("m=create installmentBill={}", installmentBill);
@@ -82,5 +94,54 @@ public class InstallmentBillService {
         log.info("m=updateNextInstallmentDate code={}", installmentBill.getCode());
         installmentBill.updateInstallment();
         repository.update(installmentBill);
+    }
+
+    /**
+     * Codes of the pending installment bills with at least one installment due on or before
+     * {@code date}. Used by RecurrenceBillService to decide which accounts postDueInstallments
+     * needs to process - each one is then handled in its own transaction.
+     */
+    public List<UUID> findCodesByNextInstallmentDateLessThanEqual(final LocalDate date) {
+        log.info("m=findCodesByNextInstallmentDateLessThanEqual date={}", date);
+        return repository.findAllCodesByNextInstallmentDateLessThanEqualAndStatus(date, InstallmentBillStatus.PENDING);
+    }
+
+    /**
+     * Posts every installment of this bill that fell due on or before {@code today} and was not
+     * posted yet, advancing installment_count/next_installment_date one step at a time (the bill
+     * concludes itself once the last installment is caught up - see
+     * InstallmentBill.updateInstallment()). Safe to call from the recovery job after an outage, or
+     * right after save/reactivation to post today's own installment immediately - either way,
+     * posting is idempotent (see FinancialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate).
+     */
+    @Transactional
+    public void postDueInstallments(final UUID code, final LocalDate today) {
+        log.info("m=postDueInstallments, code={}, today={}", code, today);
+        InstallmentBill installmentBill = repository.findForUpdateByCode(code);
+
+        int iterations = 0;
+        while (installmentBill.getNextInstallmentDate() != null && !installmentBill.getNextInstallmentDate().isAfter(today)) {
+            if (iterations >= CATCH_UP_SAFETY_LIMIT) {
+                log.warn("m=postDueInstallments, msg=SafetyLimitReached, code={}, nextInstallmentDate={}, limit={}",
+                        code, installmentBill.getNextInstallmentDate(), CATCH_UP_SAFETY_LIMIT);
+                break;
+            }
+            iterations++;
+
+            postInstallmentIfNotPosted(installmentBill);
+            installmentBill.updateInstallment();
+            installmentBill = repository.update(installmentBill);
+        }
+    }
+
+    private void postInstallmentIfNotPosted(final InstallmentBill installmentBill) {
+        final LocalDate occurrenceDate = installmentBill.getNextInstallmentDate();
+        if (financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(installmentBill.getCode(), occurrenceDate)) {
+            log.info("m=postInstallmentIfNotPosted, msg=OccurrenceAlreadyPosted, code={}, occurrenceDate={}",
+                    installmentBill.getCode(), occurrenceDate);
+            return;
+        }
+        final FinancialMovement financialMovement = financialMovementMapper.toFinancialMovement(installmentBill, FinancialMovementStatus.PENDING);
+        financialMovementService.create(financialMovement);
     }
 }
