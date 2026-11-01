@@ -495,6 +495,10 @@ public class FixedBillServiceTest {
         when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
 
         FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        // The factory's start/end dates come from the real LocalDate.now(), not from the fixed
+        // clock; pin them around TODAY so the schedule base date is TODAY-derived, not start_date.
+        fixedBillEntityMock.setStartDate(TODAY.minusYears(1));
+        fixedBillEntityMock.setEndDate(TODAY.plusYears(1));
         fixedBillEntityMock.setNextDueDate(TODAY.plusDays(100));
         UUID code = fixedBillEntityMock.getCode();
 
