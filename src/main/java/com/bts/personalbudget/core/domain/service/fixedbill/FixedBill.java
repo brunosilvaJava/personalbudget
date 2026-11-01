@@ -127,6 +127,19 @@ public class FixedBill implements BalanceCalcData {
         return hasChanges;
     }
 
+    public Schedule schedule() {
+        return new Schedule(recurrenceType, days == null ? null : Set.copyOf(days), referenceYear,
+                status, startDate, endDate);
+    }
+
+    public record Schedule(RecurrenceType recurrenceType,
+                           Set<Integer> days,
+                           Integer referenceYear,
+                           FixedBillStatus status,
+                           LocalDate startDate,
+                           LocalDate endDate) {
+    }
+
     public void conclude() {
         if (status == FixedBillStatus.INACTIVE) {
             log.info("m=conclude code={} msg=fixedBill_already_inactive", code);

@@ -283,8 +283,11 @@ public class FixedBillServiceTest {
 
     @Test
     void shouldChangeStatusToActive() {
+        when(calcFixedBillFactory.build(RecurrenceType.YEARLY)).thenReturn(new YearlyCalcFixedBillImpl());
+
         FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
         fixedBillEntityMock.setStatus(FixedBillStatus.INACTIVE);
+        fixedBillEntityMock.setNextDueDate(null);
 
         UUID code = fixedBillEntityMock.getCode();
 
@@ -296,6 +299,8 @@ public class FixedBillServiceTest {
         verify(fixedBillRepository, times(1)).save(fixedBillEntityMock);
         assertEquals(FixedBillStatus.ACTIVE, fixedBillEntityMock.getStatus());
         assertEquals(FixedBillStatus.ACTIVE, result.getStatus());
+        assertNotNull(fixedBillEntityMock.getNextDueDate());
+        assertTrue(fixedBillEntityMock.getNextDueDate().isAfter(LocalDate.now()));
     }
 
     @Test
@@ -473,5 +478,68 @@ public class FixedBillServiceTest {
         verify(fixedBillRepository).save(argumentCaptor.capture());
 
         assertEquals(startDate.withDayOfMonth(10), argumentCaptor.getValue().getNextDueDate());
+    }
+
+    @Test
+    void shouldRecalculateNextDueDateWhenScheduleIsUpdated() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        fixedBillEntityMock.setNextDueDate(LocalDate.now().plusDays(100));
+        UUID code = fixedBillEntityMock.getCode();
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
+
+        FixedBill updatedFixedBill = fixedBillService.update(code, null, null, null, RecurrenceType.MONTHLY,
+                Set.of(10), null, null, null, null);
+
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        LocalDate expectedNextDueDate = tomorrow.getDayOfMonth() <= 10
+                ? tomorrow.withDayOfMonth(10)
+                : tomorrow.plusMonths(1).withDayOfMonth(10);
+
+        ArgumentCaptor<FixedBillEntity> argumentCaptor = ArgumentCaptor.forClass(FixedBillEntity.class);
+        verify(fixedBillRepository).save(argumentCaptor.capture());
+
+        assertEquals(expectedNextDueDate, argumentCaptor.getValue().getNextDueDate());
+        assertEquals(expectedNextDueDate, updatedFixedBill.getNextDueDate());
+    }
+
+    @Test
+    void shouldNotRecalculateNextDueDateWhenOnlyDescriptionIsUpdated() {
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        LocalDate currentNextDueDate = LocalDate.now().plusDays(100);
+        fixedBillEntityMock.setNextDueDate(currentNextDueDate);
+        UUID code = fixedBillEntityMock.getCode();
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
+
+        fixedBillService.update(code, null, "Updated Description", null, null,
+                null, null, null, null, null);
+
+        ArgumentCaptor<FixedBillEntity> argumentCaptor = ArgumentCaptor.forClass(FixedBillEntity.class);
+        verify(fixedBillRepository).save(argumentCaptor.capture());
+        verify(calcFixedBillFactory, never()).build(any());
+
+        assertEquals(currentNextDueDate, argumentCaptor.getValue().getNextDueDate());
+    }
+
+    @Test
+    void shouldDefineFirstDueDateAfterTodayWhenDueDayIsToday() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        LocalDate today = LocalDate.now();
+        FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
+                FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
+                FixedBillFactory.DAYS, Set.of(today.getDayOfMonth()),
+                START_DATE, today
+        ));
+
+        fixedBillService.save(fixedBill);
+
+        ArgumentCaptor<FixedBillEntity> argumentCaptor = ArgumentCaptor.forClass(FixedBillEntity.class);
+        verify(fixedBillRepository).save(argumentCaptor.capture());
+
+        assertTrue(argumentCaptor.getValue().getNextDueDate().isAfter(today));
     }
 }

@@ -63,15 +63,20 @@ public class FixedBillService {
         fixedBillEntity.setCode(UUID.randomUUID());
         fixedBillEntity.setFlagActive(true);
         fixedBillEntity.setStatus(FixedBillStatus.ACTIVE);
-        final LocalDate paramDate = defineNextDueDate(fixedBill, defineFirstBaseDate(fixedBill)).orElse(null);
+        final LocalDate paramDate = defineNextDueDate(fixedBill, defineScheduleBaseDate(fixedBill)).orElse(null);
         fixedBillEntity.setNextDueDate(paramDate);
         return fixedBillEntity;
     }
 
-    private LocalDate defineFirstBaseDate(final FixedBill fixedBill) {
-        final LocalDate today = LocalDate.now();
+    /**
+     * The recurrence job runs at midnight and selects bills by exact due date, so a due date
+     * set to today after midnight would never be posted. Schedules start from tomorrow or from
+     * the start date, whichever is later.
+     */
+    private LocalDate defineScheduleBaseDate(final FixedBill fixedBill) {
+        final LocalDate tomorrow = LocalDate.now().plusDays(1);
         final LocalDate startDate = fixedBill.getStartDate();
-        return startDate != null && startDate.isAfter(today) ? startDate : today;
+        return startDate != null && startDate.isAfter(tomorrow) ? startDate : tomorrow;
     }
 
     public FixedBill findByCode(final UUID code) {
@@ -137,12 +142,18 @@ public class FixedBillService {
             return updateFixedBill;
         }
 
+        final FixedBill.Schedule previousSchedule = updateFixedBill.schedule();
         final boolean hasChanges = updateFixedBill.update(operationType, description, amount, recurrenceType, days, referenceYear, status, startDate, endDate);
 
         if (hasChanges) {
             log.info("m=update, message=ChangesDetected, code={}, savingToDatabase=true", code);
             validationMandatoryFields(updateFixedBill);
             updateFixedBill.validationDays();
+            if (!previousSchedule.equals(updateFixedBill.schedule())) {
+                final LocalDate nextDueDate = defineNextDueDate(updateFixedBill, defineScheduleBaseDate(updateFixedBill)).orElse(null);
+                log.info("m=update, message=ScheduleChanged, code={}, nextDueDate={}", code, nextDueDate);
+                updateFixedBill.setNextDueDate(nextDueDate);
+            }
             final FixedBillEntity updateEntity = fixedBillMapper.toEntity(updateFixedBill);
             updateEntity.setCalendarFixedBillEntityList(buildCalendarFixedBillEntityList(updateFixedBill, fixedBillEntity));
             fixedBillRepository.save(updateEntity);
@@ -165,6 +176,13 @@ public class FixedBillService {
         }
 
         fixedBillEntity.setStatus(newStatus);
+
+        if (newStatus == ACTIVE) {
+            final FixedBill fixedBill = fixedBillMapper.toModel(fixedBillEntity);
+            final LocalDate nextDueDate = defineNextDueDate(fixedBill, defineScheduleBaseDate(fixedBill)).orElse(null);
+            log.info("m=changeStatus, message=ScheduleRecalculated, code={}, nextDueDate={}", code, nextDueDate);
+            fixedBillEntity.setNextDueDate(nextDueDate);
+        }
 
         final FixedBillEntity savedEntity = fixedBillRepository.save(fixedBillEntity);
 
