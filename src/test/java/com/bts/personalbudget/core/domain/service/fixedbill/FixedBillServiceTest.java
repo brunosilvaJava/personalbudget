@@ -12,7 +12,10 @@ import com.bts.personalbudget.core.domain.service.fixedbill.calc.YearlyCalcFixed
 import com.bts.personalbudget.mapper.FixedBillMapper;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 
 import org.junit.jupiter.api.Test;
@@ -41,6 +44,10 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 public class FixedBillServiceTest {
 
+    private static final ZoneId ZONE_ID = ZoneId.of("America/Sao_Paulo");
+    private static final Instant FIXED_INSTANT = Instant.parse("2026-06-15T10:00:00Z");
+    private static final LocalDate TODAY = LocalDate.ofInstant(FIXED_INSTANT, ZONE_ID);
+
     @InjectMocks
     private FixedBillService fixedBillService;
 
@@ -52,6 +59,9 @@ public class FixedBillServiceTest {
 
     @Spy
     private FixedBillMapper fixedBillMapper = FixedBillMapper.INSTANCE;
+
+    @Spy
+    private Clock clock = Clock.fixed(FIXED_INSTANT, ZONE_ID);
 
     @Test
     public void shouldSaveYearlyFixedBill() {
@@ -122,13 +132,13 @@ public class FixedBillServiceTest {
         FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
                 STATUS, FixedBillStatus.INACTIVE
         ));
-        Optional<LocalDate> nextDueDateOptional = fixedBillService.defineNextDueDate(fixedBill, LocalDate.now());
+        Optional<LocalDate> nextDueDateOptional = fixedBillService.defineNextDueDate(fixedBill, TODAY);
         assertTrue(nextDueDateOptional.isEmpty());
     }
 
     @Test
     void shouldReturnOptionalEmptyWhenBaseDateIsBeforeStartDate() {
-        LocalDate startDate = LocalDate.now();
+        LocalDate startDate = TODAY;
         FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
                 START_DATE, startDate,
                 END_DATE, startDate.plusMonths(1)
@@ -140,7 +150,7 @@ public class FixedBillServiceTest {
 
     @Test
     void shouldReturnOptionalEmptyWhenBaseDateIsAfterEndDate() {
-        LocalDate endDate = LocalDate.now();
+        LocalDate endDate = TODAY;
         FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
                 START_DATE, endDate.minusMonths(1),
                 END_DATE, endDate
@@ -212,8 +222,8 @@ public class FixedBillServiceTest {
         Set<Integer> days = Set.of(5, 15);
         Integer referenceYear = 2024;
         FixedBillStatus status = FixedBillStatus.INACTIVE;
-        LocalDate startDate = LocalDate.now().minusYears(1);
-        LocalDate endDate = LocalDate.now().plusYears(1);
+        LocalDate startDate = TODAY.minusYears(1);
+        LocalDate endDate = TODAY.plusYears(1);
 
         when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
         when(fixedBillRepository.save(any(FixedBillEntity.class))).thenReturn(fixedBillEntityMock);
@@ -300,7 +310,7 @@ public class FixedBillServiceTest {
         assertEquals(FixedBillStatus.ACTIVE, fixedBillEntityMock.getStatus());
         assertEquals(FixedBillStatus.ACTIVE, result.getStatus());
         assertNotNull(fixedBillEntityMock.getNextDueDate());
-        assertTrue(fixedBillEntityMock.getNextDueDate().isAfter(LocalDate.now()));
+        assertTrue(fixedBillEntityMock.getNextDueDate().isAfter(TODAY));
     }
 
     @Test
@@ -463,7 +473,7 @@ public class FixedBillServiceTest {
     void shouldDefineFirstDueDateFromStartDateWhenStartDateIsInFuture() {
         when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
 
-        LocalDate startDate = LocalDate.now().plusMonths(2).withDayOfMonth(5);
+        LocalDate startDate = TODAY.plusMonths(2).withDayOfMonth(5);
 
         FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
                 FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
@@ -485,7 +495,7 @@ public class FixedBillServiceTest {
         when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
 
         FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
-        fixedBillEntityMock.setNextDueDate(LocalDate.now().plusDays(100));
+        fixedBillEntityMock.setNextDueDate(TODAY.plusDays(100));
         UUID code = fixedBillEntityMock.getCode();
 
         when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
@@ -493,7 +503,7 @@ public class FixedBillServiceTest {
         FixedBill updatedFixedBill = fixedBillService.update(code, null, null, null, RecurrenceType.MONTHLY,
                 Set.of(10), null, null, null, null);
 
-        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        LocalDate tomorrow = TODAY.plusDays(1);
         LocalDate expectedNextDueDate = tomorrow.getDayOfMonth() <= 10
                 ? tomorrow.withDayOfMonth(10)
                 : tomorrow.plusMonths(1).withDayOfMonth(10);
@@ -508,7 +518,7 @@ public class FixedBillServiceTest {
     @Test
     void shouldNotRecalculateNextDueDateWhenOnlyDescriptionIsUpdated() {
         FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
-        LocalDate currentNextDueDate = LocalDate.now().plusDays(100);
+        LocalDate currentNextDueDate = TODAY.plusDays(100);
         fixedBillEntityMock.setNextDueDate(currentNextDueDate);
         UUID code = fixedBillEntityMock.getCode();
 
@@ -528,7 +538,7 @@ public class FixedBillServiceTest {
     void shouldDefineFirstDueDateAfterTodayWhenDueDayIsToday() {
         when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = TODAY;
         FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
                 FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
                 FixedBillFactory.DAYS, Set.of(today.getDayOfMonth()),
