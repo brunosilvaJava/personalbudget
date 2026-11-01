@@ -63,9 +63,15 @@ public class FixedBillService {
         fixedBillEntity.setCode(UUID.randomUUID());
         fixedBillEntity.setFlagActive(true);
         fixedBillEntity.setStatus(FixedBillStatus.ACTIVE);
-        final LocalDate paramDate = defineNextDueDate(fixedBill, LocalDate.now()).orElse(null);
+        final LocalDate paramDate = defineNextDueDate(fixedBill, defineFirstBaseDate(fixedBill)).orElse(null);
         fixedBillEntity.setNextDueDate(paramDate);
         return fixedBillEntity;
+    }
+
+    private LocalDate defineFirstBaseDate(final FixedBill fixedBill) {
+        final LocalDate today = LocalDate.now();
+        final LocalDate startDate = fixedBill.getStartDate();
+        return startDate != null && startDate.isAfter(today) ? startDate : today;
     }
 
     public FixedBill findByCode(final UUID code) {

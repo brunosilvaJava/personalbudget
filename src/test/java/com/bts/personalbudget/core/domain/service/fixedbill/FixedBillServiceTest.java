@@ -453,4 +453,25 @@ public class FixedBillServiceTest {
 
         assertEquals(Optional.of(LocalDate.of(2026, 6, 10)), nextDueDate);
     }
+
+    @Test
+    void shouldDefineFirstDueDateFromStartDateWhenStartDateIsInFuture() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        LocalDate startDate = LocalDate.now().plusMonths(2).withDayOfMonth(5);
+
+        FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
+                FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
+                FixedBillFactory.DAYS, Set.of(10),
+                START_DATE, startDate,
+                END_DATE, startDate.plusYears(1)
+        ));
+
+        fixedBillService.save(fixedBill);
+
+        ArgumentCaptor<FixedBillEntity> argumentCaptor = ArgumentCaptor.forClass(FixedBillEntity.class);
+        verify(fixedBillRepository).save(argumentCaptor.capture());
+
+        assertEquals(startDate.withDayOfMonth(10), argumentCaptor.getValue().getNextDueDate());
+    }
 }
