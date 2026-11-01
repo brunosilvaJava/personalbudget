@@ -61,6 +61,9 @@ public class FixedBill implements BalanceCalcData {
         final boolean isNew = code == null;
         if (isNew) {
             this.code = UUID.randomUUID();
+            if (this.startDate == null) {
+                this.startDate = LocalDate.now();
+            }
         }
     }
 
@@ -124,6 +127,16 @@ public class FixedBill implements BalanceCalcData {
         return hasChanges;
     }
 
+    public void conclude() {
+        if (status == FixedBillStatus.INACTIVE) {
+            log.info("m=conclude code={} msg=fixedBill_already_inactive", code);
+            return;
+        }
+        log.info("m=conclude code={} msg=fixedBill_concluded", code);
+        status = FixedBillStatus.INACTIVE;
+        nextDueDate = null;
+    }
+
     public boolean isLeapYear() {
         return Year.isLeap(referenceYear);
     }
@@ -133,7 +146,7 @@ public class FixedBill implements BalanceCalcData {
             return false;
         }
 
-        if (baseDate.isBefore(startDate)) {
+        if (startDate != null && baseDate.isBefore(startDate)) {
             return false;
         }
 

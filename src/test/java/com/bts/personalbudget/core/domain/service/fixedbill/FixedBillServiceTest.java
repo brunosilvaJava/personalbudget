@@ -29,6 +29,7 @@ import static com.bts.personalbudget.core.domain.factory.FixedBillFactory.START_
 import static com.bts.personalbudget.core.domain.factory.FixedBillFactory.STATUS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -335,5 +336,81 @@ public class FixedBillServiceTest {
         assertEquals(RecurrenceType.YEARLY, entity.getRecurrenceType());
         assertEquals(referenceYear, entity.getReferenceYear());
         assertEquals(days.size(), entity.getCalendarFixedBillEntityList().size());
+    }
+
+    @Test
+    void shouldConcludeFixedBillWhenThereIsNoNextDueDate() {
+        LocalDate endDate = LocalDate.now();
+
+        FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
+                START_DATE, endDate.minusMonths(1),
+                END_DATE, endDate
+        ));
+
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        fixedBillEntityMock.setStatus(FixedBillStatus.ACTIVE);
+        fixedBillEntityMock.setNextDueDate(endDate);
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(fixedBill.getCode()))
+                .thenReturn(Optional.of(fixedBillEntityMock));
+
+        fixedBillService.updateNextDueDate(fixedBill, endDate.plusDays(1));
+
+        assertEquals(FixedBillStatus.INACTIVE, fixedBillEntityMock.getStatus());
+        assertNull(fixedBillEntityMock.getNextDueDate());
+        assertEquals(FixedBillStatus.INACTIVE, fixedBill.getStatus());
+    }
+
+    @Test
+    void shouldUpdateNextDueDateWhenFixedBillIsStillCurrent() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        LocalDate startDate = LocalDate.of(2026, 1, 1);
+
+        FixedBill fixedBill = FixedBillFactory.buildFixedBill(Map.of(
+                FixedBillFactory.RECURRENCE_TYPE, RecurrenceType.MONTHLY,
+                FixedBillFactory.DAYS, Set.of(10),
+                START_DATE, startDate,
+                END_DATE, startDate.plusYears(5)
+        ));
+
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        fixedBillEntityMock.setStatus(FixedBillStatus.ACTIVE);
+
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(fixedBill.getCode()))
+                .thenReturn(Optional.of(fixedBillEntityMock));
+
+        fixedBillService.updateNextDueDate(fixedBill, LocalDate.of(2026, 3, 11));
+
+        assertEquals(LocalDate.of(2026, 4, 10), fixedBillEntityMock.getNextDueDate());
+        assertEquals(FixedBillStatus.ACTIVE, fixedBillEntityMock.getStatus());
+    }
+
+    @Test
+    void shouldDefineStartDateAsCurrentDateWhenStartDateIsNull() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        FixedBill fixedBill = FixedBillFactory.buildModelWithoutStartDate(RecurrenceType.MONTHLY, Set.of(15));
+
+        assertEquals(LocalDate.now(), fixedBill.getStartDate());
+
+        fixedBillService.save(fixedBill);
+
+        ArgumentCaptor<FixedBillEntity> argumentCaptor = ArgumentCaptor.forClass(FixedBillEntity.class);
+        verify(fixedBillRepository).save(argumentCaptor.capture());
+
+        FixedBillEntity entity = argumentCaptor.getValue();
+
+        assertEquals(LocalDate.now(), entity.getStartDate());
+        assertNotNull(entity.getNextDueDate());
+    }
+
+    @Test
+    void shouldConsiderFixedBillCurrentWhenStartDateIsNull() {
+        FixedBill fixedBill =
+                FixedBillFactory.buildModelWithNullStartDateAndCode(RecurrenceType.MONTHLY, Set.of(10));
+
+        assertNull(fixedBill.getStartDate());
+        assertTrue(fixedBill.isCurrent(LocalDate.now()));
     }
 }

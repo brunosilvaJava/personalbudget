@@ -28,7 +28,7 @@ public record InstallmentBillUpdateRequest(
 
         @DecimalMin(value = "0.01", inclusive = false)
         @Digits(integer = 8, fraction = 2)
-        @Schema(description = "Updated total amount of the installment bill", example = "1550.00")
+        @Schema(description = "Updated amount of each installment, not the purchase total", example = "130.00")
         BigDecimal amount,
 
         @JsonProperty("purchase_date")

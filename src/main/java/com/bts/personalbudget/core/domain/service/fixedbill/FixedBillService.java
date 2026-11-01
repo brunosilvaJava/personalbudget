@@ -184,9 +184,17 @@ public class FixedBillService {
     public void updateNextDueDate(final FixedBill fixedBill, final LocalDate baseData) {
         log.info("m=updateNextDueDate, code={}, baseData={}", fixedBill.getCode(), baseData);
         final Optional<LocalDate> nextDueDate = defineNextDueDate(fixedBill, baseData);
-        final Optional<FixedBillEntity> fixedBillEntityOptional = fixedBillRepository.findByCodeAndFlagActiveTrue(fixedBill.getCode());
-        final FixedBillEntity fixedBillEntity = fixedBillEntityOptional.orElseThrow();
-        fixedBillEntity.setNextDueDate(nextDueDate.orElseThrow());
+        final FixedBillEntity fixedBillEntity = findEntity(fixedBill.getCode());
+
+        if (nextDueDate.isEmpty()) {
+            log.info("m=updateNextDueDate, msg=NoNextDueDate, code={}, status={}", fixedBill.getCode(), INACTIVE);
+            fixedBill.conclude();
+            fixedBillEntity.setStatus(fixedBill.getStatus());
+            fixedBillEntity.setNextDueDate(null);
+            return;
+        }
+
+        fixedBillEntity.setNextDueDate(nextDueDate.get());
     }
 
     public Optional<LocalDate> defineNextDueDate(final FixedBill fixedBill,
