@@ -40,6 +40,7 @@ public interface FinancialMovementMapper {
     @Mapping(target = "recurrenceBillCode", source = "installmentBill.code")
     @Mapping(target = "movementDate", source = "installmentBill.purchaseDate")
     @Mapping(target = "dueDate", source = "installmentBill.nextInstallmentDate")
+    @Mapping(target = "occurrenceDate", source = "installmentBill.nextInstallmentDate")
     @Mapping(target = "status", source = "financialMovementStatus")
     @Mapping(target = "amount", expression = "java(normalizeValue(installmentBill.getAmount(), installmentBill.getOperationType()))")
     FinancialMovement toFinancialMovement(InstallmentBill installmentBill, FinancialMovementStatus financialMovementStatus);
@@ -53,6 +54,7 @@ public interface FinancialMovementMapper {
     @Mapping(target = "recurrenceBillCode", source = "fixedBill.code")
     @Mapping(target = "movementDate", source = "fixedBill.nextDueDate")
     @Mapping(target = "dueDate", source = "fixedBill.nextDueDate")
+    @Mapping(target = "occurrenceDate", source = "fixedBill.nextDueDate")
     @Mapping(target = "status", source = "financialMovementStatus")
     @Mapping(target = "amount", expression = "java(normalizeValue(fixedBill.getAmount(), fixedBill.getOperationType()))")
     FinancialMovement toFinancialMovement(FixedBill fixedBill, FinancialMovementStatus financialMovementStatus);

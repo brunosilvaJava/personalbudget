@@ -1,6 +1,5 @@
 package com.bts.personalbudget.core.domain.service.recurrencebill;
 
-import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
@@ -18,12 +17,16 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,8 +54,6 @@ public class RecurrenceBillServiceTest {
         InstallmentBill installmentBillMock = InstallmentBillFactory.buildModel();
         LocalDate dueDate = installmentBillMock.getNextInstallmentDate();
         FixedBill fixedBillMock = FixedBillFactory.buildModel(RecurrenceType.MONTHLY, Set.of(1));
-        FinancialMovement installmentBillFinancialMovementMock = financialMovementMapper.toFinancialMovement(installmentBillMock, FinancialMovementStatus.PENDING);
-        FinancialMovement fixedBillFinancialMovementMock = financialMovementMapper.toFinancialMovement(fixedBillMock, FinancialMovementStatus.PENDING);
 
         // Mocks
         when(installmentBillService.findByNextInstallmentDate(dueDate)).thenReturn(List.of(installmentBillMock));
@@ -62,7 +63,17 @@ public class RecurrenceBillServiceTest {
         service.postRecurringBills(dueDate);
 
         // Validações
-        verify(financialMovementService).create(List.of(fixedBillFinancialMovementMock, installmentBillFinancialMovementMock));
+        // Not comparing FinancialMovement instances by equals(): the mapper generates a new
+        // random code for each movement it builds, so two independently-built instances for the
+        // same bill never compare equal. Assert on the content that matters instead.
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<FinancialMovement>> captor = ArgumentCaptor.forClass(List.class);
+        verify(financialMovementService).create(captor.capture());
+        List<FinancialMovement> createdMovements = captor.getValue();
+
+        assertEquals(2, createdMovements.size());
+        assertTrue(createdMovements.stream().anyMatch(fm -> fixedBillMock.getCode().equals(fm.recurrenceBillCode())));
+        assertTrue(createdMovements.stream().anyMatch(fm -> installmentBillMock.getCode().equals(fm.recurrenceBillCode())));
         verify(installmentBillService).updateNextInstallmentDate(installmentBillMock);
         verify(fixedBillService).updateNextDueDate(fixedBillMock, dueDate.plusDays(1));
     }
@@ -99,5 +110,66 @@ public class RecurrenceBillServiceTest {
 
         verify(financialMovementService).create(List.of());
         verify(fixedBillService).updateNextDueDate(fixedBillMock, dueDate.plusDays(1));
+    }
+
+    @Test
+    void shouldNotDuplicateMovementWhenJobRunsTwiceForSameDate() {
+        LocalDate dueDate = LocalDate.of(2026, 11, 10);
+        FixedBill fixedBillMock = FixedBillFactory.buildModel(RecurrenceType.MONTHLY, Set.of(10));
+        fixedBillMock.setNextDueDate(dueDate);
+
+        when(fixedBillService.findByNextDueDate(dueDate)).thenReturn(List.of(fixedBillMock));
+        when(installmentBillService.findByNextInstallmentDate(dueDate)).thenReturn(List.of());
+        // First run: nothing posted yet. Second run (crash-retry or the job firing twice before
+        // next_due_date advances): the movement from the first run already exists.
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(fixedBillMock.getCode(), dueDate))
+                .thenReturn(false, true);
+
+        service.postRecurringBills(dueDate);
+        service.postRecurringBills(dueDate);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<FinancialMovement>> captor = ArgumentCaptor.forClass(List.class);
+        verify(financialMovementService, times(2)).create(captor.capture());
+
+        assertEquals(1, captor.getAllValues().get(0).size());
+        assertEquals(0, captor.getAllValues().get(1).size());
+    }
+
+    @Test
+    void shouldNotDuplicateMovementWhenManualEndpointCalledAfterJob() {
+        InstallmentBill installmentBillMock = InstallmentBillFactory.buildModel();
+        LocalDate dueDate = installmentBillMock.getNextInstallmentDate();
+
+        when(fixedBillService.findByNextDueDate(dueDate)).thenReturn(List.of());
+        when(installmentBillService.findByNextInstallmentDate(dueDate)).thenReturn(List.of(installmentBillMock));
+        // The midnight job already posted this occurrence; calling POST /util/recurrence_bill
+        // manually afterwards for the same date must not create a second movement.
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(installmentBillMock.getCode(), dueDate))
+                .thenReturn(true);
+
+        service.postRecurringBills(dueDate);
+
+        verify(financialMovementService).create(List.of());
+        verify(installmentBillService).updateNextInstallmentDate(installmentBillMock);
+    }
+
+    @Test
+    void shouldNotRecreateMovementWhenOccurrenceWasSoftDeleted() {
+        LocalDate dueDate = LocalDate.of(2026, 11, 10);
+        FixedBill fixedBillMock = FixedBillFactory.buildModel(RecurrenceType.MONTHLY, Set.of(10));
+        fixedBillMock.setNextDueDate(dueDate);
+
+        when(fixedBillService.findByNextDueDate(dueDate)).thenReturn(List.of(fixedBillMock));
+        when(installmentBillService.findByNextInstallmentDate(dueDate)).thenReturn(List.of());
+        // The movement for this occurrence was soft-deleted by the user (flag_active = false).
+        // existsByRecurrenceBillCodeAndOccurrenceDate is deliberately not scoped to flag_active,
+        // so it still reports true and the job must not recreate the movement.
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(fixedBillMock.getCode(), dueDate))
+                .thenReturn(true);
+
+        service.postRecurringBills(dueDate);
+
+        verify(financialMovementService).create(List.of());
     }
 }

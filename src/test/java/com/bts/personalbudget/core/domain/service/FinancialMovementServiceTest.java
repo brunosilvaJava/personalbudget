@@ -131,4 +131,25 @@ class FinancialMovementServiceTest {
         financialMovementService.delete(financialMovementEntity.getCode());
         assertFalse(financialMovementEntity.getFlagActive());
     }
+
+    @Test
+    void shouldKeepOccurrenceDateWhenDueDateIsUpdated() throws NotFoundException {
+        LocalDate originalOccurrenceDate = LocalDate.of(2026, 11, 10);
+        FinancialMovementEntity financialMovementEntity = FinancialMovementFactory.buildEntity();
+        financialMovementEntity.setOccurrenceDate(originalOccurrenceDate);
+
+        LocalDateTime newDueDate = LocalDateTime.of(2026, 11, 20, 0, 0);
+        Map<FinancialMovementProperty, String> data = new HashMap<>(FinancialMovementFactory.data());
+        data.put(DUE_DATE, newDueDate.toString());
+        FinancialMovement financialMovementToUpdate = FinancialMovementFactory.buildModel(data);
+
+        when(repository.findByCode(financialMovementToUpdate.code())).thenReturn(Optional.of(financialMovementEntity));
+
+        financialMovementService.update(financialMovementToUpdate);
+
+        // occurrence_date is not part of FinancialMovementUpdateRequest and the update() method
+        // never touches it: it is set once, at generation time, and stays immutable.
+        assertEquals(newDueDate, financialMovementEntity.getDueDate());
+        assertEquals(originalOccurrenceDate, financialMovementEntity.getOccurrenceDate());
+    }
 }

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import static java.math.BigDecimal.ZERO;
@@ -47,7 +48,11 @@ public record FinancialMovementResponse (
 
         @Schema(description = "Code of the recurrence bill associated with this movement, if any", example = "123e4567-e89b-12d3-a456-426614174000")
         @JsonProperty("recurrence_bill_code")
-        UUID recurrenceBillCode
+        UUID recurrenceBillCode,
+
+        @Schema(description = "Scheduled occurrence date from the recurrence bill this movement was generated from, if any. Immutable.", example = "2026-11-10")
+        @JsonProperty("occurrence_date")
+        LocalDate occurrenceDate
 ) {
     public FinancialMovementResponse {
         if (operationType == OperationType.DEBIT) {

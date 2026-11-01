@@ -43,6 +43,15 @@ public class FinancialMovementService {
         financialMovementList.forEach(this::create);
     }
 
+    /**
+     * Deliberately not scoped to flagActive: a soft-deleted movement still counts as "already
+     * generated" for this occurrence, so the recurrence job must not recreate it.
+     */
+    public boolean existsByRecurrenceBillCodeAndOccurrenceDate(final UUID recurrenceBillCode, final LocalDate occurrenceDate) {
+        log.info("m=existsByRecurrenceBillCodeAndOccurrenceDate, recurrenceBillCode={}, occurrenceDate={}", recurrenceBillCode, occurrenceDate);
+        return repository.existsByRecurrenceBillCodeAndOccurrenceDate(recurrenceBillCode, occurrenceDate);
+    }
+
     public Page<FinancialMovement> find(
             final String description,
             final List<OperationType> operationTypes,

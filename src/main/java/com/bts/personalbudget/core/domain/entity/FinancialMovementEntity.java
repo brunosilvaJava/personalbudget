@@ -13,6 +13,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
@@ -74,6 +75,14 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
 
     @Column(name = "recurrence_bill_code")
     private UUID recurrenceBillCode;
+
+    /**
+     * Scheduled occurrence date of the recurrence bill (FixedBill/InstallmentBill) this movement
+     * was generated from. Immutable once persisted: unlike dueDate, the user cannot edit it via
+     * PATCH, so it is safe to key the idempotency check on it.
+     */
+    @Column(name = "occurrence_date", updatable = false)
+    private LocalDate occurrenceDate;
 
     @PrePersist
     public void prePersist() {

@@ -30,11 +30,18 @@ public record FinancialMovement(
         LocalDateTime payDate,
         FinancialMovementStatus status,
         Boolean flagActive,
-        UUID recurrenceBillCode
+        UUID recurrenceBillCode,
+        LocalDate occurrenceDate
 ) implements BalanceCalcData {
 
     private static final String MSG_FIELD_NULL_OR_EMPTY = "deve ser informado um valor válido quando o status for ";
 
+    /**
+     * Used when generating a movement from a recurrence bill (FixedBill/InstallmentBill).
+     * {@code occurrenceDate} is the scheduled date the recurrence bill assigned to this
+     * occurrence; it is immutable once persisted, unlike {@code dueDate}, which the user can
+     * edit via PATCH. It is what the idempotency check keys on.
+     */
     public FinancialMovement(
             OperationType operationType,
             String description,
@@ -42,10 +49,11 @@ public record FinancialMovement(
             LocalDateTime movementDate,
             LocalDateTime dueDate,
             FinancialMovementStatus status,
-            UUID recurrenceBillCode
+            UUID recurrenceBillCode,
+            LocalDate occurrenceDate
     ) {
         this(null, operationType, description, amount, null, movementDate, dueDate, null,
-                status, Boolean.TRUE, recurrenceBillCode);
+                status, Boolean.TRUE, recurrenceBillCode, occurrenceDate);
     }
 
     public FinancialMovement {
