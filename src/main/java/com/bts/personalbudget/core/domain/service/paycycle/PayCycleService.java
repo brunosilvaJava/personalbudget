@@ -291,7 +291,16 @@ public class PayCycleService {
         final IncomeSchedule anchor = incomeScheduleService.findByCode(config.anchorScheduleCode());
         final List<PayCycle> existing = mapper.toModelList(currentChain(
                 cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)), config));
-        return plan(anchor, config.activationDate(), existing, LocalDate.now(clock)).pending();
+        final LocalDate today = LocalDate.now(clock);
+        final List<PayCyclePending> pending = plan(anchor, config.activationDate(), existing, today).pending();
+        if (!today.isBefore(config.activationDate())
+                && existing.stream().noneMatch(cycle -> cycle.contains(today))
+                && !pending.contains(PayCyclePending.noCurrentCycle())) {
+            final List<PayCyclePending> withNoCurrent = new java.util.ArrayList<>(pending);
+            withNoCurrent.add(PayCyclePending.noCurrentCycle());
+            return List.copyOf(withNoCurrent);
+        }
+        return pending;
     }
 
     /**
