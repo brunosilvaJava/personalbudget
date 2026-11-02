@@ -15,5 +15,5 @@ USER appuser
 WORKDIR /app
 COPY --chown=appuser:appuser --chmod=400 --from=builder /gradle/build/libs/*.jar /app/app.jar
 RUN chmod 500 /app
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Duser.timezone=America/Sao_Paulo", "-jar", "app.jar"]
 EXPOSE 8080

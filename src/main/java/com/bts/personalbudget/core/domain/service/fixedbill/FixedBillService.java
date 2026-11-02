@@ -10,6 +10,7 @@ import com.bts.personalbudget.mapper.FixedBillMapper;
 import jakarta.persistence.EntityNotFoundException;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -31,6 +32,7 @@ public class FixedBillService {
     private final FixedBillRepository fixedBillRepository;
     private final FixedBillMapper fixedBillMapper;
     private final CalcFixedBillFactory calcFixedBillFactory;
+    private final Clock clock;
 
     public void save(final FixedBill fixedBill) {
         log.info("m=save fixedBill={}", fixedBill);
@@ -74,7 +76,7 @@ public class FixedBillService {
      * the start date, whichever is later.
      */
     private LocalDate defineScheduleBaseDate(final FixedBill fixedBill) {
-        final LocalDate tomorrow = LocalDate.now().plusDays(1);
+        final LocalDate tomorrow = LocalDate.now(clock).plusDays(1);
         final LocalDate startDate = fixedBill.getStartDate();
         return startDate != null && startDate.isAfter(tomorrow) ? startDate : tomorrow;
     }
