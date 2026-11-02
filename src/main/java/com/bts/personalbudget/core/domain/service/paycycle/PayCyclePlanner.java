@@ -362,9 +362,14 @@ public final class PayCyclePlanner {
         }
 
         private YearMonth firstMonthToScan(final YearMonth month) {
-            return schedule.rule().ruleType() == DateRuleType.NTH_BUSINESS_DAY
-                    ? month
-                    : month.minusMonths(SCAN_MONTHS_BEFORE);
+            final YearMonth previous = month.minusMonths(SCAN_MONTHS_BEFORE);
+            final boolean previousHasRelevantOccurrence = materialized.stream().anyMatch(occurrence ->
+                    occurrence.nominalMonth().equals(previous)
+                            && !occurrence.plannedDate().isBefore(month.atDay(1)));
+            final boolean projectionCannotReachMonth = schedule.rule().ruleType() == DateRuleType.NTH_BUSINESS_DAY
+                    || schedule.rule().nonBusinessDayPolicy()
+                            == com.bts.personalbudget.core.domain.enumerator.NonBusinessDayPolicy.ANTICIPATE;
+            return projectionCannotReachMonth && !previousHasRelevantOccurrence ? month : previous;
         }
 
         private YearMonth startMonth() {
