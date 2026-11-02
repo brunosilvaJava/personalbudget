@@ -5,6 +5,8 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.core.domain.service.category.CategoryService;
+import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,8 +22,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import static com.bts.personalbudget.core.domain.factory.CategoryFactory.CATEGORY_CODE;
+import static com.bts.personalbudget.core.domain.factory.CategoryFactory.OTHER_CATEGORY_CODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -33,6 +38,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +52,9 @@ public class InstallmentBillServiceTest {
 
     @Mock
     private FinancialMovementService financialMovementService;
+
+    @Mock
+    private CategoryService categoryService;
 
     @Spy
     private FinancialMovementMapper financialMovementMapper = FinancialMovementMapper.INSTANCE;
@@ -125,7 +134,7 @@ public class InstallmentBillServiceTest {
 
         when(repository.findByCode(code)).thenReturn(installmentBill);
 
-        service.update(code, operationType, description, amount, purchaseDate, installmentTotal);
+        service.update(code, operationType, description, amount, purchaseDate, installmentTotal, null);
 
         ArgumentCaptor<InstallmentBill> argumentCaptor = ArgumentCaptor.forClass(InstallmentBill.class);
 
@@ -213,6 +222,102 @@ public class InstallmentBillServiceTest {
         assertEquals(InstallmentBillStatus.DONE, installmentBill.getStatus());
         assertNull(installmentBill.getNextInstallmentDate());
         assertEquals(1, installmentBill.getInstallmentCount());
+    }
+
+    @Test
+    void shouldCreateInstallmentBillWithCategory() {
+        final InstallmentBill installmentBill = InstallmentBillFactory.buildModel(
+                OperationType.DEBIT, "Test", BigDecimal.TEN, TODAY, 1);
+        installmentBill.setCategoryCode(CATEGORY_CODE);
+
+        service.create(installmentBill);
+
+        verify(categoryService).validateForUse(CATEGORY_CODE, OperationType.DEBIT);
+        verify(repository).save(installmentBill);
+    }
+
+    @Test
+    void shouldRejectInstallmentBillWhenCategoryIsInactive() {
+        final InstallmentBill installmentBill = InstallmentBillFactory.buildModel(
+                OperationType.DEBIT, "Test", BigDecimal.TEN, TODAY, 1);
+        installmentBill.setCategoryCode(CATEGORY_CODE);
+        doThrow(categoryRejection()).when(categoryService).validateForUse(CATEGORY_CODE, OperationType.DEBIT);
+
+        assertThrows(InvalidFieldsException.class, () -> service.create(installmentBill));
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void shouldInheritCategoryWhenInstallmentBillPostsInstallment() {
+        final UUID code = UUID.randomUUID();
+        final LocalDate today = LocalDate.now();
+        final LocalDate overdueInstallment = today.minusDays(10);
+        final InstallmentBill installmentBill = new InstallmentBill(code, OperationType.DEBIT, "Catch-up test",
+                BigDecimal.TEN, InstallmentBillStatus.PENDING, today.minusDays(40), 2,
+                0, null, overdueInstallment);
+        installmentBill.setCategoryCode(CATEGORY_CODE);
+
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
+        when(repository.update(any(InstallmentBill.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, overdueInstallment)).thenReturn(false);
+
+        service.postDueInstallments(code, today);
+
+        final ArgumentCaptor<FinancialMovement> captor = ArgumentCaptor.forClass(FinancialMovement.class);
+        verify(financialMovementService).create(captor.capture());
+        assertEquals(CATEGORY_CODE, captor.getValue().categoryCode());
+        // The job never asks whether the category is still usable.
+        verifyNoInteractions(categoryService);
+    }
+
+    @Test
+    void shouldReplaceCategoryWhenInstallmentBillUpdateHasCategory() {
+        final InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
+        installmentBill.setCategoryCode(CATEGORY_CODE);
+        final UUID code = installmentBill.getCode();
+        when(repository.findByCode(code)).thenReturn(installmentBill);
+
+        service.update(code, null, null, null, null, null, OTHER_CATEGORY_CODE);
+
+        verify(categoryService).validateForUse(OTHER_CATEGORY_CODE, OperationType.DEBIT);
+        final ArgumentCaptor<InstallmentBill> captor = ArgumentCaptor.forClass(InstallmentBill.class);
+        verify(repository).update(captor.capture());
+        assertEquals(OTHER_CATEGORY_CODE, captor.getValue().getCategoryCode());
+    }
+
+    @Test
+    void shouldKeepCategoryWhenInstallmentBillUpdateHasNoCategory() {
+        final InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
+        installmentBill.setCategoryCode(CATEGORY_CODE);
+        final UUID code = installmentBill.getCode();
+        when(repository.findByCode(code)).thenReturn(installmentBill);
+
+        service.update(code, null, "Nova descrição", null, null, null, null);
+
+        verifyNoInteractions(categoryService);
+        final ArgumentCaptor<InstallmentBill> captor = ArgumentCaptor.forClass(InstallmentBill.class);
+        verify(repository).update(captor.capture());
+        assertEquals(CATEGORY_CODE, captor.getValue().getCategoryCode());
+    }
+
+    @Test
+    void shouldRejectInstallmentBillUpdateWhenOperationTypeChangesAndCategoryNoLongerMatches() {
+        final InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
+        installmentBill.setCategoryCode(CATEGORY_CODE);
+        final UUID code = installmentBill.getCode();
+        when(repository.findByCode(code)).thenReturn(installmentBill);
+        doThrow(categoryRejection()).when(categoryService).validateForUse(CATEGORY_CODE, OperationType.CREDIT);
+
+        assertThrows(InvalidFieldsException.class,
+                () -> service.update(code, OperationType.CREDIT, null, null, null, null, null));
+
+        verify(repository, never()).update(any());
+    }
+
+    private static InvalidFieldsException categoryRejection() {
+        return new InvalidFieldsException("Campos inválidos", CategoryService.class,
+                Map.of("categoryCode", "categoria inativa"));
     }
 
 }

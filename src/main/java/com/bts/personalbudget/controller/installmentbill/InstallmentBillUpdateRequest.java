@@ -38,6 +38,10 @@ public record InstallmentBillUpdateRequest(
         @Min(1)
         @JsonProperty("installment_total")
         @Schema(description = "Updated total number of installments for the bill", example = "12")
-        Integer installmentTotal
+        Integer installmentTotal,
+
+        @Schema(description = "Code of the category to set. Replaces the current one for the installments posted from now on; omitting it keeps it, and it cannot be removed", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode
 ) {
 }

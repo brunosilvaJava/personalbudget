@@ -67,18 +67,20 @@ public class FinancialMovementController implements FinancialMovementControllerA
             @RequestParam(value = "status", required = false) List<FinancialMovementStatus> statuses,
             @RequestParam("start_date") LocalDate startDate,
             @RequestParam("end_date") LocalDate endDate,
+            @RequestParam(value = "category_code", required = false) List<UUID> categoryCodes,
+            @RequestParam(value = "without_category", defaultValue = "false") boolean withoutCategory,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(value = "sort_by", defaultValue = "movement_date") String sortBy,
             @RequestParam(value = "sort_direction", defaultValue = "DESC") String sortDirection) {
 
-        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, page={}, size={}, sortBy={}, sortDirection={}",
-                description, operationTypes, statuses, startDate, endDate, page, size, sortBy, sortDirection);
+        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, categoryCodes={}, withoutCategory={}, page={}, size={}, sortBy={}, sortDirection={}",
+                description, operationTypes, statuses, startDate, endDate, categoryCodes, withoutCategory, page, size, sortBy, sortDirection);
 
         Pageable pageable = PageRequest.of(page, size, SortFieldResolver.resolve(sortBy, sortDirection, SORT_FIELDS));
 
         Page<FinancialMovement> pagedResult = service.find(
-                description, operationTypes, statuses, startDate, endDate, pageable);
+                description, operationTypes, statuses, startDate, endDate, categoryCodes, withoutCategory, pageable);
 
         PagedFinancialMovementResponse response = new PagedFinancialMovementResponse(
                 mapper.toResponse(pagedResult.getContent()),

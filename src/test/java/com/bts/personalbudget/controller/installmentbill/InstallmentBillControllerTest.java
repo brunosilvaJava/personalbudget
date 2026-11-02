@@ -45,7 +45,7 @@ class InstallmentBillControllerTest {
     @Test
     void shouldReturnCreatedInstallmentBillInBody() {
         final InstallmentBillRequest request = new InstallmentBillRequest(
-                OperationType.DEBIT, "Geladeira", new BigDecimal("300.00"), LocalDate.now(), 10);
+                OperationType.DEBIT, "Geladeira", new BigDecimal("300.00"), LocalDate.now(), 10, null);
         final InstallmentBill model = InstallmentBillFactory.buildModel();
         when(mapper.toModel(request)).thenReturn(model);
         when(installmentBillService.create(model)).thenReturn(model);

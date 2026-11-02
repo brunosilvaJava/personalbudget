@@ -52,7 +52,11 @@ public record FinancialMovementResponse (
 
         @Schema(description = "Scheduled occurrence date from the recurrence bill this movement was generated from, if any. Immutable.", example = "2026-11-10")
         @JsonProperty("occurrence_date")
-        LocalDate occurrenceDate
+        LocalDate occurrenceDate,
+
+        @Schema(description = "Code of the category, if any", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode
 ) {
     public FinancialMovementResponse {
         if (operationType == OperationType.DEBIT) {

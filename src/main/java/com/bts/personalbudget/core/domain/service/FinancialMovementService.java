@@ -4,8 +4,10 @@ import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
+import com.bts.personalbudget.repository.FinancialMovementSpecifications;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,10 +34,19 @@ public class FinancialMovementService {
 
     private final FinancialMovementRepository repository;
     private final FinancialMovementMapper mapper;
+    private final CategoryService categoryService;
 
+    /**
+     * The category is validated only for a movement the user creates. One generated from a
+     * recurrence bill (recurrenceBillCode set - the API has no field for it) is saved as is: a
+     * bill whose category was inactivated later keeps posting its occurrences with it.
+     */
     @Transactional
     public FinancialMovement create(final FinancialMovement financialMovement) {
         log.info("m=create, financialMovement={}", financialMovement);
+        if (financialMovement.recurrenceBillCode() == null && financialMovement.categoryCode() != null) {
+            categoryService.validateForUse(financialMovement.categoryCode(), financialMovement.operationType());
+        }
         return mapper.toModel(repository.save(mapper.toEntity(financialMovement)));
     }
 
@@ -76,24 +87,28 @@ public class FinancialMovementService {
             final List<FinancialMovementStatus> statuses,
             final LocalDate startDate,
             final LocalDate endDate,
+            final List<UUID> categoryCodes,
+            final boolean withoutCategory,
             final Pageable pageable) {
 
-        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, pageable={}",
-                description, operationTypes, statuses, startDate, endDate, pageable);
+        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, categoryCodes={}, withoutCategory={}, pageable={}",
+                description, operationTypes, statuses, startDate, endDate, categoryCodes, withoutCategory, pageable);
 
         final List<OperationType> filterOperationTypes = operationTypes != null && !operationTypes.isEmpty() ?
                 operationTypes : Arrays.stream(OperationType.values()).toList();
         final List<FinancialMovementStatus> filterStatuses = statuses != null && !statuses.isEmpty() ?
                 statuses : Arrays.stream(FinancialMovementStatus.values()).toList();
 
-        Page<FinancialMovementEntity> pagedEntities =
-                repository.findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
+        final Page<FinancialMovementEntity> pagedEntities = repository.findAll(
+                FinancialMovementSpecifications.filter(
                         description,
                         filterOperationTypes,
                         filterStatuses,
                         startDate.atStartOfDay(),
                         endDate.atStartOfDay().plusDays(1),
-                        pageable);
+                        categoryCodes,
+                        withoutCategory),
+                pageable);
 
         return pagedEntities.map(mapper::toModel);
     }
@@ -107,6 +122,7 @@ public class FinancialMovementService {
     public FinancialMovement update(final FinancialMovement financialMovement) {
         log.info("m=update, financialMovement={}", financialMovement);
         final FinancialMovementEntity financialMovementEntity = findEntity(financialMovement.code());
+        validateCategoryOnUpdate(financialMovement, financialMovementEntity);
         update(financialMovement, financialMovementEntity);
         return mapper.toModel(financialMovementEntity);
     }
@@ -161,7 +177,30 @@ public class FinancialMovementService {
             financialMovementEntity.setStatus(financialMovement.status());
         }
 
+        if (financialMovement.categoryCode() != null &&
+                !financialMovement.categoryCode().equals(financialMovementEntity.getCategoryCode())) {
+            financialMovementEntity.setCategoryCode(financialMovement.categoryCode());
+        }
+
         normalizeAmountSigns(financialMovementEntity);
+    }
+
+    /**
+     * The category has to fit the operation type the movement ends up with, so changing only the
+     * operation type is checked against the stored category too. Runs only when one of the two
+     * actually changes: a movement whose category was inactivated later can still be edited.
+     */
+    private void validateCategoryOnUpdate(final FinancialMovement changes, final FinancialMovementEntity current) {
+        final OperationType finalOperationType =
+                changes.operationType() != null ? changes.operationType() : current.getOperationType();
+        final UUID finalCategoryCode =
+                changes.categoryCode() != null ? changes.categoryCode() : current.getCategoryCode();
+        final boolean categoryChanged =
+                changes.categoryCode() != null && !changes.categoryCode().equals(current.getCategoryCode());
+        final boolean operationTypeChanged = finalOperationType != current.getOperationType();
+        if (finalCategoryCode != null && (categoryChanged || operationTypeChanged)) {
+            categoryService.validateForUse(finalCategoryCode, finalOperationType);
+        }
     }
 
     /**

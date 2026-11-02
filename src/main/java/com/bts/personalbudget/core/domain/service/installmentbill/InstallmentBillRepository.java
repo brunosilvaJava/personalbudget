@@ -92,6 +92,7 @@ public class InstallmentBillRepository {
         entity.setInstallmentCount(installmentBill.getInstallmentCount());
         entity.setLastInstallmentDate(installmentBill.getLastInstallmentDate());
         entity.setNextInstallmentDate(installmentBill.getNextInstallmentDate());
+        entity.setCategoryCode(installmentBill.getCategoryCode());
         // Fixed in passing: status was never copied here, so InstallmentBill.conclude() (called
         // from updateInstallment() once the last installment posts) never reached the database -
         // the bill stayed PENDING forever even after nextInstallmentDate went null.

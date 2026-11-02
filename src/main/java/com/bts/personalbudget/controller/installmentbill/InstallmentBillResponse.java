@@ -35,7 +35,11 @@ public record InstallmentBillResponse(
 
         @JsonProperty("installment_total")
         @Schema(description = "Total number of installments for the bill", example = "12")
-        Integer installmentTotal
+        Integer installmentTotal,
+
+        @Schema(description = "Code of the category, if any", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode
 ) {
     public InstallmentBillResponse {
         if (operationType == OperationType.DEBIT) {

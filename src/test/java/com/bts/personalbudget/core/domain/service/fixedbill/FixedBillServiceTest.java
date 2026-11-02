@@ -8,9 +8,11 @@ import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.MonthlyCalcFixedBillImpl;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.WeeklyCalcFixedBillImpl;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.YearlyCalcFixedBillImpl;
+import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.mapper.FixedBillMapper;
 
@@ -30,6 +32,8 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static com.bts.personalbudget.core.domain.factory.CategoryFactory.CATEGORY_CODE;
+import static com.bts.personalbudget.core.domain.factory.CategoryFactory.OTHER_CATEGORY_CODE;
 import static com.bts.personalbudget.core.domain.factory.FixedBillFactory.END_DATE;
 import static com.bts.personalbudget.core.domain.factory.FixedBillFactory.REFERENCE_YEAR;
 import static com.bts.personalbudget.core.domain.factory.FixedBillFactory.START_DATE;
@@ -41,9 +45,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -70,6 +76,9 @@ public class FixedBillServiceTest {
 
     @Mock
     private FinancialMovementService financialMovementService;
+
+    @Mock
+    private CategoryService categoryService;
 
     @Spy
     private FinancialMovementMapper financialMovementMapper = FinancialMovementMapper.INSTANCE;
@@ -211,7 +220,7 @@ public class FixedBillServiceTest {
 
         when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
 
-        FixedBill updatedFixedBill = fixedBillService.update(code, operationType, description, amount, recurrenceType,
+        FixedBill updatedFixedBill = updateFixedBill(code, operationType, description, amount, recurrenceType,
                 days, referenceYear, status, startDate, endDate);
 
         verify(fixedBillRepository, never()).save(any());
@@ -239,7 +248,7 @@ public class FixedBillServiceTest {
         when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
         when(fixedBillRepository.save(any(FixedBillEntity.class))).thenReturn(fixedBillEntityMock);
 
-        FixedBill updatedFixedBill = fixedBillService.update(code, operationType, description, amount, recurrenceType,
+        FixedBill updatedFixedBill = updateFixedBill(code, operationType, description, amount, recurrenceType,
                 days, referenceYear, status, startDate, endDate);
 
         verify(fixedBillRepository, times(1)).save(any(FixedBillEntity.class));
@@ -275,7 +284,7 @@ public class FixedBillServiceTest {
         when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
         when(fixedBillRepository.save(any(FixedBillEntity.class))).thenReturn(fixedBillEntityMock);
 
-        FixedBill updatedFixedBill = fixedBillService.update(code, operationType, description, amount, recurrenceType,
+        FixedBill updatedFixedBill = updateFixedBill(code, operationType, description, amount, recurrenceType,
                 days, referenceYear, status, startDate, endDate);
 
         verify(fixedBillRepository, times(1)).save(any(FixedBillEntity.class));
@@ -515,7 +524,7 @@ public class FixedBillServiceTest {
 
         when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
 
-        FixedBill updatedFixedBill = fixedBillService.update(code, null, null, null, RecurrenceType.MONTHLY,
+        FixedBill updatedFixedBill = updateFixedBill(code, null, null, null, RecurrenceType.MONTHLY,
                 Set.of(10), null, null, null, null);
 
         LocalDate expectedNextDueDate = TODAY.getDayOfMonth() <= 10
@@ -538,7 +547,7 @@ public class FixedBillServiceTest {
 
         when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(fixedBillEntityMock));
 
-        fixedBillService.update(code, null, "Updated Description", null, null,
+        updateFixedBill(code, null, "Updated Description", null, null,
                 null, null, null, null, null);
 
         ArgumentCaptor<FixedBillEntity> argumentCaptor = ArgumentCaptor.forClass(FixedBillEntity.class);
@@ -613,7 +622,7 @@ public class FixedBillServiceTest {
         when(fixedBillRepository.findForUpdateByCode(code)).thenAnswer(invocation -> Optional.of(persisted.get()));
         when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, TODAY)).thenReturn(false);
 
-        FixedBill updatedFixedBill = fixedBillService.update(code, null, null, null, null,
+        FixedBill updatedFixedBill = updateFixedBill(code, null, null, null, null,
                 Set.of(10, TODAY.getDayOfMonth()), null, null, null, null);
 
         final ArgumentCaptor<FinancialMovement> captor = ArgumentCaptor.forClass(FinancialMovement.class);
@@ -639,7 +648,7 @@ public class FixedBillServiceTest {
         when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, TODAY)).thenReturn(true);
 
         // Recalculating from today points back at today; exists() finds the job's movement.
-        FixedBill updatedFixedBill = fixedBillService.update(code, null, null, null, null,
+        FixedBill updatedFixedBill = updateFixedBill(code, null, null, null, null,
                 Set.of(dueDay, extraDay), null, null, null, null);
 
         verify(financialMovementService, never()).create(any(FinancialMovement.class));
@@ -856,4 +865,125 @@ public class FixedBillServiceTest {
         assertNotNull(entity.getNextDueDate());
         assertTrue(entity.getNextDueDate().isBefore(farFutureToday));
     }
+
+    @Test
+    void shouldInheritCategoryWhenFixedBillPostsOccurrence() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        final UUID code = UUID.randomUUID();
+        final LocalDate dueDate = TODAY.withDayOfMonth(10);
+        final FixedBillEntity entity = buildMonthlyFixedBillEntity(10, TODAY.minusYears(1), null, dueDate);
+        entity.setCode(code);
+        entity.setCategoryCode(CATEGORY_CODE);
+
+        when(fixedBillRepository.findForUpdateByCode(code)).thenReturn(Optional.of(entity));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, dueDate)).thenReturn(false);
+
+        fixedBillService.postDueOccurrences(code, TODAY);
+
+        final ArgumentCaptor<FinancialMovement> captor = ArgumentCaptor.forClass(FinancialMovement.class);
+        verify(financialMovementService).create(captor.capture());
+        assertEquals(CATEGORY_CODE, captor.getValue().categoryCode());
+    }
+
+    @Test
+    void shouldPostOccurrenceWhenBillCategoryWasInactivated() {
+        when(calcFixedBillFactory.build(RecurrenceType.MONTHLY)).thenReturn(new MonthlyCalcFixedBillImpl());
+
+        final UUID code = UUID.randomUUID();
+        final LocalDate dueDate = TODAY.withDayOfMonth(10);
+        final FixedBillEntity entity = buildMonthlyFixedBillEntity(10, TODAY.minusYears(1), null, dueDate);
+        entity.setCode(code);
+        entity.setCategoryCode(CATEGORY_CODE);
+
+        when(fixedBillRepository.findForUpdateByCode(code)).thenReturn(Optional.of(entity));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, dueDate)).thenReturn(false);
+
+        fixedBillService.postDueOccurrences(code, TODAY);
+
+        // The job never asks whether the category is still usable.
+        verifyNoInteractions(categoryService);
+        verify(financialMovementService).create(any(FinancialMovement.class));
+    }
+
+    @Test
+    void shouldNotChangePostedMovementsWhenBillCategoryChanges() {
+        final FixedBillEntity entity = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        final UUID code = entity.getCode();
+        entity.setCategoryCode(CATEGORY_CODE);
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(entity));
+
+        final FixedBill updated = fixedBillService.update(code,
+                new FixedBillUpdate(null, null, null, null, null, null, null, null, null, OTHER_CATEGORY_CODE));
+
+        verify(categoryService).validateForUse(OTHER_CATEGORY_CODE, OperationType.DEBIT);
+        final ArgumentCaptor<FixedBillEntity> captor = ArgumentCaptor.forClass(FixedBillEntity.class);
+        verify(fixedBillRepository).save(captor.capture());
+        assertEquals(OTHER_CATEGORY_CODE, captor.getValue().getCategoryCode());
+        assertEquals(OTHER_CATEGORY_CODE, updated.getCategoryCode());
+        // Only the bill changes: the movements it already posted are left alone.
+        verify(financialMovementService, never()).create(any(FinancialMovement.class));
+        verify(financialMovementService, never()).update(any(FinancialMovement.class));
+    }
+
+    @Test
+    void shouldKeepCategoryWhenFixedBillUpdateHasNoCategory() {
+        final FixedBillEntity entity = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        final UUID code = entity.getCode();
+        entity.setCategoryCode(CATEGORY_CODE);
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(entity));
+
+        final FixedBill updated = updateFixedBill(code, null, "Nova descrição", null, null, null, null, null, null, null);
+
+        verifyNoInteractions(categoryService);
+        assertEquals(CATEGORY_CODE, updated.getCategoryCode());
+        final ArgumentCaptor<FixedBillEntity> captor = ArgumentCaptor.forClass(FixedBillEntity.class);
+        verify(fixedBillRepository).save(captor.capture());
+        assertEquals(CATEGORY_CODE, captor.getValue().getCategoryCode());
+    }
+
+    @Test
+    void shouldRejectFixedBillUpdateWhenOperationTypeChangesAndCategoryNoLongerMatches() {
+        final FixedBillEntity entity = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        final UUID code = entity.getCode();
+        entity.setCategoryCode(CATEGORY_CODE);
+        when(fixedBillRepository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(entity));
+        doThrow(categoryRejection()).when(categoryService).validateForUse(CATEGORY_CODE, OperationType.CREDIT);
+
+        assertThrows(InvalidFieldsException.class,
+                () -> updateFixedBill(code, OperationType.CREDIT, null, null, null, null, null, null, null, null));
+
+        verify(fixedBillRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectFixedBillWhenCategoryIsInactive() {
+        final FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.MONTHLY, Set.of(1, 31));
+        fixedBill.setCategoryCode(CATEGORY_CODE);
+        doThrow(categoryRejection()).when(categoryService).validateForUse(CATEGORY_CODE, OperationType.DEBIT);
+
+        assertThrows(InvalidFieldsException.class, () -> fixedBillService.save(fixedBill));
+
+        verify(fixedBillRepository, never()).save(any());
+    }
+
+    private static InvalidFieldsException categoryRejection() {
+        return new InvalidFieldsException("Campos inválidos", CategoryService.class,
+                Map.of("categoryCode", "categoria inativa"));
+    }
+
+    private FixedBill updateFixedBill(final UUID code,
+                                      final OperationType operationType,
+                                      final String description,
+                                      final BigDecimal amount,
+                                      final RecurrenceType recurrenceType,
+                                      final Set<Integer> days,
+                                      final Integer referenceYear,
+                                      final FixedBillStatus status,
+                                      final LocalDate startDate,
+                                      final LocalDate endDate) {
+        return fixedBillService.update(code, new FixedBillUpdate(operationType, description, amount,
+                recurrenceType, days, referenceYear, status, startDate, endDate, null));
+    }
+
 }

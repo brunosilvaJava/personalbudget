@@ -6,6 +6,8 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory;
 import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.service.category.CategoryService;
+import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.bts.personalbudget.core.domain.factory.CategoryFactory.CATEGORY_CODE;
+import static com.bts.personalbudget.core.domain.factory.CategoryFactory.OTHER_CATEGORY_CODE;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.AMOUNT;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.AMOUNT_PAID;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.DESCRIPTION;
@@ -41,7 +45,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,6 +59,9 @@ class FinancialMovementServiceTest {
 
     @Mock
     private FinancialMovementRepository repository;
+
+    @Mock
+    private CategoryService categoryService;
 
     @Spy
     private FinancialMovementMapper mapper = FinancialMovementMapper.INSTANCE;
@@ -162,7 +172,7 @@ class FinancialMovementServiceTest {
         final LocalDateTime now = LocalDateTime.now();
         final FinancialMovement financialMovement = new FinancialMovement(
                 UUID.randomUUID(), OperationType.DEBIT, "Padaria", new BigDecimal("12.50"), new BigDecimal("12.50"),
-                now, now, now, FinancialMovementStatus.PAID_OUT, Boolean.TRUE, null, null);
+                now, now, now, FinancialMovementStatus.PAID_OUT, Boolean.TRUE, null, null, null);
 
         financialMovementService.create(financialMovement);
 
@@ -177,7 +187,7 @@ class FinancialMovementServiceTest {
         final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
         final FinancialMovement payment = new FinancialMovement(
                 entity.getCode(), null, null, null, new BigDecimal("30.00"),
-                null, null, LocalDateTime.now(), FinancialMovementStatus.PAID_OUT, null, null, null);
+                null, null, LocalDateTime.now(), FinancialMovementStatus.PAID_OUT, null, null, null, null);
         when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
 
         financialMovementService.update(payment);
@@ -228,7 +238,7 @@ class FinancialMovementServiceTest {
 
     private static FinancialMovement onlyOperationType(final UUID code, final OperationType operationType) {
         return new FinancialMovement(code, operationType, null, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -249,4 +259,132 @@ class FinancialMovementServiceTest {
 
         assertThrows(EntityNotFoundException.class, () -> financialMovementService.find(code));
     }
+
+    @Test
+    void shouldCreateMovementWithCategory() {
+        when(repository.save(any(FinancialMovementEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        final FinancialMovement created = financialMovementService.create(
+                pendingMovement(OperationType.DEBIT, null, CATEGORY_CODE));
+
+        verify(categoryService).validateForUse(CATEGORY_CODE, OperationType.DEBIT);
+        assertEquals(CATEGORY_CODE, created.categoryCode());
+    }
+
+    @Test
+    void shouldCreateMovementWithoutCategoryAndSkipValidation() {
+        when(repository.save(any(FinancialMovementEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        final FinancialMovement created = financialMovementService.create(
+                pendingMovement(OperationType.DEBIT, null, null));
+
+        verifyNoInteractions(categoryService);
+        assertThat(created.categoryCode()).isNull();
+    }
+
+    @Test
+    void shouldRejectMovementWhenCategoryIsInactive() {
+        doThrow(categoryRejection("categoria inativa"))
+                .when(categoryService).validateForUse(CATEGORY_CODE, OperationType.DEBIT);
+
+        assertThrows(InvalidFieldsException.class, () -> financialMovementService.create(
+                pendingMovement(OperationType.DEBIT, null, CATEGORY_CODE)));
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectMovementWhenCategoryTypeDiffersFromOperationType() {
+        doThrow(categoryRejection("categoria é do tipo DEBIT e o lançamento é CREDIT"))
+                .when(categoryService).validateForUse(CATEGORY_CODE, OperationType.CREDIT);
+
+        assertThrows(InvalidFieldsException.class, () -> financialMovementService.create(
+                pendingMovement(OperationType.CREDIT, null, CATEGORY_CODE)));
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void shouldSkipCategoryValidationWhenMovementComesFromRecurrenceBill() {
+        when(repository.save(any(FinancialMovementEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        final FinancialMovement created = financialMovementService.create(
+                pendingMovement(OperationType.DEBIT, UUID.randomUUID(), CATEGORY_CODE));
+
+        verifyNoInteractions(categoryService);
+        assertEquals(CATEGORY_CODE, created.categoryCode());
+    }
+
+    @Test
+    void shouldReplaceCategoryOnUpdate() {
+        final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
+        entity.setCategoryCode(CATEGORY_CODE);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(onlyCategory(entity.getCode(), OTHER_CATEGORY_CODE));
+
+        verify(categoryService).validateForUse(OTHER_CATEGORY_CODE, OperationType.DEBIT);
+        assertEquals(OTHER_CATEGORY_CODE, entity.getCategoryCode());
+    }
+
+    @Test
+    void shouldKeepCategoryWhenUpdateRequestHasNoCategory() {
+        final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
+        entity.setCategoryCode(CATEGORY_CODE);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(new FinancialMovement(entity.getCode(), null, "Novo nome", null, null,
+                null, null, null, null, null, null, null, null));
+
+        verifyNoInteractions(categoryService);
+        assertEquals("Novo nome", entity.getDescription());
+        assertEquals(CATEGORY_CODE, entity.getCategoryCode());
+    }
+
+    @Test
+    void shouldRejectUpdateWhenOperationTypeChangesAndCategoryNoLongerMatches() {
+        final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
+        entity.setCategoryCode(CATEGORY_CODE);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+        doThrow(categoryRejection("categoria é do tipo DEBIT e o lançamento é CREDIT"))
+                .when(categoryService).validateForUse(CATEGORY_CODE, OperationType.CREDIT);
+
+        assertThrows(InvalidFieldsException.class,
+                () -> financialMovementService.update(onlyOperationType(entity.getCode(), OperationType.CREDIT)));
+
+        assertEquals(OperationType.DEBIT, entity.getOperationType());
+        assertThat(entity.getAmount()).isEqualByComparingTo("-30.00");
+    }
+
+    @Test
+    void shouldNotValidateCategoryWhenOperationTypeInUpdateIsUnchanged() {
+        final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
+        entity.setCategoryCode(CATEGORY_CODE);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(onlyOperationType(entity.getCode(), OperationType.DEBIT));
+
+        verifyNoInteractions(categoryService);
+        assertEquals(CATEGORY_CODE, entity.getCategoryCode());
+    }
+
+    private static FinancialMovement pendingMovement(final OperationType operationType,
+                                                     final UUID recurrenceBillCode,
+                                                     final UUID categoryCode) {
+        final LocalDateTime now = LocalDateTime.now();
+        return new FinancialMovement(UUID.randomUUID(), operationType, "Aluguel", new BigDecimal("100.00"), null,
+                now, now, null, FinancialMovementStatus.PENDING, Boolean.TRUE, recurrenceBillCode, null,
+                categoryCode);
+    }
+
+    private static FinancialMovement onlyCategory(final UUID code, final UUID categoryCode) {
+        return new FinancialMovement(code, null, null, null, null,
+                null, null, null, null, null, null, null, categoryCode);
+    }
+
+    private static InvalidFieldsException categoryRejection(final String message) {
+        return new InvalidFieldsException("Campos inválidos", CategoryService.class,
+                Map.of("categoryCode", message));
+    }
+
 }

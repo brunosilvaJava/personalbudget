@@ -33,6 +33,7 @@ class FinancialMovementTest {
                         FinancialMovementStatus.PAID_OUT,
                         Boolean.TRUE,
                         null,
+                        null,
                         null
                 ));
 
@@ -61,6 +62,7 @@ class FinancialMovementTest {
                         FinancialMovementStatus.LATE,
                         Boolean.TRUE,
                         null,
+                        null,
                         null
                 ));
 
@@ -86,6 +88,7 @@ class FinancialMovementTest {
                         null,
                         FinancialMovementStatus.LATE,
                         Boolean.TRUE,
+                        null,
                         null,
                         null
                 ));
@@ -144,6 +147,6 @@ class FinancialMovementTest {
                 FinancialMovementStatus.PAID_OUT,
                 Boolean.TRUE,
                 null,
-                null);
+                null, null);
     }
 }

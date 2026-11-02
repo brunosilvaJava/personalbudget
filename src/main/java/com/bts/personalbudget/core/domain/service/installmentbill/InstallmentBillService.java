@@ -6,6 +6,7 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ public class InstallmentBillService {
     private final FinancialMovementService financialMovementService;
     private final FinancialMovementMapper financialMovementMapper;
     private final Clock clock;
+    private final CategoryService categoryService;
 
     /**
      * Upper bound on how many installments a single catch-up run will post for one account. See
@@ -47,6 +49,9 @@ public class InstallmentBillService {
     @Transactional
     public InstallmentBill create(final InstallmentBill installmentBill) {
         log.info("m=create installmentBill={}", installmentBill);
+        if (installmentBill.getCategoryCode() != null) {
+            categoryService.validateForUse(installmentBill.getCategoryCode(), installmentBill.getOperationType());
+        }
         repository.save(installmentBill);
         final LocalDate today = LocalDate.now(clock);
         final LocalDate nextInstallmentDate = installmentBill.getNextInstallmentDate();
@@ -95,12 +100,34 @@ public class InstallmentBillService {
                                   final String description,
                                   final BigDecimal amount,
                                   final LocalDate purchaseDate,
-                                  final Integer installmentTotal) {
-        log.info("m=update code={} operationType={} description={} amount={} purchaseDate={} installmentTotal={}",
-                code, operationType, description, amount, purchaseDate, installmentTotal);
+                                  final Integer installmentTotal,
+                                  final UUID categoryCode) {
+        log.info("m=update code={} operationType={} description={} amount={} purchaseDate={} installmentTotal={} categoryCode={}",
+                code, operationType, description, amount, purchaseDate, installmentTotal, categoryCode);
         final InstallmentBill updateInstallmentBill = findByCode(code);
+        validateCategoryOnUpdate(updateInstallmentBill, operationType, categoryCode);
         updateInstallmentBill.update(operationType, description, amount, purchaseDate, installmentTotal);
+        if (categoryCode != null) {
+            updateInstallmentBill.setCategoryCode(categoryCode);
+        }
         return repository.update(updateInstallmentBill);
+    }
+
+    /**
+     * The category has to fit the operation type the bill ends up with, so changing only the
+     * operation type is checked against the stored category too. Runs only when one of the two
+     * actually changes: a bill whose category was inactivated later can still be edited.
+     */
+    private void validateCategoryOnUpdate(final InstallmentBill current,
+                                          final OperationType operationType,
+                                          final UUID categoryCode) {
+        final OperationType finalOperationType = operationType != null ? operationType : current.getOperationType();
+        final UUID finalCategoryCode = categoryCode != null ? categoryCode : current.getCategoryCode();
+        final boolean categoryChanged = categoryCode != null && !categoryCode.equals(current.getCategoryCode());
+        final boolean operationTypeChanged = finalOperationType != current.getOperationType();
+        if (finalCategoryCode != null && (categoryChanged || operationTypeChanged)) {
+            categoryService.validateForUse(finalCategoryCode, finalOperationType);
+        }
     }
 
     public void delete(final UUID code) {

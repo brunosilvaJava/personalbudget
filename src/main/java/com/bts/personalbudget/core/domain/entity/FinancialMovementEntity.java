@@ -84,6 +84,13 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
     @Column(name = "occurrence_date", updatable = false)
     private LocalDate occurrenceDate;
 
+    /**
+     * Plain column, not a JPA relationship: the movement only needs the category's code, and
+     * the category's name is resolved when a report asks for it.
+     */
+    @Column(name = "category_code")
+    private UUID categoryCode;
+
     @PrePersist
     public void prePersist() {
         if (code == null) {
