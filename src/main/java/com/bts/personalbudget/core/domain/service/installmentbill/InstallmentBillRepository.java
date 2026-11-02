@@ -70,20 +70,13 @@ public class InstallmentBillRepository {
     }
 
     @Transactional(readOnly = true)
-    public List<InstallmentBill> findAllByNextInstallmentDateBetweenAndStatus(final LocalDate initialDate,
-                                                                              final LocalDate endDate,
-                                                                              final InstallmentBillStatus installmentBillStatus) {
-        log.info("m=findAllByStatusAndNextInstallmentDateBetween status={} initialDate={} endDate={}",
-                installmentBillStatus, initialDate, endDate);
-
-        final List<InstallmentBillEntity> installmentBillEntityList =
-                jpaRepository.findAllByNextInstallmentDateBetweenAndStatusAndFlagActive(
-                        initialDate,
-                        endDate,
-                        installmentBillStatus,
-                        FLAG_ACTIVE);
-
-        return mapper.toModel(installmentBillEntityList);
+    public List<InstallmentBill> findAllByNextInstallmentDateLessThanEqualAndStatus(final LocalDate date,
+                                                                                    final InstallmentBillStatus installmentBillStatus) {
+        log.info("m=findAllByNextInstallmentDateLessThanEqualAndStatus date={} status={}", date, installmentBillStatus);
+        return mapper.toModel(jpaRepository.findAllByNextInstallmentDateLessThanEqualAndStatusAndFlagActive(
+                date,
+                installmentBillStatus,
+                FLAG_ACTIVE));
     }
 
     @Transactional

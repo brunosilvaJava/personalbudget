@@ -4,6 +4,7 @@ import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -55,6 +57,32 @@ public class FinancialMovementRepositoryTest {
             financialMovementRepository.save(buildEntityWithOccurrence(null, occurrenceDate));
             financialMovementRepository.save(buildEntityWithOccurrence(null, occurrenceDate));
         });
+    }
+
+    @Test
+    void shouldFindRecurrenceOccurrencesInPeriodIncludingSoftDeleted() {
+        final UUID recurrenceBillCode = UUID.randomUUID();
+        final UUID otherRecurrenceBillCode = UUID.randomUUID();
+        final LocalDate july10 = LocalDate.of(2026, 7, 10);
+        final LocalDate august10 = LocalDate.of(2026, 8, 10);
+
+        financialMovementRepository.save(buildEntityWithOccurrence(recurrenceBillCode, july10));
+        final FinancialMovementEntity softDeleted = buildEntityWithOccurrence(recurrenceBillCode, august10);
+        softDeleted.delete();
+        financialMovementRepository.save(softDeleted);
+        // Outside the period, and a bill that was not asked for.
+        financialMovementRepository.save(buildEntityWithOccurrence(recurrenceBillCode, LocalDate.of(2026, 10, 10)));
+        financialMovementRepository.save(buildEntityWithOccurrence(otherRecurrenceBillCode, july10));
+
+        final List<LocalDate> occurrenceDates = financialMovementRepository
+                .findAllByRecurrenceBillCodeInAndOccurrenceDateBetween(
+                        List.of(recurrenceBillCode), july10, LocalDate.of(2026, 9, 30))
+                .stream()
+                .map(FinancialMovementEntity::getOccurrenceDate)
+                .sorted()
+                .toList();
+
+        assertEquals(List.of(july10, august10), occurrenceDates);
     }
 
     private FinancialMovementEntity buildEntityWithOccurrence(final UUID recurrenceBillCode, final LocalDate occurrenceDate) {
