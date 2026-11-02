@@ -56,7 +56,15 @@ public record FinancialMovementResponse (
 
         @Schema(description = "Code of the category, if any", example = "123e4567-e89b-12d3-a456-426614174000")
         @JsonProperty("category_code")
-        UUID categoryCode
+        UUID categoryCode,
+
+        @Schema(description = "Budget competence date: when the obligation/revenue belongs to the budget, independent of due and pay dates. Null only for legacy recurring movements pending reconciliation", example = "2026-11-01", type = "string", format = "date")
+        @JsonProperty("competence_date")
+        LocalDate competenceDate,
+
+        @Schema(description = "true when the competence was informed by the client and is not recalculated automatically", example = "false")
+        @JsonProperty("competence_overridden")
+        Boolean competenceOverridden
 ) {
     public FinancialMovementResponse {
         if (operationType == OperationType.DEBIT) {

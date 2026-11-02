@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -51,6 +52,14 @@ public record FinancialMovementUpdateRequest(
 
         @Schema(description = "Code of the category to set. Replaces the current one; omitting it keeps it, and it cannot be removed", example = "123e4567-e89b-12d3-a456-426614174000")
         @JsonProperty("category_code")
-        UUID categoryCode
+        UUID categoryCode,
+
+        @Schema(description = "Sets the budget competence manually: it stops following the automatic rule. Omitting it keeps the current competence. Cannot be combined with restore_automatic_competence", example = "2024-11-01", type = "string", format = "date")
+        @JsonProperty("competence_date")
+        LocalDate competenceDate,
+
+        @Schema(description = "true goes back to the automatic competence (the movement date, or the occurrence date of a recurring movement). Omitting it or false keeps the current mode. Cannot be combined with competence_date", example = "false")
+        @JsonProperty("restore_automatic_competence")
+        Boolean restoreAutomaticCompetence
 ) {
 }

@@ -7,6 +7,7 @@ import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 
@@ -28,7 +29,7 @@ public interface FinancialMovementMapper {
     FinancialMovementMapper INSTANCE = Mappers.getMapper(FinancialMovementMapper.class);
 
     FinancialMovement toModel(FinancialMovementRequest request);
-    FinancialMovement toModel(FinancialMovementUpdateRequest updateRequest, UUID code);
+    FinancialMovementUpdate toUpdate(FinancialMovementUpdateRequest updateRequest, UUID code);
     FinancialMovement toModel(FinancialMovementEntity entity);
     List<FinancialMovement> toModel(List<FinancialMovementEntity> financialMovementEntities);
     @Mapping(target = "amount", expression = "java(normalizeValue(financialMovement.amount(), financialMovement.operationType()))")

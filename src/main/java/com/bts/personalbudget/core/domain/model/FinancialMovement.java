@@ -32,7 +32,9 @@ public record FinancialMovement(
         Boolean flagActive,
         UUID recurrenceBillCode,
         LocalDate occurrenceDate,
-        UUID categoryCode
+        UUID categoryCode,
+        LocalDate competenceDate,
+        Boolean competenceOverridden
 ) implements BalanceCalcData {
 
     private static final String MSG_FIELD_NULL_OR_EMPTY = "deve ser informado um valor válido quando o status for ";
@@ -54,7 +56,29 @@ public record FinancialMovement(
             LocalDate occurrenceDate
     ) {
         this(null, operationType, description, amount, null, movementDate, dueDate, null,
-                status, Boolean.TRUE, recurrenceBillCode, occurrenceDate, null);
+                status, Boolean.TRUE, recurrenceBillCode, occurrenceDate, null, null, null);
+    }
+
+    /**
+     * Without competence: FinancialMovementService.create derives it (automatic) when it is null.
+     */
+    public FinancialMovement(
+            UUID code,
+            OperationType operationType,
+            String description,
+            BigDecimal amount,
+            BigDecimal amountPaid,
+            LocalDateTime movementDate,
+            LocalDateTime dueDate,
+            LocalDateTime payDate,
+            FinancialMovementStatus status,
+            Boolean flagActive,
+            UUID recurrenceBillCode,
+            LocalDate occurrenceDate,
+            UUID categoryCode
+    ) {
+        this(code, operationType, description, amount, amountPaid, movementDate, dueDate, payDate,
+                status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode, null, null);
     }
 
     public FinancialMovement {
@@ -62,6 +86,13 @@ public record FinancialMovement(
         if (code == null) {
             code = UUID.randomUUID();
         }
+        competenceOverridden = Boolean.TRUE.equals(competenceOverridden);
+    }
+
+    public FinancialMovement withCompetence(final LocalDate newCompetenceDate, final boolean overridden) {
+        return new FinancialMovement(code, operationType, description, amount, amountPaid, movementDate,
+                dueDate, payDate, status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
+                newCompetenceDate, overridden);
     }
 
     @Override

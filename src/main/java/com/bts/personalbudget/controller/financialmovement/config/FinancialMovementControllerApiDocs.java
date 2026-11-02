@@ -24,7 +24,8 @@ public interface FinancialMovementControllerApiDocs {
 
     @Operation(
             summary = "Create a new financial movement",
-            description = "This endpoint creates a new entry for a financial movement.")
+            description = "This endpoint creates a new entry for a financial movement. competence_date is optional: when omitted it is "
+                    + "derived automatically (movement_date, or occurrence date for recurring bills); when sent it is manual.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Financial movement successfully created; returns it, with its code"),
             @ApiResponse(responseCode = "400", description = "Invalid request data")
@@ -63,7 +64,9 @@ public interface FinancialMovementControllerApiDocs {
     ResponseEntity<FinancialMovementResponse> find(UUID code);
 
     @Operation(summary = "Update an existing financial movement",
-            description = "Updates an existing financial movement identified by its UUID.")
+            description = "Updates an existing financial movement identified by its UUID. Sending competence_date sets a manual "
+                    + "competence; restore_automatic_competence=true recalculates it (not allowed together with competence_date); "
+                    + "omitting both keeps the current choice. Due and pay dates never change the competence.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Financial movement successfully updated"),
             @ApiResponse(responseCode = "404", description = "Financial movement not found"),

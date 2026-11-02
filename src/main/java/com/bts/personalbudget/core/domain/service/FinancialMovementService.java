@@ -4,6 +4,8 @@ import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
+import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
@@ -21,6 +23,7 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.LATE;
@@ -47,7 +50,22 @@ public class FinancialMovementService {
         if (financialMovement.recurrenceBillCode() == null && financialMovement.categoryCode() != null) {
             categoryService.validateForUse(financialMovement.categoryCode(), financialMovement.operationType());
         }
-        return mapper.toModel(repository.save(mapper.toEntity(financialMovement)));
+        return mapper.toModel(repository.save(mapper.toEntity(withCompetence(financialMovement))));
+    }
+
+    /**
+     * A competence informed by the client is manual. Otherwise it is automatic: the occurrence date
+     * for a movement generated from a recurrence bill (FixedBill/InstallmentBill), or the date of
+     * movement_date for a standalone one.
+     */
+    private FinancialMovement withCompetence(final FinancialMovement financialMovement) {
+        if (financialMovement.competenceDate() != null) {
+            return financialMovement.withCompetence(financialMovement.competenceDate(), true);
+        }
+        final LocalDate automaticCompetence = financialMovement.recurrenceBillCode() != null
+                ? financialMovement.occurrenceDate()
+                : financialMovement.movementDate().toLocalDate();
+        return financialMovement.withCompetence(automaticCompetence, false);
     }
 
     @Transactional
@@ -119,7 +137,7 @@ public class FinancialMovementService {
     }
 
     @Transactional
-    public FinancialMovement update(final FinancialMovement financialMovement) {
+    public FinancialMovement update(final FinancialMovementUpdate financialMovement) {
         log.info("m=update, financialMovement={}", financialMovement);
         final FinancialMovementEntity financialMovementEntity = findEntity(financialMovement.code());
         validateCategoryOnUpdate(financialMovement, financialMovementEntity);
@@ -136,7 +154,7 @@ public class FinancialMovementService {
                 .orElseThrow(() -> new EntityNotFoundException("FinancialMovementEntity not found for code " + code));
     }
 
-    private void update(final FinancialMovement financialMovement, final FinancialMovementEntity financialMovementEntity) {
+    private void update(final FinancialMovementUpdate financialMovement, final FinancialMovementEntity financialMovementEntity) {
         if (financialMovement.operationType() != null &&
                 financialMovement.operationType() != financialMovementEntity.getOperationType()) {
             financialMovementEntity.setOperationType(financialMovement.operationType());
@@ -183,6 +201,43 @@ public class FinancialMovementService {
         }
 
         normalizeAmountSigns(financialMovementEntity);
+        updateCompetence(financialMovement, financialMovementEntity);
+    }
+
+    /**
+     * Due and pay dates never touch the competence. An automatic competence follows its base date
+     * (movement_date; the occurrence date, which is immutable, for a recurring movement); a manual
+     * one is only changed by the explicit commands.
+     */
+    private void updateCompetence(final FinancialMovementUpdate changes, final FinancialMovementEntity entity) {
+        if (changes.competenceDate() != null) {
+            entity.setCompetenceDate(changes.competenceDate());
+            entity.setCompetenceOverridden(true);
+            return;
+        }
+        if (changes.restoreAutomaticCompetence()) {
+            final LocalDate automaticCompetence = automaticCompetence(entity);
+            if (automaticCompetence == null) {
+                throw new InvalidFieldsException("Campos inválidos", FinancialMovementUpdate.class, Map.of(
+                        "restoreAutomaticCompetence",
+                        "movimentação recorrente sem occurrence_date não tem competência automática"));
+            }
+            entity.setCompetenceDate(automaticCompetence);
+            entity.setCompetenceOverridden(false);
+            return;
+        }
+        if (!Boolean.TRUE.equals(entity.getCompetenceOverridden())) {
+            final LocalDate automaticCompetence = automaticCompetence(entity);
+            if (automaticCompetence != null) {
+                entity.setCompetenceDate(automaticCompetence);
+            }
+        }
+    }
+
+    private LocalDate automaticCompetence(final FinancialMovementEntity entity) {
+        return entity.getRecurrenceBillCode() != null
+                ? entity.getOccurrenceDate()
+                : entity.getMovementDate().toLocalDate();
     }
 
     /**
@@ -190,7 +245,7 @@ public class FinancialMovementService {
      * operation type is checked against the stored category too. Runs only when one of the two
      * actually changes: a movement whose category was inactivated later can still be edited.
      */
-    private void validateCategoryOnUpdate(final FinancialMovement changes, final FinancialMovementEntity current) {
+    private void validateCategoryOnUpdate(final FinancialMovementUpdate changes, final FinancialMovementEntity current) {
         final OperationType finalOperationType =
                 changes.operationType() != null ? changes.operationType() : current.getOperationType();
         final UUID finalCategoryCode =

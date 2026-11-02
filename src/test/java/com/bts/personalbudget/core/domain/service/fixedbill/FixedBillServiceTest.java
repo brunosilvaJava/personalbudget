@@ -923,7 +923,7 @@ public class FixedBillServiceTest {
         assertEquals(OTHER_CATEGORY_CODE, updated.getCategoryCode());
         // Only the bill changes: the movements it already posted are left alone.
         verify(financialMovementService, never()).create(any(FinancialMovement.class));
-        verify(financialMovementService, never()).update(any(FinancialMovement.class));
+        verify(financialMovementService, never()).update(any(com.bts.personalbudget.core.domain.model.FinancialMovementUpdate.class));
     }
 
     @Test

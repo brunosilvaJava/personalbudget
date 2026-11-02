@@ -109,7 +109,7 @@ public class FinancialMovementController implements FinancialMovementControllerA
     public ResponseEntity<?> update(@PathVariable UUID code,
                                     @RequestBody @Valid final FinancialMovementUpdateRequest updateRequest) {
         log.info("m=update, updateRequest={}", updateRequest);
-        return ResponseEntity.ok(mapper.toResponse(service.update(mapper.toModel(updateRequest, code))));
+        return ResponseEntity.ok(mapper.toResponse(service.update(mapper.toUpdate(updateRequest, code))));
     }
 
     @DeleteMapping("/{code}")
