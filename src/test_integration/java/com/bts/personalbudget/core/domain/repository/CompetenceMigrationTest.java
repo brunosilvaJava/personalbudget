@@ -51,6 +51,13 @@ class CompetenceMigrationTest {
             insert(statement, "EDITED_DUE", "DEBIT", "50.00", null, "2025-04-10 00:00:00", "2025-04-10 00:00:00",
                     "PENDING", 1, "0x22222222222222222222222222222222");
         }
+        flyway("7").migrate();
+        try (Connection connection = connection(); Statement statement = connection.createStatement()) {
+            statement.executeUpdate("""
+                    UPDATE financial_movement
+                    SET movement_date = '2025-03-01 10:00:00', due_date = '2025-06-20 00:00:00'
+                    WHERE description = 'EDITED_DUE'""");
+        }
         flyway(null).migrate();
     }
 
