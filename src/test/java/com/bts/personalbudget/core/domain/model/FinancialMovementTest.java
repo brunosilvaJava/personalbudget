@@ -6,6 +6,7 @@ import com.bts.personalbudget.exception.InvalidFieldsException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -168,5 +169,36 @@ class FinancialMovementTest {
                 Boolean.TRUE,
                 null,
                 null, null);
+    }
+
+    @Test
+    void shouldKeepCashBalanceCalculationIndependentOfCompetence() {
+        final LocalDateTime dueDate = LocalDateTime.of(2026, 11, 20, 0, 0);
+        final LocalDateTime payDate = LocalDateTime.of(2026, 12, 3, 0, 0);
+        final LocalDate competence = LocalDate.of(2026, 10, 1);
+        final FinancialMovement pending = new FinancialMovement(
+                UUID.randomUUID(), OperationType.DEBIT, "Aluguel", new BigDecimal("100.00"), null,
+                dueDate, dueDate, null, FinancialMovementStatus.PENDING, Boolean.TRUE, null, null, null,
+                competence, true);
+        final FinancialMovement paid = new FinancialMovement(
+                UUID.randomUUID(), OperationType.DEBIT, "Aluguel", new BigDecimal("100.00"), new BigDecimal("80.00"),
+                dueDate, dueDate, payDate, FinancialMovementStatus.PAID_OUT, Boolean.TRUE, null, null, null,
+                competence, true);
+
+        assertEquals(LocalDate.of(2026, 11, 20), pending.findBalanceCalcDate());
+        assertEquals(new BigDecimal("-100.00"), pending.getBalanceCalcValue());
+        assertEquals(LocalDate.of(2026, 12, 3), paid.findBalanceCalcDate());
+        assertEquals(new BigDecimal("-80.00"), paid.getBalanceCalcValue());
+    }
+
+    @Test
+    void shouldDefaultCompetenceOverriddenToFalse() {
+        final LocalDateTime now = LocalDateTime.now();
+        final FinancialMovement movement = new FinancialMovement(
+                UUID.randomUUID(), OperationType.CREDIT, "Salario", BigDecimal.TEN, null,
+                now, now, null, FinancialMovementStatus.PENDING, Boolean.TRUE, null, null, null);
+
+        assertEquals(Boolean.FALSE, movement.competenceOverridden());
+        assertNull(movement.competenceDate());
     }
 }

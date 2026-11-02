@@ -85,6 +85,21 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
     private LocalDate occurrenceDate;
 
     /**
+     * Budget competence: when the obligation/revenue belongs to the budget, independent of
+     * due/pay dates (cash). Null only for legacy recurring movements without occurrence_date,
+     * which have no safe automatic value.
+     */
+    @Column(name = "competence_date")
+    private LocalDate competenceDate;
+
+    /**
+     * True when the client informed the competence; such a value is never overwritten by the
+     * automatic recalculation.
+     */
+    @Column(name = "competence_overridden", nullable = false)
+    private Boolean competenceOverridden;
+
+    /**
      * Plain column, not a JPA relationship: the movement only needs the category's code, and
      * the category's name is resolved when a report asks for it.
      */
@@ -97,6 +112,9 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
             code = UUID.randomUUID();
         }
         flagActive = Boolean.TRUE;
+        if (competenceOverridden == null) {
+            competenceOverridden = Boolean.FALSE;
+        }
     }
 
     @Override

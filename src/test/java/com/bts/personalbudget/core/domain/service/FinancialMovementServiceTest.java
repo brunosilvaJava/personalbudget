@@ -6,6 +6,7 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory;
 import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
 import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
@@ -39,11 +40,13 @@ import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactor
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.OPERATION_TYPE;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.PAY_DATE;
 import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.FinancialMovementProperty.STATUS;
+import static com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.toUpdate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -126,7 +129,7 @@ class FinancialMovementServiceTest {
 
         when(repository.findByCodeAndFlagActiveTrue(financialMovementToUpdate.code())).thenReturn(Optional.of(FinancialMovementFactory.buildEntity()));
 
-        FinancialMovement updatedFinancialMovement = financialMovementService.update(financialMovementToUpdate);
+        FinancialMovement updatedFinancialMovement = financialMovementService.update(toUpdate(financialMovementToUpdate));
 
         assertEquals(operationType, updatedFinancialMovement.operationType());
         assertEquals(description, updatedFinancialMovement.description());
@@ -159,7 +162,7 @@ class FinancialMovementServiceTest {
 
         when(repository.findByCodeAndFlagActiveTrue(financialMovementToUpdate.code())).thenReturn(Optional.of(financialMovementEntity));
 
-        financialMovementService.update(financialMovementToUpdate);
+        financialMovementService.update(toUpdate(financialMovementToUpdate));
 
         // occurrence_date is not part of FinancialMovementUpdateRequest and the update() method
         // never touches it: it is set once, at generation time, and stays immutable.
@@ -190,7 +193,7 @@ class FinancialMovementServiceTest {
                 null, null, LocalDateTime.now(), FinancialMovementStatus.PAID_OUT, null, null, null, null);
         when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
 
-        financialMovementService.update(payment);
+        financialMovementService.update(toUpdate(payment));
 
         assertEquals(FinancialMovementStatus.PAID_OUT, entity.getStatus());
         assertThat(entity.getAmountPaid()).isEqualByComparingTo("-30.00");
@@ -203,7 +206,7 @@ class FinancialMovementServiceTest {
         final FinancialMovement change = onlyOperationType(entity.getCode(), OperationType.DEBIT);
         when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
 
-        financialMovementService.update(change);
+        financialMovementService.update(toUpdate(change));
 
         assertEquals(OperationType.DEBIT, entity.getOperationType());
         assertThat(entity.getAmount()).isEqualByComparingTo("-30.00");
@@ -215,7 +218,7 @@ class FinancialMovementServiceTest {
         final FinancialMovement change = onlyOperationType(entity.getCode(), OperationType.CREDIT);
         when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
 
-        financialMovementService.update(change);
+        financialMovementService.update(toUpdate(change));
 
         assertEquals(OperationType.CREDIT, entity.getOperationType());
         assertThat(entity.getAmount()).isEqualByComparingTo("30.00");
@@ -321,7 +324,7 @@ class FinancialMovementServiceTest {
         entity.setCategoryCode(CATEGORY_CODE);
         when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
 
-        financialMovementService.update(onlyCategory(entity.getCode(), OTHER_CATEGORY_CODE));
+        financialMovementService.update(toUpdate(onlyCategory(entity.getCode(), OTHER_CATEGORY_CODE)));
 
         verify(categoryService).validateForUse(OTHER_CATEGORY_CODE, OperationType.DEBIT);
         assertEquals(OTHER_CATEGORY_CODE, entity.getCategoryCode());
@@ -333,8 +336,8 @@ class FinancialMovementServiceTest {
         entity.setCategoryCode(CATEGORY_CODE);
         when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
 
-        financialMovementService.update(new FinancialMovement(entity.getCode(), null, "Novo nome", null, null,
-                null, null, null, null, null, null, null, null));
+        financialMovementService.update(toUpdate(new FinancialMovement(entity.getCode(), null, "Novo nome", null, null,
+                null, null, null, null, null, null, null, null)));
 
         verifyNoInteractions(categoryService);
         assertEquals("Novo nome", entity.getDescription());
@@ -350,7 +353,7 @@ class FinancialMovementServiceTest {
                 .when(categoryService).validateForUse(CATEGORY_CODE, OperationType.CREDIT);
 
         assertThrows(InvalidFieldsException.class,
-                () -> financialMovementService.update(onlyOperationType(entity.getCode(), OperationType.CREDIT)));
+                () -> financialMovementService.update(toUpdate(onlyOperationType(entity.getCode(), OperationType.CREDIT))));
 
         assertEquals(OperationType.DEBIT, entity.getOperationType());
         assertThat(entity.getAmount()).isEqualByComparingTo("-30.00");
@@ -362,7 +365,7 @@ class FinancialMovementServiceTest {
         entity.setCategoryCode(CATEGORY_CODE);
         when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
 
-        financialMovementService.update(onlyOperationType(entity.getCode(), OperationType.DEBIT));
+        financialMovementService.update(toUpdate(onlyOperationType(entity.getCode(), OperationType.DEBIT)));
 
         verifyNoInteractions(categoryService);
         assertEquals(CATEGORY_CODE, entity.getCategoryCode());
@@ -385,6 +388,199 @@ class FinancialMovementServiceTest {
     private static InvalidFieldsException categoryRejection(final String message) {
         return new InvalidFieldsException("Campos inválidos", CategoryService.class,
                 Map.of("categoryCode", message));
+    }
+
+    private static final LocalDate OCCURRENCE = LocalDate.of(2026, 11, 10);
+    private static final LocalDate MANUAL_COMPETENCE = LocalDate.of(2026, 10, 1);
+
+    @Test
+    void shouldSetAutomaticCompetenceFromMovementDateWhenStandaloneMovementIsCreated() {
+        when(repository.save(any(FinancialMovementEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        final LocalDateTime movementDate = LocalDateTime.of(2026, 11, 5, 18, 30);
+
+        final FinancialMovement created = financialMovementService.create(
+                standalone(movementDate, null));
+
+        assertEquals(LocalDate.of(2026, 11, 5), created.competenceDate());
+        assertFalse(created.competenceOverridden());
+    }
+
+    @Test
+    void shouldSetAutomaticCompetenceFromOccurrenceDateWhenMovementComesFromRecurrenceBill() {
+        when(repository.save(any(FinancialMovementEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        final LocalDateTime dueDate = OCCURRENCE.atStartOfDay();
+
+        final FinancialMovement created = financialMovementService.create(new FinancialMovement(
+                OperationType.DEBIT, "Aluguel", new BigDecimal("100.00"), dueDate.minusDays(3), dueDate,
+                FinancialMovementStatus.PENDING, UUID.randomUUID(), OCCURRENCE));
+
+        assertEquals(OCCURRENCE, created.competenceDate());
+        assertEquals(OCCURRENCE, created.occurrenceDate());
+        assertFalse(created.competenceOverridden());
+    }
+
+    @Test
+    void shouldCreateMovementWithManualCompetenceWhenClientInformsIt() {
+        when(repository.save(any(FinancialMovementEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        final FinancialMovement created = financialMovementService.create(
+                standalone(LocalDateTime.of(2026, 11, 5, 10, 0), MANUAL_COMPETENCE));
+
+        assertEquals(MANUAL_COMPETENCE, created.competenceDate());
+        assertTrue(created.competenceOverridden());
+    }
+
+    @Test
+    void shouldKeepCompetenceWhenPatchOmitsCompetence() {
+        final FinancialMovementEntity entity = entityWithCompetence(MANUAL_COMPETENCE, true);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(patch(entity.getCode(), null, null, null, null, false));
+
+        assertEquals(MANUAL_COMPETENCE, entity.getCompetenceDate());
+        assertTrue(entity.getCompetenceOverridden());
+    }
+
+    @Test
+    void shouldRecalculateAutomaticCompetenceWhenMovementDateChanges() {
+        final FinancialMovementEntity entity = entityWithCompetence(LocalDate.of(2026, 11, 5), false);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(
+                patch(entity.getCode(), LocalDateTime.of(2026, 12, 2, 9, 0), null, null, null, false));
+
+        assertEquals(LocalDate.of(2026, 12, 2), entity.getCompetenceDate());
+        assertFalse(entity.getCompetenceOverridden());
+    }
+
+    @Test
+    void shouldNotOverwriteManualCompetenceWhenMovementDateChanges() {
+        final FinancialMovementEntity entity = entityWithCompetence(MANUAL_COMPETENCE, true);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(
+                patch(entity.getCode(), LocalDateTime.of(2026, 12, 2, 9, 0), null, null, null, false));
+
+        assertEquals(MANUAL_COMPETENCE, entity.getCompetenceDate());
+        assertTrue(entity.getCompetenceOverridden());
+    }
+
+    @Test
+    void shouldNotChangeCompetenceWhenDueDateAndPayDateChange() {
+        final FinancialMovementEntity automatic = entityWithCompetence(LocalDate.of(2026, 11, 5), false);
+        final FinancialMovementEntity manual = entityWithCompetence(MANUAL_COMPETENCE, true);
+        when(repository.findByCodeAndFlagActiveTrue(automatic.getCode())).thenReturn(Optional.of(automatic));
+        when(repository.findByCodeAndFlagActiveTrue(manual.getCode())).thenReturn(Optional.of(manual));
+        final LocalDateTime newDate = LocalDateTime.of(2027, 3, 20, 0, 0);
+
+        financialMovementService.update(patch(automatic.getCode(), null, newDate, newDate, null, false));
+        financialMovementService.update(patch(manual.getCode(), null, newDate, newDate, null, false));
+
+        assertEquals(newDate, automatic.getDueDate());
+        assertEquals(newDate, automatic.getPayDate());
+        assertEquals(LocalDate.of(2026, 11, 5), automatic.getCompetenceDate());
+        assertEquals(MANUAL_COMPETENCE, manual.getCompetenceDate());
+    }
+
+    @Test
+    void shouldSetManualCompetenceWhenPatchInformsIt() {
+        final FinancialMovementEntity entity = entityWithCompetence(LocalDate.of(2026, 11, 5), false);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(patch(entity.getCode(), null, null, null, MANUAL_COMPETENCE, false));
+
+        assertEquals(MANUAL_COMPETENCE, entity.getCompetenceDate());
+        assertTrue(entity.getCompetenceOverridden());
+    }
+
+    @Test
+    void shouldRestoreAutomaticCompetenceFromMovementDateWhenRequested() {
+        final FinancialMovementEntity entity = entityWithCompetence(MANUAL_COMPETENCE, true);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(patch(entity.getCode(), null, null, null, null, true));
+
+        assertEquals(entity.getMovementDate().toLocalDate(), entity.getCompetenceDate());
+        assertFalse(entity.getCompetenceOverridden());
+    }
+
+    @Test
+    void shouldRestoreAutomaticCompetenceFromOccurrenceDateWhenMovementIsRecurring() {
+        final FinancialMovementEntity entity = entityWithCompetence(MANUAL_COMPETENCE, true);
+        entity.setRecurrenceBillCode(UUID.randomUUID());
+        entity.setOccurrenceDate(OCCURRENCE);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(patch(entity.getCode(), null, null, null, null, true));
+
+        assertEquals(OCCURRENCE, entity.getCompetenceDate());
+        assertEquals(OCCURRENCE, entity.getOccurrenceDate());
+        assertFalse(entity.getCompetenceOverridden());
+    }
+
+    @Test
+    void shouldKeepAutomaticCompetenceOfRecurringMovementWhenMovementDateChanges() {
+        final FinancialMovementEntity entity = entityWithCompetence(OCCURRENCE, false);
+        entity.setRecurrenceBillCode(UUID.randomUUID());
+        entity.setOccurrenceDate(OCCURRENCE);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(
+                patch(entity.getCode(), LocalDateTime.of(2027, 1, 1, 0, 0), null, null, null, false));
+
+        assertEquals(OCCURRENCE, entity.getCompetenceDate());
+    }
+
+    @Test
+    void shouldRejectRestoreWhenLegacyRecurringMovementHasNoOccurrenceDate() {
+        final FinancialMovementEntity entity = entityWithCompetence(null, false);
+        entity.setRecurrenceBillCode(UUID.randomUUID());
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        assertThrows(InvalidFieldsException.class,
+                () -> financialMovementService.update(patch(entity.getCode(), null, null, null, null, true)));
+        assertThat(entity.getCompetenceDate()).isNull();
+    }
+
+    @Test
+    void shouldLeaveCompetenceNullWhenLegacyRecurringMovementWithoutOccurrenceDateIsUpdated() {
+        final FinancialMovementEntity entity = entityWithCompetence(null, false);
+        entity.setRecurrenceBillCode(UUID.randomUUID());
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.update(
+                patch(entity.getCode(), LocalDateTime.of(2027, 1, 1, 0, 0), null, null, null, false));
+
+        assertThat(entity.getCompetenceDate()).isNull();
+        assertThat(entity.getOccurrenceDate()).isNull();
+    }
+
+    @Test
+    void shouldRejectUpdateWithManualCompetenceAndRestoreTogether() {
+        assertThrows(InvalidFieldsException.class,
+                () -> patch(UUID.randomUUID(), null, null, null, MANUAL_COMPETENCE, true));
+    }
+
+    private static FinancialMovement standalone(final LocalDateTime movementDate, final LocalDate competenceDate) {
+        return new FinancialMovement(UUID.randomUUID(), OperationType.DEBIT, "Padaria", new BigDecimal("12.50"),
+                null, movementDate, movementDate, null, FinancialMovementStatus.PENDING, Boolean.TRUE, null, null,
+                null, competenceDate, false);
+    }
+
+    private static FinancialMovementEntity entityWithCompetence(final LocalDate competenceDate, final boolean overridden) {
+        final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
+        entity.setMovementDate(LocalDateTime.of(2026, 11, 5, 10, 0));
+        entity.setDueDate(LocalDateTime.of(2026, 11, 20, 0, 0));
+        entity.setCompetenceDate(competenceDate);
+        entity.setCompetenceOverridden(overridden);
+        return entity;
+    }
+
+    private static FinancialMovementUpdate patch(final UUID code, final LocalDateTime movementDate,
+                                                 final LocalDateTime dueDate, final LocalDateTime payDate,
+                                                 final LocalDate competenceDate, final boolean restore) {
+        return new FinancialMovementUpdate(code, null, null, null, null, movementDate, dueDate, payDate,
+                null, null, competenceDate, restore);
     }
 
 }

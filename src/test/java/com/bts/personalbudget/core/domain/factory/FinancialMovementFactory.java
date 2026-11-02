@@ -4,6 +4,7 @@ import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
 import java.time.LocalDate;
 import java.util.HashMap;
 import lombok.Getter;
@@ -96,6 +97,15 @@ public class FinancialMovementFactory {
                 movement.amount(), movement.amountPaid(), movement.movementDate(), movement.dueDate(),
                 movement.payDate(), movement.status(), movement.flagActive(), movement.recurrenceBillCode(),
                 movement.occurrenceDate(), categoryCode);
+    }
+
+    /**
+     * The PATCH command equivalent to the non-null fields of the movement.
+     */
+    public static FinancialMovementUpdate toUpdate(final FinancialMovement movement) {
+        return new FinancialMovementUpdate(movement.code(), movement.operationType(), movement.description(),
+                movement.amount(), movement.amountPaid(), movement.movementDate(), movement.dueDate(),
+                movement.payDate(), movement.status(), movement.categoryCode(), movement.competenceDate(), false);
     }
 
     public static FinancialMovement buildModel(Map<FinancialMovementProperty, String> data) {
