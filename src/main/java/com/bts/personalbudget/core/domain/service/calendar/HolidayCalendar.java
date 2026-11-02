@@ -3,6 +3,7 @@ package com.bts.personalbudget.core.domain.service.calendar;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -33,6 +34,30 @@ public record HolidayCalendar(Set<Holiday> holidays, Set<Integer> reviewedYears)
 
     public static HolidayCalendar empty() {
         return new HolidayCalendar(Set.of(), Set.of());
+    }
+
+    /**
+     * The calendar as it would be after reviewing {@code year} with exactly these holidays: the
+     * year's current holidays are replaced and the year is marked as reviewed. Does not change this
+     * calendar; used to preview what a review would do before it is saved.
+     *
+     * @throws InvalidFieldsException when a holiday is outside the year, or two share a date
+     */
+    public HolidayCalendar replacingYear(final int year, final Collection<Holiday> yearHolidays) {
+        final Set<Holiday> merged = new HashSet<>();
+        holidays.stream()
+                .filter(holiday -> holiday.date().getYear() != year)
+                .forEach(merged::add);
+        for (final Holiday holiday : yearHolidays) {
+            if (holiday.date().getYear() != year) {
+                throw new InvalidFieldsException("Campos inválidos", HolidayCalendar.class,
+                        Map.of("holidays", "o feriado " + holiday.date() + " não pertence ao ano " + year));
+            }
+            merged.add(holiday);
+        }
+        final Set<Integer> years = new HashSet<>(reviewedYears);
+        years.add(year);
+        return new HolidayCalendar(merged, years);
     }
 
     /**

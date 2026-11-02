@@ -1,9 +1,11 @@
 package com.bts.personalbudget.core.domain.service.balance;
 
+import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData.PaymentStatus;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
+import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -27,6 +29,7 @@ public class BalanceService {
     private final FinancialMovementService financialMovementService;
     private final InstallmentBillService installmentBillService;
     private final FixedBillService fixedBillService;
+    private final IncomeScheduleService incomeScheduleService;
 
     public Set<DailyBalance> findDailyBalanceBetween(final LocalDate initialDate,
                                                      final LocalDate endDate) {
@@ -110,8 +113,9 @@ public class BalanceService {
     }
 
     /**
-     * Every occurrence of the active fixed bills and pending installment bills that has not been
-     * posted as a FinancialMovement yet, up to {@code endDate} - not only each bill's next one.
+     * Every occurrence of the active fixed bills, pending installment bills and active income
+     * schedules that has not been posted as a FinancialMovement yet, up to {@code endDate} - not
+     * only each bill's next one.
      */
     private List<ProjectedOccurrence> findProjectedOccurrencesUntil(final LocalDate endDate) {
         final List<ProjectedOccurrence> projectedOccurrences = new ArrayList<>();
@@ -123,6 +127,13 @@ public class BalanceService {
         installmentBillService.findAllByNextInstallmentDateLessThanEqual(endDate).forEach(installmentBill ->
                 installmentBill.findRemainingInstallmentDatesUntil(endDate).forEach(occurrenceDate ->
                         projectedOccurrences.add(ProjectedOccurrence.of(installmentBill.getCode(), installmentBill, occurrenceDate))));
+
+        // An income occurrence stops being projected as soon as it is materialized (its movement
+        // counts instead), so the same receipt is never in the balance twice.
+        incomeScheduleService.findProjectedOccurrencesUntil(endDate).forEach(income ->
+                projectedOccurrences.add(new ProjectedOccurrence(income.scheduleCode(), income.date(),
+                        income.nominalMonth().atDay(1),
+                        income.amount(), OperationType.CREDIT, income.categoryCode())));
 
         return excludeAlreadyPosted(projectedOccurrences);
     }
@@ -141,11 +152,11 @@ public class BalanceService {
                 .map(ProjectedOccurrence::recurrenceBillCode)
                 .collect(Collectors.toSet());
         final LocalDate firstOccurrence = projectedOccurrences.stream()
-                .map(ProjectedOccurrence::occurrenceDate)
+                .map(ProjectedOccurrence::occurrenceKeyDate)
                 .min(Comparator.naturalOrder())
                 .orElseThrow();
         final LocalDate lastOccurrence = projectedOccurrences.stream()
-                .map(ProjectedOccurrence::occurrenceDate)
+                .map(ProjectedOccurrence::occurrenceKeyDate)
                 .max(Comparator.naturalOrder())
                 .orElseThrow();
 
@@ -157,7 +168,7 @@ public class BalanceService {
 
         return projectedOccurrences.stream()
                 .filter(occurrence -> !postedOccurrences.contains(
-                        new OccurrenceKey(occurrence.recurrenceBillCode(), occurrence.occurrenceDate())))
+                        new OccurrenceKey(occurrence.recurrenceBillCode(), occurrence.occurrenceKeyDate())))
                 .toList();
     }
 

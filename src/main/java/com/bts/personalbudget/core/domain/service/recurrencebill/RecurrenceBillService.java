@@ -1,6 +1,7 @@
 package com.bts.personalbudget.core.domain.service.recurrencebill;
 
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
+import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
 import java.time.LocalDate;
 import java.util.List;
@@ -14,8 +15,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * Orchestrates the recurrence catch-up: finds which FixedBill/InstallmentBill accounts have an
  * occurrence due on or before the given date, and posts each one in its own REQUIRES_NEW
  * transaction. The actual posting logic lives in FixedBillService.postDueOccurrences and
- * InstallmentBillService.postDueInstallments - keeping it there (rather than here) avoids a
- * circular dependency, since both of those services already have everything they need
+ * InstallmentBillService.postDueInstallments, and the income schedules' in
+ * IncomeScheduleService.postDueOccurrences - keeping it there (rather than here) avoids a
+ * circular dependency, since those services already have everything they need
  * (FinancialMovementService/Mapper) without depending back on this class.
  *
  * Deliberately not @Transactional at this level: each account gets its own transaction via
@@ -30,6 +32,7 @@ public class RecurrenceBillService {
 
     private final InstallmentBillService installmentBillService;
     private final FixedBillService fixedBillService;
+    private final IncomeScheduleService incomeScheduleService;
     private final TransactionTemplate transactionTemplate;
 
     public void postRecurringBills(final LocalDate date) {
@@ -40,6 +43,9 @@ public class RecurrenceBillService {
 
         final List<UUID> installmentBillCodes = installmentBillService.findCodesByNextInstallmentDateLessThanEqual(date);
         installmentBillCodes.forEach(code -> postInstallmentBillSafely(code, date));
+
+        final List<UUID> incomeScheduleCodes = incomeScheduleService.findCodesToPost(date);
+        incomeScheduleCodes.forEach(code -> postIncomeScheduleSafely(code, date));
     }
 
     private void postFixedBillSafely(final UUID code, final LocalDate date) {
@@ -55,6 +61,14 @@ public class RecurrenceBillService {
             transactionTemplate.executeWithoutResult(status -> installmentBillService.postDueInstallments(code, date));
         } catch (final RuntimeException ex) {
             log.error("m=postInstallmentBillSafely, msg=FailedToPostInstallmentBill, code={}, date={}", code, date, ex);
+        }
+    }
+
+    private void postIncomeScheduleSafely(final UUID code, final LocalDate date) {
+        try {
+            transactionTemplate.executeWithoutResult(status -> incomeScheduleService.postDueOccurrences(code, date));
+        } catch (final RuntimeException ex) {
+            log.error("m=postIncomeScheduleSafely, msg=FailedToPostIncomeSchedule, code={}, date={}", code, date, ex);
         }
     }
 }

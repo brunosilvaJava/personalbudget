@@ -1,6 +1,7 @@
 package com.bts.personalbudget.core.domain.service.recurrencebill;
 
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
+import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
 
 import java.time.LocalDate;
@@ -27,7 +28,8 @@ import static org.mockito.Mockito.when;
 /**
  * RecurrenceBillService is now a pure orchestrator - it finds which accounts have an occurrence
  * due and dispatches each one to FixedBillService.postDueOccurrences /
- * InstallmentBillService.postDueInstallments through transactionTemplate. The actual posting
+ * InstallmentBillService.postDueInstallments / IncomeScheduleService.postDueOccurrences
+ * through transactionTemplate. The actual posting
  * logic (idempotency, catch-up, concluding a bill) is tested where it lives: see
  * FixedBillServiceTest and InstallmentBillServiceTest.
  */
@@ -42,6 +44,9 @@ class RecurrenceBillServiceTest {
 
     @Mock
     private FixedBillService fixedBillService;
+
+    @Mock
+    private IncomeScheduleService incomeScheduleService;
 
     @Mock
     private TransactionTemplate transactionTemplate;
@@ -136,5 +141,46 @@ class RecurrenceBillServiceTest {
 
         verify(installmentBillService).postDueInstallments(failingInstallmentBillCode, date);
         verify(installmentBillService).postDueInstallments(healthyInstallmentBillCode, date);
+    }
+
+    @Test
+    void shouldPostIncomeScheduleOccurrencesForEachCodeToPost() {
+        final LocalDate date = LocalDate.of(2026, 6, 15);
+        final UUID code1 = UUID.randomUUID();
+        final UUID code2 = UUID.randomUUID();
+
+        when(incomeScheduleService.findCodesToPost(date)).thenReturn(List.of(code1, code2));
+
+        service.postRecurringBills(date);
+
+        verify(incomeScheduleService).postDueOccurrences(code1, date);
+        verify(incomeScheduleService).postDueOccurrences(code2, date);
+    }
+
+    @Test
+    void shouldContinueBatchWhenIncomeScheduleFails() {
+        final LocalDate date = LocalDate.of(2026, 6, 15);
+        final UUID failingCode = UUID.randomUUID();
+        final UUID healthyCode = UUID.randomUUID();
+        final UUID healthyFixedBillCode = UUID.randomUUID();
+
+        when(fixedBillService.findCodesByNextDueDateLessThanEqual(date)).thenReturn(List.of(healthyFixedBillCode));
+        when(incomeScheduleService.findCodesToPost(date)).thenReturn(List.of(failingCode, healthyCode));
+        doThrow(new RuntimeException("boom")).when(incomeScheduleService).postDueOccurrences(failingCode, date);
+
+        service.postRecurringBills(date);
+
+        verify(fixedBillService).postDueOccurrences(healthyFixedBillCode, date);
+        verify(incomeScheduleService).postDueOccurrences(failingCode, date);
+        verify(incomeScheduleService).postDueOccurrences(healthyCode, date);
+    }
+
+    @Test
+    void shouldNotPostIncomeScheduleWhenNoneIsToBePosted() {
+        final LocalDate date = LocalDate.of(2026, 6, 15);
+
+        service.postRecurringBills(date);
+
+        verify(incomeScheduleService, never()).postDueOccurrences(any(), any());
     }
 }

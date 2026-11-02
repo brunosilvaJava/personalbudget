@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static com.bts.personalbudget.core.domain.factory.HolidayCalendarFactory.buildCalendar;
@@ -73,5 +74,52 @@ class HolidayCalendarTest {
 
         assertTrue(exception.getValidations().containsKey("date"));
         assertTrue(exception.getValidations().containsKey("name"));
+    }
+
+    @Test
+    void shouldReplaceOnlyTheHolidaysOfTheYearAndMarkItReviewed() {
+        final HolidayCalendar calendar = buildCalendar(Set.of(2026, 2027),
+                buildHoliday(2026, 5, 1), buildHoliday(2027, 5, 1));
+
+        final HolidayCalendar replaced = calendar.replacingYear(2026, List.of(buildHoliday(2026, 9, 7)));
+
+        assertFalse(replaced.isHoliday(LocalDate.of(2026, 5, 1)));
+        assertTrue(replaced.isHoliday(LocalDate.of(2026, 9, 7)));
+        assertTrue(replaced.isHoliday(LocalDate.of(2027, 5, 1)));
+        assertTrue(replaced.isReviewed(2026));
+    }
+
+    @Test
+    void shouldMarkAnUnpreparedYearAsReviewedEvenWithNoHolidays() {
+        final HolidayCalendar replaced = HolidayCalendar.empty().replacingYear(2028, List.of());
+
+        assertTrue(replaced.isReviewed(2028));
+        assertFalse(replaced.isReviewed(2029));
+    }
+
+    @Test
+    void shouldNotChangeTheOriginalCalendarWhenReplacingAYear() {
+        final HolidayCalendar calendar = buildCalendar(Set.of(2026), buildHoliday(2026, 5, 1));
+
+        calendar.replacingYear(2026, List.of());
+
+        assertTrue(calendar.isHoliday(LocalDate.of(2026, 5, 1)));
+    }
+
+    @Test
+    void shouldRejectReplacingAYearWithAHolidayOfAnotherYear() {
+        final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
+                () -> HolidayCalendar.empty().replacingYear(2026, List.of(buildHoliday(2027, 1, 1))));
+
+        assertTrue(exception.getValidations().containsKey("holidays"));
+    }
+
+    @Test
+    void shouldRejectReplacingAYearWithTwoHolidaysOnTheSameDate() {
+        final List<Holiday> sameDate = List.of(
+                new Holiday(LocalDate.of(2026, 5, 1), "Dia do Trabalho"),
+                new Holiday(LocalDate.of(2026, 5, 1), "Feriado municipal"));
+
+        assertThrows(InvalidFieldsException.class, () -> HolidayCalendar.empty().replacingYear(2026, sameDate));
     }
 }
