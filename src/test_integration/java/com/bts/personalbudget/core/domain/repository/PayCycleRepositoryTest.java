@@ -57,7 +57,18 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  */
 @Testcontainers
 @SpringBootTest
+@org.springframework.context.annotation.Import(PayCycleRepositoryTest.FixedClockConfig.class)
 public class PayCycleRepositoryTest {
+
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
+    static class FixedClockConfig {
+        @org.springframework.context.annotation.Bean
+        @org.springframework.context.annotation.Primary
+        java.time.Clock payCycleTestClock() {
+            return java.time.Clock.fixed(java.time.Instant.parse("2026-11-02T13:00:00Z"),
+                    java.time.ZoneId.of("America/Sao_Paulo"));
+        }
+    }
 
     private static final LocalDate OCT_5 = LocalDate.of(2026, 10, 5);
     private static final LocalDate NOV_5 = LocalDate.of(2026, 11, 5);
