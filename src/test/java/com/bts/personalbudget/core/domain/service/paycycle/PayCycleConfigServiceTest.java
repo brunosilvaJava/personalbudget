@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -41,7 +42,7 @@ class PayCycleConfigServiceTest {
     @InjectMocks
     private PayCycleConfigService service;
 
-    @Mock
+    @Mock(answer = Answers.CALLS_REAL_METHODS)
     private PayCycleConfigRepository configRepository;
 
     @Mock
