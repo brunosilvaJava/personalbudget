@@ -40,10 +40,29 @@ public class RecurrenceBillService {
         final List<InstallmentBill> installmentBillList = installmentBillService.findByNextInstallmentDate(nextDueDate);
         financialMovements.addAll(financialMovementMapper.toFinancialMovementList(installmentBillList, FinancialMovementStatus.PENDING));
 
-        financialMovementService.create(financialMovements);
+        final List<FinancialMovement> newFinancialMovements = financialMovements.stream()
+                .filter(this::isNotAlreadyPosted)
+                .toList();
+        financialMovementService.create(newFinancialMovements);
 
         fixedBillList.forEach(fixedBill -> fixedBillService.updateNextDueDate(fixedBill, nextDueDate.plusDays(1)));
         installmentBillList.forEach(installmentBillService::updateNextInstallmentDate);
+    }
+
+    /**
+     * Makes the endpoint and the job idempotent: calling postRecurringBills twice for the same
+     * date, or running the job after the endpoint already posted it, must not duplicate the
+     * movement. A soft-deleted movement still counts as already posted (see
+     * FinancialMovementRepository.existsByRecurrenceBillCodeAndOccurrenceDate).
+     */
+    private boolean isNotAlreadyPosted(final FinancialMovement financialMovement) {
+        final boolean alreadyPosted = financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(
+                financialMovement.recurrenceBillCode(), financialMovement.occurrenceDate());
+        if (alreadyPosted) {
+            log.info("m=isNotAlreadyPosted, msg=MovementAlreadyPosted, recurrenceBillCode={}, occurrenceDate={}",
+                    financialMovement.recurrenceBillCode(), financialMovement.occurrenceDate());
+        }
+        return !alreadyPosted;
     }
 
     private boolean isCurrentOrSkip(final FixedBill fixedBill, final LocalDate dueDate) {

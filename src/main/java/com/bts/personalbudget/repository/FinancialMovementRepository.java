@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +19,13 @@ import java.util.UUID;
 public interface FinancialMovementRepository extends JpaRepository<FinancialMovementEntity, Long> {
 
     Optional<FinancialMovementEntity> findByCode(UUID code);
+
+    /**
+     * Deliberately not scoped to flagActive = true: a movement the user soft-deleted still
+     * counts as "already generated" for this occurrence, so the recurrence job must not
+     * recreate it.
+     */
+    boolean existsByRecurrenceBillCodeAndOccurrenceDate(UUID recurrenceBillCode, LocalDate occurrenceDate);
 
     Page<FinancialMovementEntity> findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
             String description,

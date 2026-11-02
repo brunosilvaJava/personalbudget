@@ -102,6 +102,7 @@ public class FinancialMovementFactory {
                 status == FinancialMovementStatus.PAID_OUT ? LocalDateTime.parse(data.get(PAY_DATE)) : null,
                 status,
                 Boolean.TRUE,
+                null,
                 null);
     }
 
