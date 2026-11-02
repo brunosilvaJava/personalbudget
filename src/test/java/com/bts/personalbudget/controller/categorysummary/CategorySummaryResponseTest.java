@@ -6,6 +6,7 @@ import com.bts.personalbudget.core.domain.model.CategorySummary;
 import com.bts.personalbudget.mapper.CategorySummaryMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -20,7 +21,8 @@ class CategorySummaryResponseTest {
     private static final UUID GROUP_CODE = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID CATEGORY_CODE = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules()
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     private final CategorySummaryMapper mapper = CategorySummaryMapper.INSTANCE;
 
     @Test
