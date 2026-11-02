@@ -69,9 +69,11 @@ public record FinancialMovement(
             case PENDING, LATE -> amount;
             case PAID_OUT -> amountPaid;
         };
+        // Negates the value picked above, not amount: for a partially paid debit, amountPaid is
+        // what left the balance.
         if (operationType == OperationType.DEBIT) {
             if (balanceCalcValue != null && balanceCalcValue.compareTo(ZERO) > 0) {
-                return amount.negate();
+                return balanceCalcValue.negate();
             }
         }
         return balanceCalcValue;
@@ -109,9 +111,12 @@ public record FinancialMovement(
             if (payDate == null) {
                 errorsMsg.put("payDate", MSG_FIELD_NULL_OR_EMPTY + PAID_OUT);
             }
-            if (amountPaid == null || amountPaid.compareTo(ZERO) == 0 ||
-                    operationType == OperationType.CREDIT && amountPaid.compareTo(ZERO) < 0 ||
-                    operationType == OperationType.DEBIT && amountPaid.compareTo(ZERO) > 0) {
+            // No sign check: the API sends amount_paid as a positive value for both types, and
+            // FinancialMovementMapper.toEntity / FinancialMovementEntity.setAmountPaid store it
+            // negative for DEBIT. (The sign check that used to be here read the operationType
+            // field before the compact constructor assigns it, so it was always null and the
+            // check never ran; enabling it would reject every paid debit sent by the API.)
+            if (amountPaid == null || amountPaid.compareTo(ZERO) == 0) {
                 errorsMsg.put("amountPaid", MSG_FIELD_NULL_OR_EMPTY + PAID_OUT);
             }
         }
