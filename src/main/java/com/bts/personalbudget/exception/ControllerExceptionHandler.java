@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonMappingException.Reference;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.OptimisticLockException;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -107,6 +109,28 @@ public class ControllerExceptionHandler {
         return new ResponseEntity<>(
                 new ErrorResponse("Registro não encontrado"),
                 HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * The request conflicts with the current state (a stale version, an operation the state does not
+     * allow). The message is written for the user by whoever threw it.
+     */
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflictException(ConflictException exception) {
+        log.info("m=handleConflictException, message={}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
+    }
+
+    /**
+     * Someone else changed the same row between the read and the write. The exception message names
+     * internal entity classes, so the answer is generic, as in handleEntityNotFoundException.
+     */
+    @ExceptionHandler({OptimisticLockingFailureException.class, OptimisticLockException.class})
+    public ResponseEntity<ErrorResponse> handleOptimisticLockException(Exception exception) {
+        log.info("m=handleOptimisticLockException, message={}", exception.getMessage());
+        return new ResponseEntity<>(
+                new ErrorResponse("O registro foi alterado por outra operação; recarregue e tente novamente"),
+                HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(Exception.class)

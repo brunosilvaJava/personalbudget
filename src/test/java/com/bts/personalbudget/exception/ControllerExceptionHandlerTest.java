@@ -3,10 +3,12 @@ package com.bts.personalbudget.exception;
 import com.bts.personalbudget.controller.validation.ValidationResponse;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.OptimisticLockException;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -76,5 +78,42 @@ class ControllerExceptionHandlerTest {
                 new InstallmentBillAlreadyDeletedException(UUID.randomUUID()));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("Deve retornar 409 com a mensagem do conflito")
+    void shouldReturnConflictWithTheMessageOfTheConflict() {
+        final ConflictException exception = new ConflictException("Os ciclos financeiros já estão ativados");
+
+        final ResponseEntity<ErrorResponse> response = handler.handleConflictException(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("Os ciclos financeiros já estão ativados");
+    }
+
+    @Test
+    @DisplayName("Deve retornar 409 com mensagem genérica quando o Spring detecta a edição concorrente")
+    void shouldReturnConflictWhenSpringDetectsAConcurrentUpdate() {
+        final OptimisticLockingFailureException exception =
+                new OptimisticLockingFailureException("Row was updated or deleted by another transaction (PayCycleEntity#10)");
+
+        final ResponseEntity<ErrorResponse> response = handler.handleOptimisticLockException(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("O registro foi alterado por outra operação; recarregue e tente novamente");
+        assertThat(response.getBody().message()).doesNotContain("PayCycleEntity");
+    }
+
+    @Test
+    @DisplayName("Deve retornar 409 quando o JPA detecta a edição concorrente")
+    void shouldReturnConflictWhenJpaDetectsAConcurrentUpdate() {
+        final ResponseEntity<ErrorResponse> response =
+                handler.handleOptimisticLockException(new OptimisticLockException("stale PayCycleEntity"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).doesNotContain("PayCycleEntity");
     }
 }

@@ -1,5 +1,6 @@
 package com.bts.personalbudget.job;
 
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleService;
 import com.bts.personalbudget.core.domain.service.recurrencebill.RecurrenceBillService;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 public class RecurrenceBillJob {
 
     private final RecurrenceBillService recurrenceBillService;
+    private final PayCycleService payCycleService;
     private final Clock clock;
 
     @Scheduled(cron = "0 0 0 * * *", zone = "${app.time-zone:America/Sao_Paulo}")
@@ -23,6 +25,7 @@ public class RecurrenceBillJob {
         final LocalDate today = LocalDate.now(clock);
         log.info("m=postRecurringBills today={}", today);
         recurrenceBillService.postRecurringBills(today);
+        refreshPayCycles();
     }
 
     /**
@@ -36,6 +39,20 @@ public class RecurrenceBillJob {
     public void postRecurringBillsOnStartup() {
         log.info("m=postRecurringBillsOnStartup, msg=RunningStartupCatchUp");
         postRecurringBills();
+    }
+
+    /**
+     * After the day's receipts are posted, so the cycles see the occurrences already materialized,
+     * keeps the pay cycles up to the current cycle plus two. Its own transaction, and a failure here is
+     * logged and goes no further: the next run, tomorrow or at startup, tries again, and the receipts
+     * already posted stay posted.
+     */
+    private void refreshPayCycles() {
+        try {
+            payCycleService.refresh();
+        } catch (final RuntimeException ex) {
+            log.error("m=refreshPayCycles, msg=FailedToRefreshPayCycles", ex);
+        }
     }
 
 }

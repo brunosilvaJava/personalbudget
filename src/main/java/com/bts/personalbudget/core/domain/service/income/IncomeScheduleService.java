@@ -168,6 +168,44 @@ public class IncomeScheduleService {
     }
 
     /**
+     * The ACTIVE schedule that opens the pay cycles, if there is one.
+     */
+    public Optional<IncomeSchedule> findActiveAnchor() {
+        log.info("m=findActiveAnchor");
+        return scheduleRepository.findByAnchorTrueAndStatus(IncomeScheduleStatus.ACTIVE).map(mapper::toModel);
+    }
+
+    /**
+     * Same as {@link #findActiveAnchor}, locking the schedule for the transaction, so the pay cycles
+     * are never built from a rule that is being edited.
+     */
+    @Transactional
+    public Optional<IncomeSchedule> findActiveAnchorForUpdate() {
+        log.info("m=findActiveAnchorForUpdate");
+        return scheduleRepository.findAnchorForUpdate(IncomeScheduleStatus.ACTIVE).map(mapper::toModel);
+    }
+
+    /**
+     * Same as {@link #findByCode}, locking the schedule for the transaction. The pay cycles read it
+     * under this lock so an edit of its rule cannot slip in between the read and the cycles written
+     * from it; their lock order is configuration, then this schedule, then the cycles.
+     */
+    @Transactional
+    public IncomeSchedule findByCodeForUpdate(final UUID code) {
+        log.info("m=findByCodeForUpdate, code={}", code);
+        return mapper.toModel(lockEntity(code));
+    }
+
+    /**
+     * Every occurrence of the schedule that already has a movement, oldest first: the frozen dates the
+     * pay cycles follow instead of the calendar.
+     */
+    public List<IncomeOccurrence> findMaterializedOccurrences(final UUID code) {
+        log.info("m=findMaterializedOccurrences, code={}", code);
+        return mapper.toOccurrenceModelList(occurrenceRepository.findByScheduleCode(code));
+    }
+
+    /**
      * Generates the occurrence of the month now - an early receipt, or a month the job has not
      * reached - as a PENDING CREDIT movement dated on the occurrence's planned date. The receipt
      * itself is then registered on the movement as any other (status PAID_OUT, pay date), so the cash
