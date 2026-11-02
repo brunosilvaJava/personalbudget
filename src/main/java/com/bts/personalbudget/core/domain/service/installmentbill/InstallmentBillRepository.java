@@ -6,6 +6,7 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import com.bts.personalbudget.mapper.InstallmentBillMapper;
 import com.bts.personalbudget.repository.InstallmentBillJpaRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -107,7 +108,7 @@ public class InstallmentBillRepository {
         log.info("m=findForUpdateByCode code={}", code);
         final InstallmentBillEntity entity = jpaRepository.findForUpdateByCode(code).orElseThrow(() -> {
             log.error("m=findForUpdateByCode code={} error=installmentBill_not_found", code);
-            return new RuntimeException("InstallmentBill NotFoundException by code=" + code);
+            return new EntityNotFoundException("InstallmentBill not found for code " + code);
         });
         return mapper.toModel(entity);
     }
@@ -138,7 +139,7 @@ public class InstallmentBillRepository {
     private InstallmentBillEntity findEntityByCode(final UUID code) {
         final InstallmentBillEntity entity = jpaRepository.findByCode(code).orElseThrow(() -> {
             log.error("m=findEntityByCode code={} error=installmentBill_not_found", code);
-            return new RuntimeException("InstallmentBill NotFoundException by code=" + code);
+            return new EntityNotFoundException("InstallmentBill not found for code " + code);
         });
         if (!entity.getFlagActive()) {
             log.error("m=findEntityByCode code={} msg=installmentBill_already_deleted", code);

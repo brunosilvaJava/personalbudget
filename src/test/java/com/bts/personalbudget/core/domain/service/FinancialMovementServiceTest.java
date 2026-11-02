@@ -15,7 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
+import jakarta.persistence.EntityNotFoundException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,6 +39,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -85,15 +87,15 @@ class FinancialMovementServiceTest {
 //    }
 
     @Test
-    void shouldFindFinancialMovement() throws NotFoundException {
+    void shouldFindFinancialMovement() {
         final UUID code = UUID.randomUUID();
-        when(repository.findByCode(code)).thenReturn(Optional.of(FinancialMovementFactory.buildEntity()));
+        when(repository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.of(FinancialMovementFactory.buildEntity()));
         final FinancialMovement financialMovement = financialMovementService.find(code);
         assertNotNull(financialMovement);
     }
 
     @Test
-    void shouldUpdateFinancialMovement() throws NotFoundException {
+    void shouldUpdateFinancialMovement() {
         String description = "descricao alterada";
         OperationType operationType = OperationType.CREDIT;
         BigDecimal amount = BigDecimal.valueOf(100L);
@@ -112,7 +114,7 @@ class FinancialMovementServiceTest {
 
         FinancialMovement financialMovementToUpdate = FinancialMovementFactory.buildModel(data);
 
-        when(repository.findByCode(financialMovementToUpdate.code())).thenReturn(Optional.of(FinancialMovementFactory.buildEntity()));
+        when(repository.findByCodeAndFlagActiveTrue(financialMovementToUpdate.code())).thenReturn(Optional.of(FinancialMovementFactory.buildEntity()));
 
         FinancialMovement updatedFinancialMovement = financialMovementService.update(financialMovementToUpdate);
 
@@ -127,15 +129,15 @@ class FinancialMovementServiceTest {
     }
 
     @Test
-    void shouldDeleteFinancialMovement() throws NotFoundException {
+    void shouldDeleteFinancialMovement() {
         FinancialMovementEntity financialMovementEntity = FinancialMovementFactory.buildEntity();
-        when(repository.findByCode(financialMovementEntity.getCode())).thenReturn(Optional.of(financialMovementEntity));
+        when(repository.findByCodeAndFlagActiveTrue(financialMovementEntity.getCode())).thenReturn(Optional.of(financialMovementEntity));
         financialMovementService.delete(financialMovementEntity.getCode());
         assertFalse(financialMovementEntity.getFlagActive());
     }
 
     @Test
-    void shouldKeepOccurrenceDateWhenDueDateIsUpdated() throws NotFoundException {
+    void shouldKeepOccurrenceDateWhenDueDateIsUpdated() {
         LocalDate originalOccurrenceDate = LocalDate.of(2026, 11, 10);
         FinancialMovementEntity financialMovementEntity = FinancialMovementFactory.buildEntity();
         financialMovementEntity.setOccurrenceDate(originalOccurrenceDate);
@@ -145,7 +147,7 @@ class FinancialMovementServiceTest {
         data.put(DUE_DATE, newDueDate.toString());
         FinancialMovement financialMovementToUpdate = FinancialMovementFactory.buildModel(data);
 
-        when(repository.findByCode(financialMovementToUpdate.code())).thenReturn(Optional.of(financialMovementEntity));
+        when(repository.findByCodeAndFlagActiveTrue(financialMovementToUpdate.code())).thenReturn(Optional.of(financialMovementEntity));
 
         financialMovementService.update(financialMovementToUpdate);
 
@@ -171,12 +173,12 @@ class FinancialMovementServiceTest {
     }
 
     @Test
-    void shouldStoreNegativeAmountPaidWhenDebitIsPaidOutViaPatch() throws NotFoundException {
+    void shouldStoreNegativeAmountPaidWhenDebitIsPaidOutViaPatch() {
         final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
         final FinancialMovement payment = new FinancialMovement(
                 entity.getCode(), null, null, null, new BigDecimal("30.00"),
                 null, null, LocalDateTime.now(), FinancialMovementStatus.PAID_OUT, null, null, null);
-        when(repository.findByCode(entity.getCode())).thenReturn(Optional.of(entity));
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
 
         financialMovementService.update(payment);
 
@@ -186,10 +188,10 @@ class FinancialMovementServiceTest {
     }
 
     @Test
-    void shouldStoreNegativeAmountWhenOnlyOperationTypeChangesToDebit() throws NotFoundException {
+    void shouldStoreNegativeAmountWhenOnlyOperationTypeChangesToDebit() {
         final FinancialMovementEntity entity = pendingEntity(OperationType.CREDIT, new BigDecimal("30.00"));
         final FinancialMovement change = onlyOperationType(entity.getCode(), OperationType.DEBIT);
-        when(repository.findByCode(entity.getCode())).thenReturn(Optional.of(entity));
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
 
         financialMovementService.update(change);
 
@@ -198,10 +200,10 @@ class FinancialMovementServiceTest {
     }
 
     @Test
-    void shouldStorePositiveAmountWhenOnlyOperationTypeChangesToCredit() throws NotFoundException {
+    void shouldStorePositiveAmountWhenOnlyOperationTypeChangesToCredit() {
         final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
         final FinancialMovement change = onlyOperationType(entity.getCode(), OperationType.CREDIT);
-        when(repository.findByCode(entity.getCode())).thenReturn(Optional.of(entity));
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
 
         financialMovementService.update(change);
 
@@ -227,5 +229,24 @@ class FinancialMovementServiceTest {
     private static FinancialMovement onlyOperationType(final UUID code, final OperationType operationType) {
         return new FinancialMovement(code, operationType, null, null, null,
                 null, null, null, null, null, null, null);
+    }
+
+    @Test
+    void shouldReturnCreatedMovementWhenCreated() {
+        final FinancialMovement financialMovement = FinancialMovementFactory.buildModel();
+        when(repository.save(any(FinancialMovementEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        final FinancialMovement created = financialMovementService.create(financialMovement);
+
+        assertNotNull(created);
+        assertEquals(financialMovement.code(), created.code());
+    }
+
+    @Test
+    void shouldThrowEntityNotFoundWhenCodeDoesNotExist() {
+        final UUID code = UUID.randomUUID();
+        when(repository.findByCodeAndFlagActiveTrue(code)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> financialMovementService.find(code));
     }
 }

@@ -1,7 +1,10 @@
 package com.bts.personalbudget.exception;
 
 import com.bts.personalbudget.controller.validation.ValidationResponse;
+import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
+import jakarta.persistence.EntityNotFoundException;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -52,4 +55,26 @@ class ControllerExceptionHandlerTest {
         assertThat(response.getBody().validations()).containsKey("param");
     }
 
+    @Test
+    @DisplayName("Deve retornar 404 com mensagem genérica quando o registro não existe")
+    void shouldReturnNotFoundWhenCodeDoesNotExist() {
+        final EntityNotFoundException exception =
+                new EntityNotFoundException("FixedBillEntity not found for code " + UUID.randomUUID());
+
+        final ResponseEntity<ErrorResponse> response = handler.handleEntityNotFoundException(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("Registro não encontrado");
+        assertThat(response.getBody().message()).doesNotContain("FixedBillEntity");
+    }
+
+    @Test
+    @DisplayName("Deve retornar 404 para parcelada já excluída")
+    void shouldReturnNotFoundWhenInstallmentBillIsAlreadyDeleted() {
+        final ResponseEntity<ErrorResponse> response = handler.handleEntityNotFoundException(
+                new InstallmentBillAlreadyDeletedException(UUID.randomUUID()));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
 }

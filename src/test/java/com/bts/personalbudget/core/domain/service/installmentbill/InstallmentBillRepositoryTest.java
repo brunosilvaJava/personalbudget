@@ -5,6 +5,7 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import com.bts.personalbudget.repository.InstallmentBillJpaRepository;
 import com.bts.personalbudget.mapper.InstallmentBillMapper;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -101,7 +102,7 @@ public class InstallmentBillRepositoryTest {
     @Test
     public void shouldThrowsExceptionWhenNotFoundInstallmentBillByCode() {
         when(jpaRepository.findByCode(any())).thenReturn(Optional.empty());
-        assertThrows(RuntimeException.class, () -> repository.findByCode(UUID.randomUUID()));
+        assertThrows(EntityNotFoundException.class, () -> repository.findByCode(UUID.randomUUID()));
     }
 
     private void testEquals(InstallmentBillEntity entity, InstallmentBill installmentBill) {

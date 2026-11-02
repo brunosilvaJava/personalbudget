@@ -5,6 +5,7 @@ import com.bts.personalbudget.util.StringUtils;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonMappingException.Reference;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import jakarta.persistence.EntityNotFoundException;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -94,6 +95,18 @@ public class ControllerExceptionHandler {
                 new ValidationResponse("Parâmetros inválidos",
                         Map.of(exception.getName(), exception.getMessage())),
                 HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * A code that does not exist, or whose record was soft-deleted. The message is generic, as in
+     * handleGenericException: the exception message names internal entity classes.
+     */
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleEntityNotFoundException(EntityNotFoundException exception) {
+        log.info("m=handleEntityNotFoundException, message={}", exception.getMessage());
+        return new ResponseEntity<>(
+                new ErrorResponse("Registro não encontrado"),
+                HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)

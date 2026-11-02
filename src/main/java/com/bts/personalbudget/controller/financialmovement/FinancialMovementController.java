@@ -10,7 +10,6 @@ import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -54,10 +53,10 @@ public class FinancialMovementController implements FinancialMovementControllerA
 
     @PostMapping
     @Override
-    public ResponseEntity<Void> create(@RequestBody @Valid final FinancialMovementRequest request) {
+    public ResponseEntity<FinancialMovementResponse> create(@RequestBody @Valid final FinancialMovementRequest request) {
         log.info("m=create, request={}", request);
-        service.create(mapper.toModel(request));
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        final FinancialMovement created = service.create(mapper.toModel(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(created));
     }
 
     @GetMapping
@@ -96,7 +95,7 @@ public class FinancialMovementController implements FinancialMovementControllerA
 
     @GetMapping("/{code}")
     @Override
-    public ResponseEntity<FinancialMovementResponse> find(@PathVariable UUID code) throws NotFoundException {
+    public ResponseEntity<FinancialMovementResponse> find(@PathVariable UUID code) {
         log.info("m=find, code={}", code);
         FinancialMovement financialMovement = service.find(code);
         FinancialMovementResponse response = mapper.toResponse(financialMovement);
@@ -106,14 +105,14 @@ public class FinancialMovementController implements FinancialMovementControllerA
     @PatchMapping("/{code}")
     @Override
     public ResponseEntity<?> update(@PathVariable UUID code,
-                                    @RequestBody @Valid final FinancialMovementUpdateRequest updateRequest) throws NotFoundException {
+                                    @RequestBody @Valid final FinancialMovementUpdateRequest updateRequest) {
         log.info("m=update, updateRequest={}", updateRequest);
         return ResponseEntity.ok(mapper.toResponse(service.update(mapper.toModel(updateRequest, code))));
     }
 
     @DeleteMapping("/{code}")
     @Override
-    public ResponseEntity<Void> delete(@PathVariable UUID code) throws NotFoundException {
+    public ResponseEntity<Void> delete(@PathVariable UUID code) {
         log.info("m=delete, code={}", code);
         service.delete(code);
         return ResponseEntity.noContent().build();
