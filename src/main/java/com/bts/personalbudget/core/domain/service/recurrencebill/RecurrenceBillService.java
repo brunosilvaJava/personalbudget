@@ -1,78 +1,60 @@
 package com.bts.personalbudget.core.domain.service.recurrencebill;
 
-import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
-import com.bts.personalbudget.core.domain.model.FinancialMovement;
-import com.bts.personalbudget.core.domain.service.FinancialMovementService;
-import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
-import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
-import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * Orchestrates the recurrence catch-up: finds which FixedBill/InstallmentBill accounts have an
+ * occurrence due on or before the given date, and posts each one in its own REQUIRES_NEW
+ * transaction. The actual posting logic lives in FixedBillService.postDueOccurrences and
+ * InstallmentBillService.postDueInstallments - keeping it there (rather than here) avoids a
+ * circular dependency, since both of those services already have everything they need
+ * (FinancialMovementService/Mapper) without depending back on this class.
+ *
+ * Deliberately not @Transactional at this level: each account gets its own transaction via
+ * transactionTemplate, so one account failing (a bad calendar, a locked row that times out)
+ * cannot roll back the accounts already posted earlier in the same run, and is caught here so
+ * the rest of the batch still runs.
+ */
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class RecurrenceBillService {
 
-    private final FinancialMovementService financialMovementService;
-    private final FinancialMovementMapper financialMovementMapper;
     private final InstallmentBillService installmentBillService;
     private final FixedBillService fixedBillService;
+    private final TransactionTemplate transactionTemplate;
 
-    @Transactional
-    public void postRecurringBills(final LocalDate nextDueDate) {
-        log.info("m=postRecurringBills nextDueDate={}", nextDueDate);
-        final List<FinancialMovement> financialMovements = new ArrayList<>();
+    public void postRecurringBills(final LocalDate date) {
+        log.info("m=postRecurringBills date={}", date);
 
-        final List<FixedBill> fixedBillList = fixedBillService.findByNextDueDate(nextDueDate);
-        final List<FixedBill> currentFixedBillList = fixedBillList.stream()
-                .filter(fixedBill -> isCurrentOrSkip(fixedBill, nextDueDate))
-                .toList();
-        financialMovements.addAll(financialMovementMapper.toFinancialMovementListFromFixedBill(currentFixedBillList, FinancialMovementStatus.PENDING));
+        final List<UUID> fixedBillCodes = fixedBillService.findCodesByNextDueDateLessThanEqual(date);
+        fixedBillCodes.forEach(code -> postFixedBillSafely(code, date));
 
-        final List<InstallmentBill> installmentBillList = installmentBillService.findByNextInstallmentDate(nextDueDate);
-        financialMovements.addAll(financialMovementMapper.toFinancialMovementList(installmentBillList, FinancialMovementStatus.PENDING));
-
-        final List<FinancialMovement> newFinancialMovements = financialMovements.stream()
-                .filter(this::isNotAlreadyPosted)
-                .toList();
-        financialMovementService.create(newFinancialMovements);
-
-        fixedBillList.forEach(fixedBill -> fixedBillService.updateNextDueDate(fixedBill, nextDueDate.plusDays(1)));
-        installmentBillList.forEach(installmentBillService::updateNextInstallmentDate);
+        final List<UUID> installmentBillCodes = installmentBillService.findCodesByNextInstallmentDateLessThanEqual(date);
+        installmentBillCodes.forEach(code -> postInstallmentBillSafely(code, date));
     }
 
-    /**
-     * Makes the endpoint and the job idempotent: calling postRecurringBills twice for the same
-     * date, or running the job after the endpoint already posted it, must not duplicate the
-     * movement. A soft-deleted movement still counts as already posted (see
-     * FinancialMovementRepository.existsByRecurrenceBillCodeAndOccurrenceDate).
-     */
-    private boolean isNotAlreadyPosted(final FinancialMovement financialMovement) {
-        final boolean alreadyPosted = financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(
-                financialMovement.recurrenceBillCode(), financialMovement.occurrenceDate());
-        if (alreadyPosted) {
-            log.info("m=isNotAlreadyPosted, msg=MovementAlreadyPosted, recurrenceBillCode={}, occurrenceDate={}",
-                    financialMovement.recurrenceBillCode(), financialMovement.occurrenceDate());
+    private void postFixedBillSafely(final UUID code, final LocalDate date) {
+        try {
+            transactionTemplate.executeWithoutResult(status -> fixedBillService.postDueOccurrences(code, date));
+        } catch (final RuntimeException ex) {
+            log.error("m=postFixedBillSafely, msg=FailedToPostFixedBill, code={}, date={}", code, date, ex);
         }
-        return !alreadyPosted;
     }
 
-    private boolean isCurrentOrSkip(final FixedBill fixedBill, final LocalDate dueDate) {
-        if (fixedBill.isCurrent(dueDate)) {
-            return true;
+    private void postInstallmentBillSafely(final UUID code, final LocalDate date) {
+        try {
+            transactionTemplate.executeWithoutResult(status -> installmentBillService.postDueInstallments(code, date));
+        } catch (final RuntimeException ex) {
+            log.error("m=postInstallmentBillSafely, msg=FailedToPostInstallmentBill, code={}, date={}", code, date, ex);
         }
-        log.warn("m=isCurrentOrSkip, msg=FixedBillNotPostedOutsideValidity, code={}, dueDate={}, endDate={}",
-                fixedBill.getCode(), dueDate, fixedBill.getEndDate());
-        return false;
     }
-
-
 }

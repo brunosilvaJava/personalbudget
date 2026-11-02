@@ -34,4 +34,11 @@ class RecurrenceBillJobTest {
 
         verify(recurrenceBillService).postRecurringBills(LocalDate.of(2026, 11, 1));
     }
+
+    @Test
+    void shouldRunCatchUpOnStartup() {
+        recurrenceBillJob.postRecurringBillsOnStartup();
+
+        verify(recurrenceBillService).postRecurringBills(LocalDate.of(2026, 11, 1));
+    }
 }
