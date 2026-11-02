@@ -144,7 +144,8 @@ public class PayCycleService {
             return new CurrentPayCycle(null, List.of());
         }
         final List<PayCyclePending> pending = findPending(config);
-        final Optional<PayCycle> current = mapper.toModelList(cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)))
+        final Optional<PayCycle> current = mapper.toModelList(currentChain(
+                cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)), config))
                 .stream()
                 .filter(cycle -> cycle.contains(today))
                 .findFirst();
