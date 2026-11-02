@@ -18,7 +18,7 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -51,7 +51,7 @@ class RecurrenceBillServiceTest {
         // Runs the account's work right where the real REQUIRES_NEW transaction would, so each
         // test only has to assert on fixedBillService/installmentBillService, not on the
         // transaction plumbing itself.
-        doAnswer(invocation -> {
+        lenient().doAnswer(invocation -> {
             final Consumer<TransactionStatus> action = invocation.getArgument(0);
             action.accept(null);
             return null;
