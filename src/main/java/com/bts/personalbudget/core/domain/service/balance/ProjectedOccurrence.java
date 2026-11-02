@@ -15,18 +15,20 @@ public record ProjectedOccurrence(
         UUID recurrenceBillCode,
         LocalDate occurrenceDate,
         BigDecimal balanceCalcValue,
-        OperationType operationType
+        OperationType operationType,
+        UUID categoryCode
 ) implements BalanceCalcData {
 
     /**
      * @param recurrenceBill the FixedBill/InstallmentBill this is an occurrence of; its sign
-     *                       convention (debits negative) is kept
+     *                       convention (debits negative) and its category are kept
      */
     public static ProjectedOccurrence of(final UUID recurrenceBillCode,
                                          final BalanceCalcData recurrenceBill,
                                          final LocalDate occurrenceDate) {
         return new ProjectedOccurrence(recurrenceBillCode, occurrenceDate,
-                recurrenceBill.getBalanceCalcValue(), recurrenceBill.getOperationType());
+                recurrenceBill.getBalanceCalcValue(), recurrenceBill.getOperationType(),
+                recurrenceBill.getCategoryCode());
     }
 
     @Override
@@ -42,6 +44,11 @@ public record ProjectedOccurrence(
     @Override
     public OperationType getOperationType() {
         return operationType;
+    }
+
+    @Override
+    public UUID getCategoryCode() {
+        return categoryCode;
     }
 
     @Override

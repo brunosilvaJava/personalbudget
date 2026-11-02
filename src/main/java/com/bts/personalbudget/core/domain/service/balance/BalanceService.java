@@ -66,6 +66,17 @@ public class BalanceService {
         return dailyBalanceList;
     }
 
+    /**
+     * What findDailyBalanceBetween adds up for the period: the movements that count in it (PAID_OUT
+     * by pay date, PENDING/LATE by due date) and the bills' occurrences not posted yet. Exposed so
+     * other reports total the period the same way and match the balance and the dashboard.
+     */
+    public List<BalanceCalcData> findBalanceCalcDataBetween(final LocalDate initialDate,
+                                                            final LocalDate endDate) {
+        log.info("m=findBalanceCalcDataBetween initialDate={} endDate={}", initialDate, endDate);
+        return findBalanceCalcDataList(initialDate, endDate, findProjectedOccurrencesUntil(endDate));
+    }
+
     private void addCalcValue(BalanceCalcData balanceCalcData, DailyBalance dailyBalance) {
         final BigDecimal balanceCalcValue = balanceCalcData.getBalanceCalcValue();
         switch (balanceCalcData.getOperationType()) {

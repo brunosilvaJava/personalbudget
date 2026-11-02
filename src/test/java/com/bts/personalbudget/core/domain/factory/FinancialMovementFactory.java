@@ -88,6 +88,16 @@ public class FinancialMovementFactory {
         return buildModel(data());
     }
 
+    /**
+     * Same movement, with the given category.
+     */
+    public static FinancialMovement withCategory(final FinancialMovement movement, final UUID categoryCode) {
+        return new FinancialMovement(movement.code(), movement.operationType(), movement.description(),
+                movement.amount(), movement.amountPaid(), movement.movementDate(), movement.dueDate(),
+                movement.payDate(), movement.status(), movement.flagActive(), movement.recurrenceBillCode(),
+                movement.occurrenceDate(), categoryCode);
+    }
+
     public static FinancialMovement buildModel(Map<FinancialMovementProperty, String> data) {
         BigDecimal amountPaid = new BigDecimal(data.get(AMOUNT_PAID));
         BigDecimal amount = new BigDecimal(data.get(AMOUNT));

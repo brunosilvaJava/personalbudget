@@ -13,6 +13,7 @@ import com.bts.personalbudget.repository.CategoryRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -259,6 +260,27 @@ class CategoryServiceTest {
 
         assertEquals(List.of(GROUP_NAME, "Pessoal"), groups.stream().map(CategoryGroup::name).toList());
         assertEquals(List.of(1, 2), groups.stream().map(CategoryGroup::displayOrder).toList());
+    }
+
+    @Test
+    void shouldFindManyCategoriesByCodeIncludingInactive() {
+        final Set<UUID> codes = Set.of(CATEGORY_CODE);
+        when(categoryRepository.findAllByCodeIn(codes))
+                .thenReturn(List.of(buildEntity(OperationType.DEBIT, CategoryStatus.INACTIVE)));
+
+        final List<Category> categories = categoryService.findAllByCodes(codes);
+
+        assertEquals(1, categories.size());
+        assertEquals(CATEGORY_CODE, categories.get(0).code());
+        assertEquals(CategoryStatus.INACTIVE, categories.get(0).status());
+        assertEquals(GROUP_CODE, categories.get(0).groupCode());
+    }
+
+    @Test
+    void shouldNotQueryWhenNoCodesAreGiven() {
+        assertTrue(categoryService.findAllByCodes(Set.of()).isEmpty());
+
+        verify(categoryRepository, never()).findAllByCodeIn(any());
     }
 
     @Test

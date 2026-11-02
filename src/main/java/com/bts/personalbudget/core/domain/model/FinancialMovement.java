@@ -94,6 +94,11 @@ public record FinancialMovement(
     }
 
     @Override
+    public UUID getCategoryCode() {
+        return categoryCode;
+    }
+
+    @Override
     public PaymentStatus findStatus() {
         return switch (status) {
             case PAID_OUT -> PaymentStatus.DONE;
