@@ -106,6 +106,21 @@ public class CategoryRepositoryTest {
     }
 
     @Test
+    void shouldFindManyCategoriesByCodeWithTheirGroupsIncludingInactive() {
+        final CategoryGroupEntity group = saveGroup();
+        final CategoryEntity active = saveCategory(group, OperationType.DEBIT, CategoryStatus.ACTIVE);
+        final CategoryEntity inactive = saveCategory(group, OperationType.CREDIT, CategoryStatus.INACTIVE);
+        saveCategory(group, OperationType.DEBIT, CategoryStatus.ACTIVE);
+
+        final List<CategoryEntity> found = categoryRepository.findAllByCodeIn(
+                List.of(active.getCode(), inactive.getCode(), UUID.randomUUID()));
+
+        assertEquals(2, found.size());
+        assertTrue(codes(found).containsAll(List.of(active.getCode(), inactive.getCode())));
+        assertEquals(group.getName(), found.get(0).getCategoryGroup().getName());
+    }
+
+    @Test
     void shouldRejectDuplicateNameForSameOperationType() {
         final CategoryGroupEntity group = saveGroup();
         final CategoryEntity saved = saveCategory(group, OperationType.DEBIT, CategoryStatus.ACTIVE);

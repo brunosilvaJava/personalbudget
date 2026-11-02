@@ -11,6 +11,7 @@ import com.bts.personalbudget.mapper.CategoryMapper;
 import com.bts.personalbudget.repository.CategoryGroupRepository;
 import com.bts.personalbudget.repository.CategoryRepository;
 import jakarta.persistence.EntityNotFoundException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -68,6 +69,18 @@ public class CategoryService {
     public Category findByCode(final UUID code) {
         log.info("m=findByCode, code={}", code);
         return categoryMapper.toModel(findEntity(code));
+    }
+
+    /**
+     * Also returns INACTIVE categories, for the same reason as findByCode. Codes that match no
+     * category are left out of the result.
+     */
+    public List<Category> findAllByCodes(final Collection<UUID> codes) {
+        log.info("m=findAllByCodes, codes={}", codes.size());
+        if (codes.isEmpty()) {
+            return List.of();
+        }
+        return categoryMapper.toModelList(categoryRepository.findAllByCodeIn(codes));
     }
 
     public List<CategoryGroup> findGroups() {

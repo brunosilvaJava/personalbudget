@@ -3,6 +3,7 @@ package com.bts.personalbudget.repository;
 import com.bts.personalbudget.core.domain.entity.CategoryEntity;
 import com.bts.personalbudget.core.domain.enumerator.CategoryStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +21,9 @@ public interface CategoryRepository extends JpaRepository<CategoryEntity, Long> 
      */
     @Query("SELECT c FROM CategoryEntity c JOIN FETCH c.categoryGroup WHERE c.code = :code")
     Optional<CategoryEntity> findByCode(@Param("code") UUID code);
+
+    @Query("SELECT c FROM CategoryEntity c JOIN FETCH c.categoryGroup WHERE c.code IN :codes")
+    List<CategoryEntity> findAllByCodeIn(@Param("codes") Collection<UUID> codes);
 
     @Query("""
             SELECT c FROM CategoryEntity c

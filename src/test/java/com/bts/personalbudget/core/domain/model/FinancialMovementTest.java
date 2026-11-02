@@ -12,6 +12,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -129,6 +130,25 @@ class FinancialMovementTest {
                 paidOut(OperationType.CREDIT, new BigDecimal("100.00"), new BigDecimal("60.00"));
 
         assertEquals(0, new BigDecimal("60.00").compareTo(financialMovement.getBalanceCalcValue()));
+    }
+
+    @Test
+    void shouldExposeCategoryCodeToBalanceCalculation() {
+        final UUID categoryCode = UUID.randomUUID();
+        final LocalDateTime now = LocalDateTime.now();
+
+        final FinancialMovement financialMovement = new FinancialMovement(
+                UUID.randomUUID(), OperationType.DEBIT, "teste", new BigDecimal("10.00"), null,
+                now, now.plusDays(1), null, FinancialMovementStatus.PENDING, Boolean.TRUE,
+                null, null, categoryCode);
+
+        assertEquals(categoryCode, financialMovement.getCategoryCode());
+    }
+
+    @Test
+    void shouldExposeNullCategoryCodeWhenMovementHasNoCategory() {
+        assertNull(paidOut(OperationType.DEBIT, new BigDecimal("10.00"), new BigDecimal("10.00"))
+                .getCategoryCode());
     }
 
     private static FinancialMovement paidOut(final OperationType operationType,

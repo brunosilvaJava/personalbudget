@@ -1,6 +1,7 @@
 package com.bts.personalbudget.core.domain.service.balance;
 
 import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
+import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.factory.DailyBalanceFactory;
 import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory;
@@ -286,6 +287,126 @@ public class BalanceServiceTest {
                 findDailyBalance(result, august10).orElseThrow().getPendingTotalExpense());
         assertValue(august31, "projectedClosingBalance", new BigDecimal("-200"),
                 findDailyBalance(result, august31).orElseThrow().getProjectedClosingBalance());
+    }
+
+    private static final UUID RENT_CATEGORY = UUID.fromString("22222222-2222-2222-2222-222222222222");
+    private static final UUID TELEVISION_CATEGORY = UUID.fromString("44444444-4444-4444-4444-444444444444");
+
+    @Test
+    void shouldKeepBillCategoryOnProjectedOccurrences() {
+        final FixedBill rent = buildMonthlyDebitFixedBill(LocalDate.of(2026, 7, 10));
+        rent.setCategoryCode(RENT_CATEGORY);
+        final InstallmentBill television = new InstallmentBill(UUID.randomUUID(), DEBIT, "television",
+                new BigDecimal("50.00"), InstallmentBillStatus.PENDING, LocalDate.of(2026, 5, 6), 6,
+                2, LocalDate.of(2026, 6, 5), LocalDate.of(2026, 7, 5));
+        television.setCategoryCode(TELEVISION_CATEGORY);
+
+        stubMovements(JULY_1, SEPTEMBER_30, List.of());
+        when(fixedBillService.findAllByNextDueDateLessThanEqual(SEPTEMBER_30)).thenReturn(List.of(rent));
+        when(fixedBillService.findOccurrencesUntil(rent, SEPTEMBER_30))
+                .thenReturn(List.of(LocalDate.of(2026, 7, 10), LocalDate.of(2026, 8, 10)));
+        when(installmentBillService.findAllByNextInstallmentDateLessThanEqual(SEPTEMBER_30))
+                .thenReturn(List.of(television));
+
+        final List<BalanceCalcData> result = balanceService.findBalanceCalcDataBetween(JULY_1, SEPTEMBER_30);
+
+        // 2 occurrences of the rent and 3 remaining installments (July 5, August 4, September 3).
+        assertThat(result).hasSize(5);
+        assertThat(result).allMatch(data -> data.findStatus() == BalanceCalcData.PaymentStatus.PENDING);
+        assertThat(result.stream().filter(data -> RENT_CATEGORY.equals(data.getCategoryCode())).count()).isEqualTo(2);
+        assertThat(result.stream().filter(data -> TELEVISION_CATEGORY.equals(data.getCategoryCode())).count())
+                .isEqualTo(3);
+    }
+
+    @Test
+    void shouldReturnMovementsWithTheirCategoryAndStatus() {
+        final LocalDate day = LocalDate.of(2026, 7, 15);
+        final FinancialMovement paid = FinancialMovementFactory.withCategory(
+                FinancialMovementFactory.buildModel(day, DEBIT, "80.00", PAID_OUT), RENT_CATEGORY);
+        final FinancialMovement pending = FinancialMovementFactory.buildModel(day, DEBIT, "20.00", PENDING);
+
+        stubMovements(JULY_1, SEPTEMBER_30, List.of(paid, pending));
+        when(fixedBillService.findAllByNextDueDateLessThanEqual(SEPTEMBER_30)).thenReturn(List.of());
+        when(installmentBillService.findAllByNextInstallmentDateLessThanEqual(SEPTEMBER_30)).thenReturn(List.of());
+
+        final List<BalanceCalcData> result = balanceService.findBalanceCalcDataBetween(JULY_1, SEPTEMBER_30);
+
+        assertThat(result).containsExactlyInAnyOrder(paid, pending);
+        assertThat(paid.getCategoryCode()).isEqualTo(RENT_CATEGORY);
+        assertThat(paid.findStatus()).isEqualTo(BalanceCalcData.PaymentStatus.DONE);
+        assertThat(pending.getCategoryCode()).isNull();
+        assertThat(pending.findStatus()).isEqualTo(BalanceCalcData.PaymentStatus.PENDING);
+    }
+
+    @Test
+    void shouldLeaveOutOccurrencesBeforeThePeriodFromCalcData() {
+        final LocalDate august1 = LocalDate.of(2026, 8, 1);
+        final LocalDate august31 = LocalDate.of(2026, 8, 31);
+        final LocalDate july10 = LocalDate.of(2026, 7, 10);
+        final LocalDate august10 = LocalDate.of(2026, 8, 10);
+        final FixedBill rent = buildMonthlyDebitFixedBill(july10);
+
+        stubMovements(august1, august31, List.of());
+        when(fixedBillService.findAllByNextDueDateLessThanEqual(august31)).thenReturn(List.of(rent));
+        when(fixedBillService.findOccurrencesUntil(rent, august31)).thenReturn(List.of(july10, august10));
+        when(installmentBillService.findAllByNextInstallmentDateLessThanEqual(august31)).thenReturn(List.of());
+
+        final List<BalanceCalcData> result = balanceService.findBalanceCalcDataBetween(august1, august31);
+
+        // July's occurrence only weighs on the projected opening balance of the daily balance.
+        assertThat(result).extracting(BalanceCalcData::findBalanceCalcDate).containsExactly(august10);
+    }
+
+    @Test
+    void shouldTotalCalcDataTheSameWayAsTheDailyBalance() {
+        // A summary that reads findBalanceCalcDataBetween must match the daily balance of the
+        // same period, to the cent: paid is "real", paid plus pending is "projected".
+        final LocalDate day1 = LocalDate.of(2026, 7, 3);
+        final LocalDate day2 = LocalDate.of(2026, 7, 20);
+        final FixedBill rent = buildMonthlyDebitFixedBill(LocalDate.of(2026, 7, 10));
+        rent.setCategoryCode(RENT_CATEGORY);
+        final List<FinancialMovement> movements = List.of(
+                FinancialMovementFactory.withCategory(
+                        FinancialMovementFactory.buildModel(day1, DEBIT, "80.00", PAID_OUT), RENT_CATEGORY),
+                FinancialMovementFactory.buildModel(day2, DEBIT, "20.00", PENDING),
+                FinancialMovementFactory.buildModel(day2, CREDIT, "500.00", PAID_OUT));
+
+        stubPeriod(JULY_1, SEPTEMBER_30, movements);
+        when(fixedBillService.findAllByNextDueDateLessThanEqual(SEPTEMBER_30)).thenReturn(List.of(rent));
+        when(fixedBillService.findOccurrencesUntil(rent, SEPTEMBER_30)).thenReturn(List.of(
+                LocalDate.of(2026, 7, 10), LocalDate.of(2026, 8, 10), LocalDate.of(2026, 9, 10)));
+        when(installmentBillService.findAllByNextInstallmentDateLessThanEqual(SEPTEMBER_30)).thenReturn(List.of());
+
+        final Set<DailyBalance> dailyBalances = balanceService.findDailyBalanceBetween(JULY_1, SEPTEMBER_30);
+        final List<BalanceCalcData> calcData = balanceService.findBalanceCalcDataBetween(JULY_1, SEPTEMBER_30);
+
+        final BigDecimal dailyPaidExpense = dailyBalances.stream()
+                .map(DailyBalance::getTotalExpense).reduce(BigDecimal.ZERO, BigDecimal::add);
+        final BigDecimal dailyPendingExpense = dailyBalances.stream()
+                .map(DailyBalance::getPendingTotalExpense).reduce(BigDecimal.ZERO, BigDecimal::add);
+        final BigDecimal dailyPaidRevenue = dailyBalances.stream()
+                .map(DailyBalance::getTotalRevenue).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        assertThat(sum(calcData, DEBIT, BalanceCalcData.PaymentStatus.DONE)).isEqualByComparingTo(dailyPaidExpense);
+        assertThat(sum(calcData, DEBIT, BalanceCalcData.PaymentStatus.PENDING))
+                .isEqualByComparingTo(dailyPendingExpense);
+        assertThat(sum(calcData, CREDIT, BalanceCalcData.PaymentStatus.DONE)).isEqualByComparingTo(dailyPaidRevenue);
+        // 80 paid; 20 pending plus three rent occurrences of 100.
+        assertThat(dailyPaidExpense).isEqualByComparingTo("-80");
+        assertThat(dailyPendingExpense).isEqualByComparingTo("-320");
+    }
+
+    private BigDecimal sum(List<BalanceCalcData> calcData,
+                           OperationType operationType,
+                           BalanceCalcData.PaymentStatus status) {
+        return calcData.stream()
+                .filter(data -> data.getOperationType() == operationType && data.findStatus() == status)
+                .map(BalanceCalcData::getBalanceCalcValue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private void stubMovements(LocalDate initialDate, LocalDate endDate, List<FinancialMovement> financialMovements) {
+        when(financialMovementService.findMovementsForBalanceCalculation(initialDate, endDate)).thenReturn(financialMovements);
     }
 
     private void stubPeriod(LocalDate initialDate, LocalDate endDate, List<FinancialMovement> financialMovements) {
