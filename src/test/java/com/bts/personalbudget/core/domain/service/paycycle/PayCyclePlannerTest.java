@@ -171,6 +171,34 @@ class PayCyclePlannerTest {
         assertEquals(LocalDate.of(2027, 3, 1), first.endDate());
     }
 
+    @Test
+    void shouldIgnoreAnUnreviewedPreviousMonthWhenActivatingNthBusinessDayAnchor() {
+        final IncomeSchedule nthBusinessDay = buildSchedule(
+                IncomeDateRule.nthBusinessDay(5, BusinessWeek.MONDAY_TO_FRIDAY), YearMonth.of(2026, 1), null);
+
+        final PayCyclePlan plan = activate(nthBusinessDay, List.of(), buildReviewedCalendar(2027),
+                LocalDate.of(2027, 1, 8), LocalDate.of(2027, 1, 8));
+
+        assertEquals(3, plan.cycles().size());
+        assertEquals(PayCycleKind.TRANSITION, plan.cycles().get(0).kind());
+        assertEquals(LocalDate.of(2027, 2, 5), plan.cycles().get(0).endDate());
+        assertTrue(plan.pending().isEmpty());
+    }
+
+    @Test
+    void shouldIgnoreAnUnreviewedPreviousMonthWhenFindingNextDateForTransition() {
+        final IncomeSchedule nthBusinessDay = buildSchedule(
+                IncomeDateRule.nthBusinessDay(5, BusinessWeek.MONDAY_TO_FRIDAY), YearMonth.of(2026, 1), null);
+        final PayCycle transition = buildTransition(LocalDate.of(2027, 1, 8), LocalDate.of(2027, 2, 5));
+
+        final PayCyclePlan plan = PayCyclePlanner.plan(new Request(nthBusinessDay, List.of(),
+                buildReviewedCalendar(2027), transition.startDate(), List.of(transition), LocalDate.of(2027, 1, 8)));
+
+        assertEquals(3, plan.cycles().size());
+        assertEquals(LocalDate.of(2027, 2, 5), plan.cycles().get(0).endDate());
+        assertTrue(plan.pending().isEmpty());
+    }
+
     // --- dates that cannot be calculated ---
 
     @Test

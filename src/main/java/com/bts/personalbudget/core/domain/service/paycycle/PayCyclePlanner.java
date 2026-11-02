@@ -1,5 +1,6 @@
 package com.bts.personalbudget.core.domain.service.paycycle;
 
+import com.bts.personalbudget.core.domain.enumerator.DateRuleType;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleKind;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendar;
@@ -114,7 +115,7 @@ public final class PayCyclePlanner {
         final YearMonth initialMonth = YearMonth.from(initial);
         final YearMonth lastMonth = initialMonth.plusMonths(SCAN_MONTHS_AFTER);
         YearMonth opening = null;
-        for (YearMonth month = initialMonth.minusMonths(SCAN_MONTHS_BEFORE); !month.isAfter(lastMonth);
+        for (YearMonth month = dates.firstMonthToScan(initialMonth); !month.isAfter(lastMonth);
              month = month.plusMonths(1)) {
             switch (dates.at(month)) {
                 case Known known -> {
@@ -294,7 +295,7 @@ public final class PayCyclePlanner {
         // A transition no anchor occurrence opened: the next one is the first anchor date after its start.
         final YearMonth startMonth = YearMonth.from(cycle.startDate());
         final YearMonth lastMonth = startMonth.plusMonths(SCAN_MONTHS_AFTER);
-        for (YearMonth month = startMonth.minusMonths(SCAN_MONTHS_BEFORE); !month.isAfter(lastMonth);
+        for (YearMonth month = dates.firstMonthToScan(startMonth); !month.isAfter(lastMonth);
              month = month.plusMonths(1)) {
             switch (dates.at(month)) {
                 case Known known -> {
@@ -352,6 +353,12 @@ public final class PayCyclePlanner {
 
         private UUID scheduleCode() {
             return schedule.code();
+        }
+
+        private YearMonth firstMonthToScan(final YearMonth month) {
+            return schedule.rule().ruleType() == DateRuleType.NTH_BUSINESS_DAY
+                    ? month
+                    : month.minusMonths(SCAN_MONTHS_BEFORE);
         }
 
         private AnchorDate at(final YearMonth month) {
