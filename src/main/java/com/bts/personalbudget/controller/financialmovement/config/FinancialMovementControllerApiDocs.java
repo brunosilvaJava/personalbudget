@@ -33,7 +33,9 @@ public interface FinancialMovementControllerApiDocs {
 
     @Operation(
             summary = "Retrieve financial movements",
-            description = "Returns a list of financial movements based on search parameters.")
+            description = "Returns a list of financial movements based on search parameters. "
+                    + "category_code (repeatable) keeps the movements of those categories and without_category=true "
+                    + "keeps the ones with no category; sent together they match either.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "List of financial movements"),
             @ApiResponse(responseCode = "400", description = "Invalid parameters, including a sort_by outside: description, amount, operation_type, status, movement_date, due_date, pay_date")
@@ -45,6 +47,8 @@ public interface FinancialMovementControllerApiDocs {
             @RequestParam(value = "status", required = false) List<FinancialMovementStatus> statuses,
             @RequestParam("start_date") LocalDate startDate,
             @RequestParam("end_date") LocalDate endDate,
+            @RequestParam(value = "category_code", required = false) List<UUID> categoryCodes,
+            @RequestParam(value = "without_category", defaultValue = "false") boolean withoutCategory,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(value = "sort_by", defaultValue = "movement_date") String sortBy,

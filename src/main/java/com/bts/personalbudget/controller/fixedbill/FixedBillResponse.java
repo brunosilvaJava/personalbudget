@@ -55,6 +55,10 @@ public record FixedBillResponse (
         @Schema(description = "Date of the next occurrence that has not been posted yet; null once the fixed bill is concluded",
                 example = "2024-08-12")
         @JsonProperty("next_due_date")
-        LocalDate nextDueDate
+        LocalDate nextDueDate,
+
+        @Schema(description = "Code of the category, if any", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode
 ){
 }

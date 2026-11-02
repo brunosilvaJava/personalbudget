@@ -52,6 +52,10 @@ public record FixedBillUpdateRequest (
 
         @Schema(description = "Update start date of the fixed bill", example = "2022-11-15")
         @JsonProperty("end_date")
-        LocalDate endDate
+        LocalDate endDate,
+
+        @Schema(description = "Code of the category to set. Replaces the current one for the occurrences posted from now on; omitting it keeps it, and it cannot be removed", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode
 ){
 }

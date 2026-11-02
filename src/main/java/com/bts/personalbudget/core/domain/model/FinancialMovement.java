@@ -31,7 +31,8 @@ public record FinancialMovement(
         FinancialMovementStatus status,
         Boolean flagActive,
         UUID recurrenceBillCode,
-        LocalDate occurrenceDate
+        LocalDate occurrenceDate,
+        UUID categoryCode
 ) implements BalanceCalcData {
 
     private static final String MSG_FIELD_NULL_OR_EMPTY = "deve ser informado um valor válido quando o status for ";
@@ -53,7 +54,7 @@ public record FinancialMovement(
             LocalDate occurrenceDate
     ) {
         this(null, operationType, description, amount, null, movementDate, dueDate, null,
-                status, Boolean.TRUE, recurrenceBillCode, occurrenceDate);
+                status, Boolean.TRUE, recurrenceBillCode, occurrenceDate, null);
     }
 
     public FinancialMovement {

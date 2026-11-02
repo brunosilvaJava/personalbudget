@@ -38,6 +38,7 @@ public class FixedBill implements BalanceCalcData {
     private LocalDate startDate;
     private LocalDate endDate;
     private LocalDate nextDueDate;
+    private UUID categoryCode;
 
     public FixedBill(Long id, UUID code, OperationType operationType, String description, BigDecimal amount,
                      RecurrenceType recurrenceType, Set<Integer> days, Integer referenceYear, FixedBillStatus status,
@@ -67,60 +68,60 @@ public class FixedBill implements BalanceCalcData {
         }
     }
 
-    boolean update(final OperationType operationType,
-                   final String description,
-                   final BigDecimal amount,
-                   final RecurrenceType recurrenceType,
-                   final Set<Integer> days,
-                   final Integer referenceYear,
-                   final FixedBillStatus status,
-                   final LocalDate startDate,
-                   final LocalDate endDate) {
+    boolean update(final FixedBillUpdate changes) {
 
         boolean hasChanges = false;
 
-        if (operationType != null && this.operationType != operationType) {
-            this.operationType = operationType;
+        if (changes.operationType() != null && this.operationType != changes.operationType()) {
+            this.operationType = changes.operationType();
             hasChanges = true;
         }
 
-        if (description != null && !this.description.equals(description)) {
-            this.description = description;
+        if (changes.description() != null && !this.description.equals(changes.description())) {
+            this.description = changes.description();
             hasChanges = true;
         }
 
-        if (amount != null && (this.amount == null || this.amount.compareTo(amount) != 0)) {
-            this.amount = amount;
+        if (changes.amount() != null && (this.amount == null || this.amount.compareTo(changes.amount()) != 0)) {
+            this.amount = changes.amount();
             hasChanges = true;
         }
 
-        if (recurrenceType != null && this.recurrenceType != recurrenceType) {
-            this.recurrenceType = recurrenceType;
+        if (changes.recurrenceType() != null && this.recurrenceType != changes.recurrenceType()) {
+            this.recurrenceType = changes.recurrenceType();
             hasChanges = true;
         }
 
-        if (days != null && !this.days.equals(days)) {
-            this.days = days;
+        if (changes.days() != null && !this.days.equals(changes.days())) {
+            this.days = changes.days();
             hasChanges = true;
         }
 
-        if (referenceYear != null && (this.referenceYear == null || !this.referenceYear.equals(referenceYear))) {
-            this.referenceYear = referenceYear;
+        if (changes.referenceYear() != null
+                && (this.referenceYear == null || !this.referenceYear.equals(changes.referenceYear()))) {
+            this.referenceYear = changes.referenceYear();
             hasChanges = true;
         }
 
-        if (status != null && this.status != status) {
-            this.status = status;
+        if (changes.status() != null && this.status != changes.status()) {
+            this.status = changes.status();
             hasChanges = true;
         }
 
-        if (startDate != null && (this.startDate == null || !this.startDate.equals(startDate))) {
-            this.startDate = startDate;
+        if (changes.startDate() != null
+                && (this.startDate == null || !this.startDate.equals(changes.startDate()))) {
+            this.startDate = changes.startDate();
             hasChanges = true;
         }
 
-        if (endDate != null && (this.endDate == null || !this.endDate.equals(endDate))) {
-            this.endDate = endDate;
+        if (changes.endDate() != null
+                && (this.endDate == null || !this.endDate.equals(changes.endDate()))) {
+            this.endDate = changes.endDate();
+            hasChanges = true;
+        }
+
+        if (changes.categoryCode() != null && !changes.categoryCode().equals(this.categoryCode)) {
+            this.categoryCode = changes.categoryCode();
             hasChanges = true;
         }
 

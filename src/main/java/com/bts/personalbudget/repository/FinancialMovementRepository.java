@@ -3,9 +3,8 @@ package com.bts.personalbudget.repository;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,7 +16,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface FinancialMovementRepository extends JpaRepository<FinancialMovementEntity, Long> {
+public interface FinancialMovementRepository
+        extends JpaRepository<FinancialMovementEntity, Long>, JpaSpecificationExecutor<FinancialMovementEntity> {
 
     Optional<FinancialMovementEntity> findByCode(UUID code);
 
@@ -38,15 +38,6 @@ public interface FinancialMovementRepository extends JpaRepository<FinancialMove
             Collection<UUID> recurrenceBillCodes,
             LocalDate initialDate,
             LocalDate endDate);
-
-    Page<FinancialMovementEntity> findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
-            String description,
-            List<OperationType> operationTypes,
-            List<FinancialMovementStatus> statuses,
-            LocalDateTime startDate,
-            LocalDateTime endDate,
-            Pageable pageable
-    );
 
     Optional<List<FinancialMovementEntity>> findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
             String description,

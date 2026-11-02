@@ -98,18 +98,7 @@ public class FixedBillController implements FixedBillControllerApiDocs {
     public ResponseEntity<FixedBillResponse> update(@PathVariable UUID code,
                                                     @RequestBody @Valid final FixedBillUpdateRequest fixedBillUpdateRequest){
         log.info("m=update code={} fixedBillUpdateRequest={}", code, fixedBillUpdateRequest);
-        final FixedBill fixedBill = fixedBillService.update(
-                code,
-                fixedBillUpdateRequest.operationType(),
-                fixedBillUpdateRequest.description(),
-                fixedBillUpdateRequest.amount(),
-                fixedBillUpdateRequest.recurrenceType(),
-                fixedBillUpdateRequest.days(),
-                fixedBillUpdateRequest.referenceYear(),
-                fixedBillUpdateRequest.status(),
-                fixedBillUpdateRequest.startDate(),
-                fixedBillUpdateRequest.endDate()
-        );
+        final FixedBill fixedBill = fixedBillService.update(code, fixedBillMapper.toUpdate(fixedBillUpdateRequest));
 
         return ResponseEntity.ok(fixedBillMapper.toResponse(fixedBill));
     }

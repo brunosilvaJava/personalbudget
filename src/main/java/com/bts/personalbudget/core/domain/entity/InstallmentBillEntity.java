@@ -71,4 +71,7 @@ public class InstallmentBillEntity extends AuditingEntity implements Serializabl
     @Column(name = "next_installment_date", nullable = false)
     private LocalDate nextInstallmentDate;
 
+    @Column(name = "category_code")
+    private UUID categoryCode;
+
 }

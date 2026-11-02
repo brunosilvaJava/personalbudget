@@ -58,6 +58,10 @@ public record FinancialMovementRequest(
 
         @NotNull
         @Schema(description = "Status of the financial movement (e.g., PENDING, COMPLETED, CANCELLED)", example = "PENDING")
-        FinancialMovementStatus status
+        FinancialMovementStatus status,
+
+        @Schema(description = "Code of the category. Must be an ACTIVE category of the same operation type", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode
 ) {
 }

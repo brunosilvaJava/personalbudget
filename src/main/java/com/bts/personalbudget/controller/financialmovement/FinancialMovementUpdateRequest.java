@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Schema(description = "Request data for updating an existing financial movement.")
 public record FinancialMovementUpdateRequest(
@@ -46,6 +47,10 @@ public record FinancialMovementUpdateRequest(
         LocalDateTime payDate,
 
         @Schema(description = "Status of the financial movement (e.g., PENDING, COMPLETED, CANCELLED)", example = "COMPLETED")
-        FinancialMovementStatus status
+        FinancialMovementStatus status,
+
+        @Schema(description = "Code of the category to set. Replaces the current one; omitting it keeps it, and it cannot be removed", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode
 ) {
 }

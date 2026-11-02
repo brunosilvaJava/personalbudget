@@ -38,7 +38,7 @@ class FinancialMovementControllerTest {
         final LocalDateTime now = LocalDateTime.now();
         final FinancialMovementRequest request = new FinancialMovementRequest(
                 OperationType.DEBIT, null, "Padaria", new BigDecimal("12.50"), new BigDecimal("12.50"),
-                now, now, now, FinancialMovementStatus.PAID_OUT);
+                now, now, now, FinancialMovementStatus.PAID_OUT, null);
         final FinancialMovement created = FinancialMovementFactory.buildModel();
         when(service.create(any(FinancialMovement.class))).thenReturn(created);
 

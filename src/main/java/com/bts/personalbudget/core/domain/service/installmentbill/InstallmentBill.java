@@ -7,6 +7,7 @@ import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData;
 import com.bts.personalbudget.core.domain.service.recurrencebill.RecurrenceCalculator;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,6 +34,13 @@ public class InstallmentBill implements BalanceCalcData {
     private Integer installmentCount;
     private LocalDate lastInstallmentDate;
     private LocalDate nextInstallmentDate;
+
+    /**
+     * Not part of the constructor: it is optional, and MapStruct fills it through the setter.
+     * Changing it only affects the installments posted from then on.
+     */
+    @Setter
+    private UUID categoryCode;
 
     private static final int INITIAL_INSTALLMENT_COUNT = 0;
     private static final int DAYS_TO_NEXT_INSTALLMENT = 30;

@@ -8,6 +8,7 @@ import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.CalcFixedBill;
 import com.bts.personalbudget.core.domain.service.recurrencebill.RecurrenceCalculator;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
@@ -40,6 +41,7 @@ public class FixedBillService {
     private final Clock clock;
     private final FinancialMovementService financialMovementService;
     private final FinancialMovementMapper financialMovementMapper;
+    private final CategoryService categoryService;
 
     /**
      * Upper bound on how many occurrences a single catch-up run will post for one account.
@@ -58,6 +60,9 @@ public class FixedBillService {
         log.info("m=save fixedBill={}", fixedBill);
         validationMandatoryFields(fixedBill);
         fixedBill.validationDays();
+        if (fixedBill.getCategoryCode() != null) {
+            categoryService.validateForUse(fixedBill.getCategoryCode(), fixedBill.getOperationType());
+        }
         fixedBill.setStatus(FixedBillStatus.ACTIVE);
         final FixedBillEntity fixedBillEntity = buildFixedBillEntity(fixedBill);
         final Set<CalendarFixedBillEntity> calendarFixedBillEntityList = buildCalendarFixedBillEntityList(fixedBill, fixedBillEntity);
@@ -139,36 +144,20 @@ public class FixedBillService {
     }
 
     @Transactional
-    public FixedBill update(final UUID code,
-                            final OperationType operationType,
-                            final String description,
-                            final BigDecimal amount,
-                            final RecurrenceType recurrenceType,
-                            final Set<Integer> days,
-                            final Integer referenceYear,
-                            final FixedBillStatus status,
-                            final LocalDate startDate,
-                            final LocalDate endDate) {
-        log.info("m=update, code={}, operationType={}, description={}, amount={}, recurrenceType={}, days={}, referenceYear={}, status={}, startDate={}, endDate={}",
-                code, operationType, description, amount, recurrenceType, days, referenceYear, status, startDate, endDate);
+    public FixedBill update(final UUID code, final FixedBillUpdate changes) {
+        log.info("m=update, code={}, changes={}", code, changes);
 
         final FixedBillEntity fixedBillEntity = findEntity(code);
         final FixedBill updateFixedBill = fixedBillMapper.toModel(fixedBillEntity);
 
-        if (operationType == null &&
-                description == null &&
-                amount == null &&
-                recurrenceType == null &&
-                days == null &&
-                referenceYear == null &&
-                status == null &&
-                startDate == null &&
-                endDate == null) {
+        if (changes.isEmpty()) {
             return updateFixedBill;
         }
 
+        validateCategoryOnUpdate(updateFixedBill, changes);
+
         final FixedBill.Schedule previousSchedule = updateFixedBill.schedule();
-        final boolean hasChanges = updateFixedBill.update(operationType, description, amount, recurrenceType, days, referenceYear, status, startDate, endDate);
+        final boolean hasChanges = updateFixedBill.update(changes);
 
         if (hasChanges) {
             log.info("m=update, message=ChangesDetected, code={}, savingToDatabase=true", code);
@@ -234,6 +223,24 @@ public class FixedBillService {
         log.info("m=delete, code={}", code);
         final FixedBillEntity fixedBillEntity = findEntity(code);
         fixedBillEntity.delete();
+    }
+
+    /**
+     * The category has to fit the operation type the bill ends up with, so changing only the
+     * operation type is checked against the stored category too. Runs only when one of the two
+     * actually changes: a bill whose category was inactivated later can still be edited.
+     */
+    private void validateCategoryOnUpdate(final FixedBill current, final FixedBillUpdate changes) {
+        final OperationType finalOperationType =
+                changes.operationType() != null ? changes.operationType() : current.getOperationType();
+        final UUID finalCategoryCode =
+                changes.categoryCode() != null ? changes.categoryCode() : current.getCategoryCode();
+        final boolean categoryChanged =
+                changes.categoryCode() != null && !changes.categoryCode().equals(current.getCategoryCode());
+        final boolean operationTypeChanged = finalOperationType != current.getOperationType();
+        if (finalCategoryCode != null && (categoryChanged || operationTypeChanged)) {
+            categoryService.validateForUse(finalCategoryCode, finalOperationType);
+        }
     }
 
     private FixedBillEntity findEntity(final UUID code) {

@@ -99,7 +99,8 @@ public class InstallmentBillController implements InstallmentBillControllerApiDo
                 installmentBillUpdateRequest.description(),
                 installmentBillUpdateRequest.amount(),
                 installmentBillUpdateRequest.purchaseDate(),
-                installmentBillUpdateRequest.installmentTotal()
+                installmentBillUpdateRequest.installmentTotal(),
+                installmentBillUpdateRequest.categoryCode()
         );
         return ResponseEntity.ok(mapper.toResponse(installmentBill));
     }
