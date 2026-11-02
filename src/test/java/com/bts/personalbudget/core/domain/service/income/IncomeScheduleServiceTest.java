@@ -795,7 +795,7 @@ class IncomeScheduleServiceTest {
     // ---- helpers
 
     private IncomeScheduleEntity buildEntity(final IncomeSchedule schedule) {
-        final IncomeScheduleEntity entity = mapper.toEntity(schedule);
+        final IncomeScheduleEntity entity = IncomeScheduleMapper.INSTANCE.toEntity(schedule);
         entity.setId(1L);
         return entity;
     }
