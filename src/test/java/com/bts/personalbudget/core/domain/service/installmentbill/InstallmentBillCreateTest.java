@@ -1,7 +1,10 @@
 package com.bts.personalbudget.core.domain.service.installmentbill;
 
+import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -51,4 +54,21 @@ public class InstallmentBillCreateTest {
         assertEquals(installmentTotal, newInstallmentBill.getInstallmentTotal());
     }
 
+    @Test
+    void shouldKeepInstallmentAmountWhenGeneratingFinancialMovement() {
+        OperationType operationType = OperationType.DEBIT;
+        LocalDate purchaseDate = LocalDate.now();
+        BigDecimal installmentAmount = new BigDecimal("125.00");
+        int installmentTotal = 12;
+
+        InstallmentBill installmentBill = InstallmentBillFactory.buildModel(
+                operationType, "Test", installmentAmount, purchaseDate, installmentTotal);
+
+        FinancialMovement financialMovement = FinancialMovementMapper.INSTANCE
+                .toFinancialMovement(installmentBill, FinancialMovementStatus.PENDING);
+
+        assertEquals(0, installmentAmount.negate().compareTo(financialMovement.amount()));
+        assertEquals(FinancialMovementStatus.PENDING, financialMovement.status());
+        assertEquals(installmentBill.getCode(), financialMovement.recurrenceBillCode());
+    }
 }

@@ -32,7 +32,10 @@ public class RecurrenceBillService {
         final List<FinancialMovement> financialMovements = new ArrayList<>();
 
         final List<FixedBill> fixedBillList = fixedBillService.findByNextDueDate(nextDueDate);
-        financialMovements.addAll(financialMovementMapper.toFinancialMovementListFromFixedBill(fixedBillList, FinancialMovementStatus.PENDING));
+        final List<FixedBill> currentFixedBillList = fixedBillList.stream()
+                .filter(fixedBill -> isCurrentOrSkip(fixedBill, nextDueDate))
+                .toList();
+        financialMovements.addAll(financialMovementMapper.toFinancialMovementListFromFixedBill(currentFixedBillList, FinancialMovementStatus.PENDING));
 
         final List<InstallmentBill> installmentBillList = installmentBillService.findByNextInstallmentDate(nextDueDate);
         financialMovements.addAll(financialMovementMapper.toFinancialMovementList(installmentBillList, FinancialMovementStatus.PENDING));
@@ -41,6 +44,15 @@ public class RecurrenceBillService {
 
         fixedBillList.forEach(fixedBill -> fixedBillService.updateNextDueDate(fixedBill, nextDueDate.plusDays(1)));
         installmentBillList.forEach(installmentBillService::updateNextInstallmentDate);
+    }
+
+    private boolean isCurrentOrSkip(final FixedBill fixedBill, final LocalDate dueDate) {
+        if (fixedBill.isCurrent(dueDate)) {
+            return true;
+        }
+        log.warn("m=isCurrentOrSkip, msg=FixedBillNotPostedOutsideValidity, code={}, dueDate={}, endDate={}",
+                fixedBill.getCode(), dueDate, fixedBill.getEndDate());
+        return false;
     }
 
 

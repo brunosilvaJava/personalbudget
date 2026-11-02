@@ -74,6 +74,20 @@ public class FixedBillFactory {
                 FixedBillStatus.ACTIVE, LocalDate.now(), LocalDate.now().plusYears(1), null);
     }
 
+    public static FixedBill buildModelWithoutStartDate(RecurrenceType recurrenceType, Set<Integer> days) {
+        return new FixedBill(null, null, (OperationType) PARAMS.get(OPERATION_TYPE),
+                (String) PARAMS.get(DESCRIPTION), (BigDecimal) PARAMS.get(AMOUNT),
+                recurrenceType, days, (Integer) PARAMS.get(REFERENCE_YEAR),
+                FixedBillStatus.ACTIVE, null, null, null);
+    }
+
+    public static FixedBill buildModelWithNullStartDateAndCode(RecurrenceType recurrenceType, Set<Integer> days) {
+        return new FixedBill(null, UUID.randomUUID(), (OperationType) PARAMS.get(OPERATION_TYPE),
+                (String) PARAMS.get(DESCRIPTION), (BigDecimal) PARAMS.get(AMOUNT),
+                recurrenceType, days, (Integer) PARAMS.get(REFERENCE_YEAR),
+                FixedBillStatus.ACTIVE, null, null, null);
+    }
+
     public static FixedBill buildFixedBill(Map<String, Object> params) {
         return new FixedBill(
                 null,

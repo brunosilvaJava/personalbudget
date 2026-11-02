@@ -23,7 +23,7 @@ public record InstallmentBillResponse(
         @Schema(description = "Description of the installment bill", example = "Laptop purchase")
         String description,
 
-        @Schema(description = "Total amount of the installment bill", example = "1500.00")
+        @Schema(description = "Amount of each installment, not the purchase total", example = "125.00")
         BigDecimal amount,
 
         @Schema(description = "Current status of the installment bill (e.g., ACTIVE, COMPLETED, CANCELED)", example = "ACTIVE")

@@ -56,7 +56,7 @@ public class FixedBillRequest {
     @JsonProperty("reference_year")
     private Integer referenceYear;
 
-    @Schema(description = "Fixed bill starting date.", format = "date")
+    @Schema(description = "Fixed bill starting date. Defaults to the current date when omitted.", format = "date")
     @JsonProperty("start_date")
     private LocalDate startDate;
 
