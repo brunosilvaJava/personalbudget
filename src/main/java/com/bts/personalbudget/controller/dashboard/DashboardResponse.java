@@ -1,49 +1,94 @@
 package com.bts.personalbudget.controller.dashboard;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
+import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class DashboardResponse {
+@Schema(description = "Balances, revenue, expense and alerts of one month")
+public record DashboardResponse(
 
-    // Saldos
-    private BigDecimal currentBalance;              // Saldo atual (hoje)
-    private BigDecimal currentProjectedBalance;     // Saldo projetado atual (hoje)
-    private BigDecimal monthClosingBalance;         // Saldo final do mês
-    private BigDecimal monthProjectedClosingBalance; // Saldo projetado final do mês
+        // Saldos
+        @Schema(description = "Real balance today", example = "1500.00")
+        @JsonProperty("current_balance")
+        BigDecimal currentBalance,
 
-    // Receitas do mês
-    private BigDecimal monthTotalRevenue;           // Total de receitas realizadas do mês
-    private BigDecimal monthProjectedTotalRevenue;  // Total projetado de receitas do mês
+        @Schema(description = "Projected balance today", example = "1200.00")
+        @JsonProperty("current_projected_balance")
+        BigDecimal currentProjectedBalance,
 
-    // Despesas do mês
-    private BigDecimal monthTotalExpense;           // Total de despesas realizadas do mês
-    private BigDecimal monthProjectedTotalExpense;  // Total projetado de despesas do mês
+        @Schema(description = "Real balance at the end of the month", example = "1500.00")
+        @JsonProperty("month_closing_balance")
+        BigDecimal monthClosingBalance,
 
-    // Alertas
-    private boolean hasNegativeBalanceAlert;        // Se haverá saldo negativo no mês
-    private LocalDate firstNegativeBalanceDate;     // Primeira data com saldo negativo
-    private BigDecimal lowestProjectedBalance;      // Menor saldo projetado do mês
-    private LocalDate lowestBalanceDate;            // Data do menor saldo
+        @Schema(description = "Projected balance at the end of the month", example = "900.00")
+        @JsonProperty("month_projected_closing_balance")
+        BigDecimal monthProjectedClosingBalance,
 
-    // Período de referência
-    private LocalDate referenceMonth;               // Mês de referência (formato: YYYY-MM-01)
-    private LocalDate currentDate;                  // Data atual
+        // Receitas do mês
+        @Schema(description = "Revenue paid in the month", example = "5000.00")
+        @JsonProperty("month_total_revenue")
+        BigDecimal monthTotalRevenue,
 
-    // Dados adicionais
-    private Integer totalDaysInMonth;               // Total de dias no mês
-    private Integer daysElapsed;                    // Dias decorridos
-    private Integer daysRemaining;                  // Dias restantes
+        @Schema(description = "Revenue projected for the month", example = "5000.00")
+        @JsonProperty("month_projected_total_revenue")
+        BigDecimal monthProjectedTotalRevenue,
 
-    // Variações
-    private BigDecimal monthNetChange;              // Variação líquida do mês (receitas - despesas)
-    private BigDecimal projectedNetChange;          // Variação líquida projetada
+        // Despesas do mês
+        @Schema(description = "Expense paid in the month (negative)", example = "-3500.00")
+        @JsonProperty("month_total_expense")
+        BigDecimal monthTotalExpense,
+
+        @Schema(description = "Expense projected for the month (negative)", example = "-4100.00")
+        @JsonProperty("month_projected_total_expense")
+        BigDecimal monthProjectedTotalExpense,
+
+        // Alertas
+        @Schema(description = "Whether the projected balance goes negative in the month", example = "false")
+        @JsonProperty("has_negative_balance_alert")
+        boolean hasNegativeBalanceAlert,
+
+        @Schema(description = "First day with negative projected balance, if any", example = "2026-11-20", type = "string", format = "date")
+        @JsonProperty("first_negative_balance_date")
+        LocalDate firstNegativeBalanceDate,
+
+        @Schema(description = "Lowest projected balance of the month", example = "320.00")
+        @JsonProperty("lowest_projected_balance")
+        BigDecimal lowestProjectedBalance,
+
+        @Schema(description = "Day of the lowest projected balance", example = "2026-11-28", type = "string", format = "date")
+        @JsonProperty("lowest_balance_date")
+        LocalDate lowestBalanceDate,
+
+        // Período de referência
+        @Schema(description = "Reference month, as its first day", example = "2026-11-01", type = "string", format = "date")
+        @JsonProperty("reference_month")
+        LocalDate referenceMonth,
+
+        @Schema(description = "Today", example = "2026-11-01", type = "string", format = "date")
+        @JsonProperty("current_date")
+        LocalDate currentDate,
+
+        // Dados adicionais
+        @Schema(description = "Number of days in the month", example = "30")
+        @JsonProperty("total_days_in_month")
+        Integer totalDaysInMonth,
+
+        @Schema(description = "Days elapsed in the month", example = "1")
+        @JsonProperty("days_elapsed")
+        Integer daysElapsed,
+
+        @Schema(description = "Days remaining in the month", example = "29")
+        @JsonProperty("days_remaining")
+        Integer daysRemaining,
+
+        // Variações
+        @Schema(description = "Paid revenue plus paid expense of the month", example = "1500.00")
+        @JsonProperty("month_net_change")
+        BigDecimal monthNetChange,
+
+        @Schema(description = "Projected revenue plus projected expense of the month", example = "900.00")
+        @JsonProperty("projected_net_change")
+        BigDecimal projectedNetChange
+) {
 }

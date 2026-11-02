@@ -1,5 +1,6 @@
 package com.bts.personalbudget.controller.financialmovement;
 
+import com.bts.personalbudget.controller.common.SortFieldResolver;
 import com.bts.personalbudget.controller.financialmovement.config.FinancialMovementControllerApiDocs;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
@@ -13,7 +14,6 @@ import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -35,6 +36,18 @@ import java.util.UUID;
 @RequestMapping("/financial_movement")
 @RestController
 public class FinancialMovementController implements FinancialMovementControllerApiDocs {
+
+    /**
+     * sort_by values accepted by GET /financial_movement, mapped to the entity property.
+     */
+    private static final Map<String, String> SORT_FIELDS = Map.of(
+            "description", "description",
+            "amount", "amount",
+            "operation_type", "operationType",
+            "status", "status",
+            "movement_date", "movementDate",
+            "due_date", "dueDate",
+            "pay_date", "payDate");
 
     private final FinancialMovementService service;
     private final FinancialMovementMapper mapper;
@@ -57,14 +70,13 @@ public class FinancialMovementController implements FinancialMovementControllerA
             @RequestParam("end_date") LocalDate endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "movementDate") String sortBy,
-            @RequestParam(defaultValue = "DESC") String sortDirection) {
+            @RequestParam(value = "sort_by", defaultValue = "movement_date") String sortBy,
+            @RequestParam(value = "sort_direction", defaultValue = "DESC") String sortDirection) {
 
         log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, page={}, size={}, sortBy={}, sortDirection={}",
                 description, operationTypes, statuses, startDate, endDate, page, size, sortBy, sortDirection);
 
-        Sort.Direction direction = sortDirection.equalsIgnoreCase("ASC") ? Sort.Direction.ASC : Sort.Direction.DESC;
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+        Pageable pageable = PageRequest.of(page, size, SortFieldResolver.resolve(sortBy, sortDirection, SORT_FIELDS));
 
         Page<FinancialMovement> pagedResult = service.find(
                 description, operationTypes, statuses, startDate, endDate, pageable);

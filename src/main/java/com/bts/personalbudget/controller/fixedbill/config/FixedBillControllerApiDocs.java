@@ -40,7 +40,10 @@ public interface FixedBillControllerApiDocs {
     @Operation(
             summary = "Retrieve all fixed bills",
             description = "Returns a paginated list of fixed bills based on search parameters.")
-    @ApiResponse(responseCode = "200", description = "Paginated list of fixed bills")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Paginated list of fixed bills"),
+            @ApiResponse(responseCode = "400", description = "Invalid parameters, including an unknown sort_by")
+    })
     ResponseEntity<PagedFixedBillResponse> find(
             @Parameter(description = "Filter by description (partial match)") String description,
             @Parameter(description = "Filter by operation type(s)") List<OperationType> operationTypes,
@@ -48,7 +51,7 @@ public interface FixedBillControllerApiDocs {
             @Parameter(description = "Filter by recurrence type(s)") List<RecurrenceType> recurrenceTypes,
             @Parameter(description = "Page number (0-indexed)") int page,
             @Parameter(description = "Number of items per page") int size,
-            @Parameter(description = "Field to sort by") String sortBy,
+            @Parameter(description = "Field to sort by: description, amount, operation_type, status, recurrence_type, start_date, next_due_date, end_date") String sortBy,
             @Parameter(description = "Sort direction (ASC or DESC)") String sortDirection
     );
 
