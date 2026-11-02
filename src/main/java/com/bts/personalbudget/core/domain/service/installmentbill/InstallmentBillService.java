@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -27,6 +28,7 @@ public class InstallmentBillService {
     private final InstallmentBillRepository repository;
     private final FinancialMovementService financialMovementService;
     private final FinancialMovementMapper financialMovementMapper;
+    private final Clock clock;
 
     /**
      * Upper bound on how many installments a single catch-up run will post for one account. See
@@ -34,9 +36,22 @@ public class InstallmentBillService {
      */
     static final int CATCH_UP_SAFETY_LIMIT = 400;
 
+    /**
+     * Creates the installment bill and, for a purchase whose first installment is already due
+     * (purchase_date 30+ days ago), posts the overdue installments right away in this same
+     * transaction - the same thing the recovery job would do at the next midnight run.
+     */
+    @Transactional
     public void create(final InstallmentBill installmentBill) {
         log.info("m=create installmentBill={}", installmentBill);
         repository.save(installmentBill);
+        final LocalDate today = LocalDate.now(clock);
+        final LocalDate nextInstallmentDate = installmentBill.getNextInstallmentDate();
+        if (nextInstallmentDate != null && !nextInstallmentDate.isAfter(today)) {
+            log.info("m=create, msg=InstallmentDueOnSave, code={}, nextInstallmentDate={}, today={}",
+                    installmentBill.getCode(), nextInstallmentDate, today);
+            postDueInstallments(installmentBill.getCode(), today);
+        }
     }
 
     public Page<InstallmentBill> findAll(
