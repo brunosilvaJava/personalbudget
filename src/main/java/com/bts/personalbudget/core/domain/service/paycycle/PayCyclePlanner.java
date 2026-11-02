@@ -113,7 +113,7 @@ public final class PayCyclePlanner {
                                                  final LocalDate initial,
                                                  final Set<PayCyclePending> pending) {
         final YearMonth initialMonth = YearMonth.from(initial);
-        final YearMonth lastMonth = initialMonth.plusMonths(SCAN_MONTHS_AFTER);
+        final YearMonth lastMonth = searchThrough(initialMonth, dates);
         YearMonth opening = null;
         for (YearMonth month = dates.firstMonthToScan(initialMonth); !month.isAfter(lastMonth);
              month = month.plusMonths(1)) {
@@ -294,7 +294,7 @@ public final class PayCyclePlanner {
         }
         // A transition no anchor occurrence opened: the next one is the first anchor date after its start.
         final YearMonth startMonth = YearMonth.from(cycle.startDate());
-        final YearMonth lastMonth = startMonth.plusMonths(SCAN_MONTHS_AFTER);
+        final YearMonth lastMonth = searchThrough(startMonth, dates);
         for (YearMonth month = dates.firstMonthToScan(startMonth); !month.isAfter(lastMonth);
              month = month.plusMonths(1)) {
             switch (dates.at(month)) {
@@ -313,6 +313,12 @@ public final class PayCyclePlanner {
             }
         }
         return Optional.empty();
+    }
+
+    private static YearMonth searchThrough(final YearMonth month, final AnchorDates dates) {
+        final YearMonth monthWindowEnd = month.plusMonths(SCAN_MONTHS_AFTER);
+        final YearMonth scheduleWindowEnd = dates.startMonth().plusMonths(SCAN_MONTHS_AFTER);
+        return monthWindowEnd.isAfter(scheduleWindowEnd) ? monthWindowEnd : scheduleWindowEnd;
     }
 
     private static void requireContiguous(final List<PayCycle> existing) {
@@ -359,6 +365,10 @@ public final class PayCyclePlanner {
             return schedule.rule().ruleType() == DateRuleType.NTH_BUSINESS_DAY
                     ? month
                     : month.minusMonths(SCAN_MONTHS_BEFORE);
+        }
+
+        private YearMonth startMonth() {
+            return schedule.startMonth();
         }
 
         private AnchorDate at(final YearMonth month) {

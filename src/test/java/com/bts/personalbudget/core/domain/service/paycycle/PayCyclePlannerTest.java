@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.bts.personalbudget.core.domain.enumerator.BusinessWeek;
+import com.bts.personalbudget.core.domain.enumerator.NonBusinessDayPolicy;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleKind;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendar;
 import com.bts.personalbudget.core.domain.service.calendar.IncomeDateRule;
@@ -113,6 +114,35 @@ class PayCyclePlannerTest {
         assertEquals(DEC_7, first.endDate());
         assertNull(first.anchorNominalMonth());
         assertNull(first.anchorScheduleCode());
+    }
+
+    @Test
+    void shouldFindTheFirstAnchorWhenTheScheduleStartsAfterTheDefaultSearchWindow() {
+        final IncomeSchedule futureSchedule = buildSchedule(
+                IncomeDateRule.fixedDay(5, NonBusinessDayPolicy.KEEP, BusinessWeek.MONDAY_TO_FRIDAY),
+                YearMonth.of(2027, 3), null);
+
+        final PayCyclePlan plan = activate(futureSchedule, List.of(), CALENDAR,
+                LocalDate.of(2026, 11, 2), LocalDate.of(2026, 11, 2));
+
+        assertEquals(PayCycleKind.TRANSITION, plan.cycles().get(0).kind());
+        assertEquals(LocalDate.of(2026, 11, 2), plan.cycles().get(0).startDate());
+        assertEquals(MAR_5, plan.cycles().get(0).endDate());
+        assertEquals(YearMonth.of(2027, 3), plan.cycles().get(1).anchorNominalMonth());
+    }
+
+    @Test
+    void shouldFindTheFirstAnchorAfterAnExistingTransitionWhenScheduleStartsLater() {
+        final IncomeSchedule futureSchedule = buildSchedule(
+                IncomeDateRule.fixedDay(5, NonBusinessDayPolicy.KEEP, BusinessWeek.MONDAY_TO_FRIDAY),
+                YearMonth.of(2027, 3), null);
+        final PayCycle transition = buildTransition(LocalDate.of(2026, 11, 2), MAR_5);
+
+        final PayCyclePlan plan = PayCyclePlanner.plan(new Request(futureSchedule, List.of(), CALENDAR,
+                transition.startDate(), List.of(transition), LocalDate.of(2026, 11, 2)));
+
+        assertEquals(YearMonth.of(2027, 3), plan.cycles().get(1).anchorNominalMonth());
+        assertEquals(MAR_5, plan.cycles().get(1).startDate());
     }
 
     @Test
