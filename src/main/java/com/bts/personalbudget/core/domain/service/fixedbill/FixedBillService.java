@@ -115,6 +115,14 @@ public class FixedBillService {
         return fixedBillMapper.toModel(fixedBillEntity);
     }
 
+    @Transactional
+    public FixedBill findByCodeForUpdate(final UUID code) {
+        log.info("m=findByCodeForUpdate code={}", code);
+        final FixedBillEntity fixedBillEntity = fixedBillRepository.findForUpdateByCode(code)
+                .orElseThrow(() -> new EntityNotFoundException("FixedBillEntity not found for code " + code));
+        return fixedBillMapper.toModel(fixedBillEntity);
+    }
+
     public Page<FixedBill> find(
             final String description,
             final List<OperationType> operationTypes,

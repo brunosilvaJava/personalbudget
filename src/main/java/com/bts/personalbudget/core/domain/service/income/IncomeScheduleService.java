@@ -138,7 +138,8 @@ public class IncomeScheduleService {
     /**
      * Reactivating does not generate the months the schedule was inactive: its first month served
      * moves to the current month when it was earlier. Otherwise the next run of the job would post
-     * a receipt for every month in between.
+     * a receipt for every month in between. A schedule whose end month has already passed cannot be
+     * reactivated until that end month is extended or removed.
      */
     @Transactional
     public IncomeSchedule activate(final UUID code) {
@@ -308,7 +309,8 @@ public class IncomeScheduleService {
                             case PROJECTED -> {
                                 if (!view.plannedDate().isAfter(endDate)) {
                                     projections.add(new IncomeProjection(
-                                            schedule.code(), view.plannedDate(), view.amount(), schedule.categoryCode()));
+                                            schedule.code(), view.nominalMonth(), view.plannedDate(), view.amount(),
+                                            schedule.categoryCode()));
                                 }
                             }
                             case CALENDAR_NOT_REVIEWED -> log.warn(
@@ -338,9 +340,7 @@ public class IncomeScheduleService {
         final HolidayCalendar proposed = current.replacingYear(year, holidays);
 
         // An anticipation or a postponement can carry a date across the new year in either direction.
-        final YearMonth currentMonth = YearMonth.now(clock);
-        final YearMonth firstAffected = YearMonth.of(year, 1).minusMonths(1);
-        final YearMonth from = currentMonth.isAfter(firstAffected) ? currentMonth : firstAffected;
+        final YearMonth from = YearMonth.of(year, 1).minusMonths(1);
         final YearMonth to = YearMonth.of(year, 12).plusMonths(1);
 
         final List<IncomeSchedule> schedules =
@@ -363,14 +363,14 @@ public class IncomeScheduleService {
     /**
      * The only place an occurrence is created: the movement and the occurrence row are written in
      * the caller's transaction, which holds the schedule's lock, so both exist or neither does. The
-     * movement carries the schedule's code as its recurrence bill code and the planned date as its
-     * occurrence date, which also puts it under the unique key that protects the fixed bills.
+     * movement carries the schedule's code as its recurrence bill code and the nominal month as its
+     * occurrence date; its planned date remains its due date and competence.
      */
     private IncomeOccurrence createOccurrence(final IncomeScheduleEntity entity,
                                               final IncomeSchedule schedule,
                                               final IncomeOccurrenceView view) {
         final LocalDate plannedDate = view.plannedDate();
-        final FinancialMovement movement = financialMovementService.create(new FinancialMovement(
+        final FinancialMovement movement = financialMovementService.createWithAutomaticCompetence(new FinancialMovement(
                 null,
                 OperationType.CREDIT,
                 schedule.description(),
@@ -382,8 +382,10 @@ public class IncomeScheduleService {
                 FinancialMovementStatus.PENDING,
                 Boolean.TRUE,
                 schedule.code(),
+                mapper.toDate(view.nominalMonth()),
+                schedule.categoryCode(),
                 plannedDate,
-                schedule.categoryCode()));
+                Boolean.FALSE));
 
         final IncomeOccurrenceEntity saved = occurrenceRepository.save(IncomeOccurrenceEntity.builder()
                 .incomeSchedule(entity)
@@ -431,20 +433,18 @@ public class IncomeScheduleService {
         final UUID fixedBillCode = schedule.replacesFixedBillCode();
         final FixedBill fixedBill;
         try {
-            fixedBill = fixedBillService.findByCode(fixedBillCode);
+            fixedBill = fixedBillService.findByCodeForUpdate(fixedBillCode);
         } catch (final EntityNotFoundException ex) {
             throw invalid("replacesFixedBillCode", "conta fixa não encontrada");
         }
         if (fixedBill.getOperationType() != OperationType.CREDIT) {
             throw invalid("replacesFixedBillCode", "a conta fixa não é uma receita (CREDIT)");
         }
-        if (scheduleRepository.existsByReplacesFixedBillCodeAndStatus(fixedBillCode, IncomeScheduleStatus.ACTIVE)) {
-            throw invalid("replacesFixedBillCode", "já existe uma agenda ativa substituindo essa conta fixa");
-        }
+        rejectActiveReplacement(fixedBillCode, schedule.code());
 
         final LocalDate firstDayServed = schedule.startMonth().atDay(1);
         final boolean alreadyPosted = financialMovementService
-                .findRecurrenceOccurrencesBetween(List.of(fixedBillCode), firstDayServed, LAST_SUPPORTED_DATE)
+                .findRecurrenceOccurrencesBetweenForUpdate(List.of(fixedBillCode), firstDayServed, LAST_SUPPORTED_DATE)
                 .stream()
                 .anyMatch(movement -> Boolean.TRUE.equals(movement.flagActive()));
         if (alreadyPosted) {
@@ -457,6 +457,13 @@ public class IncomeScheduleService {
             log.info("m=replaceFixedBill, message=EndingFixedBill, fixedBillCode={}, endDate={}", fixedBillCode, lastDayOfFixedBill);
             fixedBillService.update(fixedBillCode, new FixedBillUpdate(
                     null, null, null, null, null, null, null, null, lastDayOfFixedBill, null));
+        }
+    }
+
+    private void rejectActiveReplacement(final UUID fixedBillCode, final UUID code) {
+        if (!scheduleRepository.findActiveReplacementsForUpdate(
+                fixedBillCode, IncomeScheduleStatus.ACTIVE, code).isEmpty()) {
+            throw invalid("replacesFixedBillCode", "já existe uma agenda ativa substituindo essa conta fixa");
         }
     }
 
@@ -508,10 +515,18 @@ public class IncomeScheduleService {
             return mapper.toModel(entity);
         }
         if (newStatus == IncomeScheduleStatus.ACTIVE) {
+            final UUID fixedBillCode = entity.getReplacesFixedBillCode();
+            if (fixedBillCode != null) {
+                fixedBillService.findByCodeForUpdate(fixedBillCode);
+                rejectActiveReplacement(fixedBillCode, code);
+            }
             if (Boolean.TRUE.equals(entity.getAnchor())) {
                 rejectSecondActiveAnchor(code);
             }
             final LocalDate currentMonthStart = YearMonth.now(clock).atDay(1);
+            if (entity.getEndMonth() != null && entity.getEndMonth().isBefore(currentMonthStart)) {
+                throw invalid("endMonth", "deve ser estendido ou removido antes de reativar a agenda");
+            }
             if (entity.getStartMonth().isBefore(currentMonthStart)) {
                 entity.setStartMonth(currentMonthStart);
             }

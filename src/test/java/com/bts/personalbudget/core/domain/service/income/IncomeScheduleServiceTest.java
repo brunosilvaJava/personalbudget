@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -61,6 +62,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -211,6 +213,13 @@ class IncomeScheduleServiceTest {
         assertNull(captor.getValue().amount());
         assertNull(captor.getValue().status());
         assertNull(captor.getValue().startDate());
+
+        final InOrder order = inOrder(fixedBillService, scheduleRepository, financialMovementService);
+        order.verify(fixedBillService).findByCodeForUpdate(FIXED_BILL_CODE);
+        order.verify(scheduleRepository).findActiveReplacementsForUpdate(
+                eq(FIXED_BILL_CODE), eq(IncomeScheduleStatus.ACTIVE), any(UUID.class));
+        order.verify(financialMovementService).findRecurrenceOccurrencesBetweenForUpdate(
+                List.of(FIXED_BILL_CODE), LocalDate.of(2026, 7, 1), LocalDate.of(9999, 12, 31));
     }
 
     @Test
@@ -225,7 +234,8 @@ class IncomeScheduleServiceTest {
 
     @Test
     void shouldRejectReplacingAFixedBillThatIsNotACredit() {
-        when(fixedBillService.findByCode(FIXED_BILL_CODE)).thenReturn(buildFixedBill(OperationType.DEBIT, null));
+        when(fixedBillService.findByCodeForUpdate(FIXED_BILL_CODE))
+                .thenReturn(buildFixedBill(OperationType.DEBIT, null));
 
         final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
                 () -> service.create(buildNewSchedule(JULY, false, FIXED_BILL_CODE)));
@@ -237,7 +247,8 @@ class IncomeScheduleServiceTest {
 
     @Test
     void shouldRejectReplacingAFixedBillThatDoesNotExist() {
-        when(fixedBillService.findByCode(FIXED_BILL_CODE)).thenThrow(new EntityNotFoundException("not found"));
+        when(fixedBillService.findByCodeForUpdate(FIXED_BILL_CODE))
+                .thenThrow(new EntityNotFoundException("not found"));
 
         final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
                 () -> service.create(buildNewSchedule(JULY, false, FIXED_BILL_CODE)));
@@ -247,9 +258,11 @@ class IncomeScheduleServiceTest {
 
     @Test
     void shouldRejectReplacingAFixedBillAlreadyReplacedByAnActiveSchedule() {
-        when(fixedBillService.findByCode(FIXED_BILL_CODE)).thenReturn(buildFixedBill(OperationType.CREDIT, null));
-        when(scheduleRepository.existsByReplacesFixedBillCodeAndStatus(FIXED_BILL_CODE, IncomeScheduleStatus.ACTIVE))
-                .thenReturn(true);
+        when(fixedBillService.findByCodeForUpdate(FIXED_BILL_CODE))
+                .thenReturn(buildFixedBill(OperationType.CREDIT, null));
+        when(scheduleRepository.findActiveReplacementsForUpdate(
+                eq(FIXED_BILL_CODE), eq(IncomeScheduleStatus.ACTIVE), any(UUID.class)))
+                .thenReturn(List.of(new IncomeScheduleEntity()));
 
         final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
                 () -> service.create(buildNewSchedule(JULY, false, FIXED_BILL_CODE)));
@@ -259,8 +272,9 @@ class IncomeScheduleServiceTest {
 
     @Test
     void shouldRejectReplacingWhenTheFixedBillAlreadyPostedFromTheFirstMonthOn() {
-        when(fixedBillService.findByCode(FIXED_BILL_CODE)).thenReturn(buildFixedBill(OperationType.CREDIT, null));
-        when(financialMovementService.findRecurrenceOccurrencesBetween(
+        when(fixedBillService.findByCodeForUpdate(FIXED_BILL_CODE))
+                .thenReturn(buildFixedBill(OperationType.CREDIT, null));
+        when(financialMovementService.findRecurrenceOccurrencesBetweenForUpdate(
                 List.of(FIXED_BILL_CODE), LocalDate.of(2026, 7, 1), LocalDate.of(9999, 12, 31)))
                 .thenReturn(List.of(buildPostedMovement(true)));
 
@@ -273,8 +287,9 @@ class IncomeScheduleServiceTest {
 
     @Test
     void shouldIgnoreADeletedMovementOfTheFixedBillWhenReplacing() {
-        when(fixedBillService.findByCode(FIXED_BILL_CODE)).thenReturn(buildFixedBill(OperationType.CREDIT, null));
-        when(financialMovementService.findRecurrenceOccurrencesBetween(
+        when(fixedBillService.findByCodeForUpdate(FIXED_BILL_CODE))
+                .thenReturn(buildFixedBill(OperationType.CREDIT, null));
+        when(financialMovementService.findRecurrenceOccurrencesBetweenForUpdate(
                 List.of(FIXED_BILL_CODE), LocalDate.of(2026, 7, 1), LocalDate.of(9999, 12, 31)))
                 .thenReturn(List.of(buildPostedMovement(false)));
         stubSave();
@@ -302,14 +317,16 @@ class IncomeScheduleServiceTest {
         assertEquals(JUNE_5, result.occurrence().plannedDate());
 
         final ArgumentCaptor<FinancialMovement> movement = ArgumentCaptor.forClass(FinancialMovement.class);
-        verify(financialMovementService).create(movement.capture());
+        verify(financialMovementService).createWithAutomaticCompetence(movement.capture());
         assertEquals(OperationType.CREDIT, movement.getValue().operationType());
         assertEquals(FinancialMovementStatus.PENDING, movement.getValue().status());
         assertEquals("Salário", movement.getValue().description());
         assertEquals(AMOUNT, movement.getValue().amount());
         assertEquals(JUNE_5.atStartOfDay(), movement.getValue().dueDate());
         assertEquals(SCHEDULE_CODE, movement.getValue().recurrenceBillCode());
-        assertEquals(JUNE_5, movement.getValue().occurrenceDate());
+        assertEquals(JUNE.atDay(1), movement.getValue().occurrenceDate());
+        assertEquals(JUNE_5, movement.getValue().competenceDate());
+        assertFalse(movement.getValue().competenceOverridden());
         assertEquals(CATEGORY_CODE, movement.getValue().categoryCode());
 
         final ArgumentCaptor<IncomeOccurrenceEntity> occurrence = ArgumentCaptor.forClass(IncomeOccurrenceEntity.class);
@@ -346,7 +363,7 @@ class IncomeScheduleServiceTest {
 
         assertFalse(result.created());
         assertEquals(MOVEMENT_CODE, result.occurrence().movementCode());
-        verify(financialMovementService, never()).create(any(FinancialMovement.class));
+        verify(financialMovementService, never()).createWithAutomaticCompetence(any(FinancialMovement.class));
         verify(occurrenceRepository, never()).save(any());
     }
 
@@ -360,7 +377,7 @@ class IncomeScheduleServiceTest {
                 () -> service.materialize(SCHEDULE_CODE, JUNE));
 
         assertTrue(exception.getValidations().containsKey("code"));
-        verify(financialMovementService, never()).create(any(FinancialMovement.class));
+        verify(financialMovementService, never()).createWithAutomaticCompetence(any(FinancialMovement.class));
     }
 
     @Test
@@ -398,7 +415,7 @@ class IncomeScheduleServiceTest {
                 () -> service.materialize(SCHEDULE_CODE, JUNE));
 
         assertTrue(exception.getValidations().containsKey("nominalMonth"));
-        verify(financialMovementService, never()).create(any(FinancialMovement.class));
+        verify(financialMovementService, never()).createWithAutomaticCompetence(any(FinancialMovement.class));
     }
 
     @Test
@@ -422,8 +439,8 @@ class IncomeScheduleServiceTest {
         // June 5 is due; July 6 (next month, anticipated into the window) is still in the future.
         assertEquals(1, posted);
         final ArgumentCaptor<FinancialMovement> movement = ArgumentCaptor.forClass(FinancialMovement.class);
-        verify(financialMovementService).create(movement.capture());
-        assertEquals(JUNE_5, movement.getValue().occurrenceDate());
+        verify(financialMovementService).createWithAutomaticCompetence(movement.capture());
+        assertEquals(JUNE.atDay(1), movement.getValue().occurrenceDate());
     }
 
     @Test
@@ -437,7 +454,7 @@ class IncomeScheduleServiceTest {
         final int posted = service.postDueOccurrences(SCHEDULE_CODE, TODAY);
 
         assertEquals(0, posted);
-        verify(financialMovementService, never()).create(any(FinancialMovement.class));
+        verify(financialMovementService, never()).createWithAutomaticCompetence(any(FinancialMovement.class));
     }
 
     @Test
@@ -452,8 +469,8 @@ class IncomeScheduleServiceTest {
 
         assertEquals(3, posted);
         final ArgumentCaptor<FinancialMovement> movement = ArgumentCaptor.forClass(FinancialMovement.class);
-        verify(financialMovementService, times(3)).create(movement.capture());
-        assertEquals(List.of(JUNE_5, JULY_6, AUGUST_5),
+        verify(financialMovementService, times(3)).createWithAutomaticCompetence(movement.capture());
+        assertEquals(List.of(JUNE.atDay(1), JULY.atDay(1), AUGUST.atDay(1)),
                 movement.getAllValues().stream().map(FinancialMovement::occurrenceDate).toList());
     }
 
@@ -466,7 +483,7 @@ class IncomeScheduleServiceTest {
         final int posted = service.postDueOccurrences(SCHEDULE_CODE, TODAY);
 
         assertEquals(0, posted);
-        verify(financialMovementService, never()).create(any(FinancialMovement.class));
+        verify(financialMovementService, never()).createWithAutomaticCompetence(any(FinancialMovement.class));
     }
 
     @Test
@@ -475,7 +492,7 @@ class IncomeScheduleServiceTest {
 
         assertEquals(0, service.postDueOccurrences(SCHEDULE_CODE, TODAY));
 
-        verify(financialMovementService, never()).create(any(FinancialMovement.class));
+        verify(financialMovementService, never()).createWithAutomaticCompetence(any(FinancialMovement.class));
     }
 
     @Test
@@ -511,6 +528,26 @@ class IncomeScheduleServiceTest {
         assertThat(projections).allMatch(projection -> SCHEDULE_CODE.equals(projection.scheduleCode()));
         assertThat(projections).allMatch(projection -> AMOUNT.equals(projection.amount()));
         assertThat(projections).allMatch(projection -> CATEGORY_CODE.equals(projection.categoryCode()));
+    }
+
+    @Test
+    void shouldKeepAProjectedMonthWhosePlannedDateMatchesThePreviousMonthsMaterializedDate() {
+        final YearMonth february = YearMonth.of(2026, 2);
+        final YearMonth march = YearMonth.of(2026, 3);
+        final IncomeSchedule schedule = buildSchedule(
+                IncomeDateRule.fixedDay(2, NonBusinessDayPolicy.KEEP, BusinessWeek.MONDAY_TO_FRIDAY),
+                february, null);
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE))
+                .thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2026));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE)))
+                .thenReturn(List.of(buildOccurrenceEntity(schedule, february, LocalDate.of(2026, 3, 2))));
+
+        final List<IncomeProjection> projections =
+                service.findProjectedOccurrencesUntil(LocalDate.of(2026, 3, 31));
+
+        assertThat(projections).containsExactly(new IncomeProjection(
+                SCHEDULE_CODE, march, LocalDate.of(2026, 3, 2), AMOUNT, CATEGORY_CODE));
     }
 
     @Test
@@ -742,6 +779,38 @@ class IncomeScheduleServiceTest {
     }
 
     @Test
+    void shouldRejectReactivatingWhenTheEndMonthHasAlreadyPassed() {
+        stubLocked(buildInactive(buildSchedule(
+                IncomeDateRule.fixedDay(5, NonBusinessDayPolicy.POSTPONE, BusinessWeek.MONDAY_TO_FRIDAY),
+                YearMonth.of(2026, 1), YearMonth.of(2026, 5))));
+
+        final InvalidFieldsException exception =
+                assertThrows(InvalidFieldsException.class, () -> service.activate(SCHEDULE_CODE));
+
+        assertTrue(exception.getValidations().containsKey("endMonth"));
+        verify(scheduleRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectReactivatingASecondFixedBillReplacement() {
+        final IncomeSchedule replacement = new IncomeSchedule(SCHEDULE_CODE, "Salário", AMOUNT, null,
+                IncomeDateRule.fixedDay(5, NonBusinessDayPolicy.POSTPONE, BusinessWeek.MONDAY_TO_FRIDAY),
+                JUNE, null, false, IncomeScheduleStatus.INACTIVE, FIXED_BILL_CODE);
+        stubLocked(replacement);
+        when(fixedBillService.findByCodeForUpdate(FIXED_BILL_CODE))
+                .thenReturn(buildFixedBill(OperationType.CREDIT, null));
+        when(scheduleRepository.findActiveReplacementsForUpdate(
+                FIXED_BILL_CODE, IncomeScheduleStatus.ACTIVE, SCHEDULE_CODE))
+                .thenReturn(List.of(new IncomeScheduleEntity()));
+
+        final InvalidFieldsException exception =
+                assertThrows(InvalidFieldsException.class, () -> service.activate(SCHEDULE_CODE));
+
+        assertTrue(exception.getValidations().containsKey("replacesFixedBillCode"));
+        verify(scheduleRepository, never()).save(any());
+    }
+
+    @Test
     void shouldRejectReactivatingASecondAnchor() {
         final IncomeSchedule anchor = new IncomeSchedule(SCHEDULE_CODE, "Salário", AMOUNT, null,
                 IncomeDateRule.fixedDay(5, NonBusinessDayPolicy.POSTPONE, BusinessWeek.MONDAY_TO_FRIDAY),
@@ -785,6 +854,25 @@ class IncomeScheduleServiceTest {
     }
 
     @Test
+    void shouldPreviewOverdueUnmaterializedMonthsWhenReviewingTheCalendar() {
+        final YearMonth january = YearMonth.of(2026, 1);
+        final IncomeSchedule schedule = buildSchedule(january);
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2026));
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE))
+                .thenReturn(List.of(buildEntity(schedule)));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE))).thenReturn(List.of());
+
+        final List<IncomeCalendarImpact> impacts = service.previewCalendarChange(
+                2026, List.of(buildHoliday(2026, 1, 5)));
+
+        assertThat(impacts).anySatisfy(impact -> {
+            assertEquals(january, impact.change().before().nominalMonth());
+            assertEquals(LocalDate.of(2026, 1, 5), impact.change().before().plannedDate());
+            assertEquals(LocalDate.of(2026, 1, 6), impact.change().after().plannedDate());
+        });
+    }
+
+    @Test
     void shouldPreviewNothingWhenThereIsNoActiveSchedule() {
         when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2026));
         when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE)).thenReturn(List.of());
@@ -823,13 +911,17 @@ class IncomeScheduleServiceTest {
     }
 
     private void stubMovementAndOccurrenceSave() {
-        when(financialMovementService.create(any(FinancialMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(financialMovementService.createWithAutomaticCompetence(any(FinancialMovement.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
         when(occurrenceRepository.save(any(IncomeOccurrenceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     private void stubReplaceableFixedBill(final FixedBill fixedBill) {
-        when(fixedBillService.findByCode(FIXED_BILL_CODE)).thenReturn(fixedBill);
-        when(financialMovementService.findRecurrenceOccurrencesBetween(
+        when(fixedBillService.findByCodeForUpdate(FIXED_BILL_CODE)).thenReturn(fixedBill);
+        when(scheduleRepository.findActiveReplacementsForUpdate(
+                eq(FIXED_BILL_CODE), eq(IncomeScheduleStatus.ACTIVE), any(UUID.class)))
+                .thenReturn(List.of());
+        when(financialMovementService.findRecurrenceOccurrencesBetweenForUpdate(
                 List.of(FIXED_BILL_CODE), LocalDate.of(2026, 7, 1), LocalDate.of(9999, 12, 31)))
                 .thenReturn(List.of());
     }

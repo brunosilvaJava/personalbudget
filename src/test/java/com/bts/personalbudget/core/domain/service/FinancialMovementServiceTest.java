@@ -1,6 +1,7 @@
 package com.bts.personalbudget.core.domain.service;
 
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
+import com.bts.personalbudget.core.domain.entity.IncomeOccurrenceEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory;
@@ -11,6 +12,7 @@ import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
+import com.bts.personalbudget.repository.IncomeOccurrenceRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -66,6 +68,9 @@ class FinancialMovementServiceTest {
     @Mock
     private CategoryService categoryService;
 
+    @Mock
+    private IncomeOccurrenceRepository incomeOccurrenceRepository;
+
     @Spy
     private FinancialMovementMapper mapper = FinancialMovementMapper.INSTANCE;
 
@@ -75,6 +80,28 @@ class FinancialMovementServiceTest {
         FinancialMovement financialMovement = FinancialMovementFactory.buildModel(data);
         financialMovementService.create(financialMovement);
         verify(repository).save(FinancialMovementFactory.buildEntity(data));
+    }
+
+    @Test
+    void shouldPreserveAutomaticCompetenceForIncomeMovementKeyedByNominalMonth() {
+        final LocalDate plannedDate = LocalDate.of(2026, 3, 2);
+        final FinancialMovement movement = new FinancialMovement(
+                null, OperationType.CREDIT, "Salário", new BigDecimal("5000.00"), null,
+                plannedDate.atStartOfDay(), plannedDate.atStartOfDay(), null,
+                FinancialMovementStatus.PENDING, true, UUID.randomUUID(), LocalDate.of(2026, 3, 1),
+                null, plannedDate, false);
+        when(repository.save(any(FinancialMovementEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        final FinancialMovement created = financialMovementService.createWithAutomaticCompetence(movement);
+
+        final ArgumentCaptor<FinancialMovementEntity> saved = ArgumentCaptor.forClass(FinancialMovementEntity.class);
+        verify(repository).save(saved.capture());
+        assertEquals(LocalDate.of(2026, 3, 1), saved.getValue().getOccurrenceDate());
+        assertEquals(plannedDate, saved.getValue().getCompetenceDate());
+        assertFalse(saved.getValue().getCompetenceOverridden());
+        assertEquals(plannedDate, created.competenceDate());
+        assertFalse(created.competenceOverridden());
     }
 
 //    @Test
@@ -516,6 +543,30 @@ class FinancialMovementServiceTest {
         assertEquals(OCCURRENCE, entity.getCompetenceDate());
         assertEquals(OCCURRENCE, entity.getOccurrenceDate());
         assertFalse(entity.getCompetenceOverridden());
+    }
+
+    @Test
+    void shouldRestoreAutomaticCompetenceFromThePlannedDateForIncome() {
+        final LocalDate plannedDate = LocalDate.of(2026, 3, 2);
+        final FinancialMovementEntity entity = entityWithCompetence(MANUAL_COMPETENCE, true);
+        entity.setRecurrenceBillCode(UUID.randomUUID());
+        entity.setOccurrenceDate(LocalDate.of(2026, 3, 1));
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+        when(incomeOccurrenceRepository.findByMovementCode(entity.getCode()))
+                .thenReturn(Optional.of(IncomeOccurrenceEntity.builder()
+                        .movementCode(entity.getCode())
+                        .plannedDate(plannedDate)
+                        .build()));
+
+        financialMovementService.update(patch(entity.getCode(), null, null, null, null, true));
+
+        assertEquals(plannedDate, entity.getCompetenceDate());
+        assertFalse(entity.getCompetenceOverridden());
+
+        financialMovementService.update(patch(entity.getCode(),
+                LocalDateTime.of(2026, 3, 10, 0, 0), null, null, null, false));
+
+        assertEquals(plannedDate, entity.getCompetenceDate());
     }
 
     @Test

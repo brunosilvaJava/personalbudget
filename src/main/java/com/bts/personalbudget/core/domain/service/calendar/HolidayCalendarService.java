@@ -93,6 +93,10 @@ public class HolidayCalendarService {
         // Validates the batch (same year, one holiday per date) with the rules of the calendar.
         final HolidayCalendar reviewed = HolidayCalendar.empty().replacingYear(year, holidays);
 
+        reviewRepository.insertIfAbsent(year);
+        reviewRepository.findForUpdateByCalendarYear(year)
+                .orElseThrow(() -> new IllegalStateException("Holiday calendar review row missing for " + year));
+
         final Map<LocalDate, HolidayEntity> existing = holidayRepository
                 .findAllByHolidayDateBetweenOrderByHolidayDateAsc(LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31))
                 .stream()
@@ -115,9 +119,6 @@ public class HolidayCalendarService {
             }
         });
 
-        if (!reviewRepository.existsByCalendarYear(year)) {
-            reviewRepository.save(HolidayCalendarReviewEntity.builder().calendarYear(year).build());
-        }
         return findYear(year);
     }
 

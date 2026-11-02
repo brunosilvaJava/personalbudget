@@ -138,6 +138,25 @@ public class IncomeScheduleRepositoryTest {
     }
 
     @Test
+    void shouldEnforceOneActiveReplacementForAFixedBillOnCreateAndActivation() {
+        final UUID fixedBillCode = UUID.randomUUID();
+        final IncomeScheduleEntity first = schedule("Salário", false, IncomeScheduleStatus.ACTIVE);
+        first.setReplacesFixedBillCode(fixedBillCode);
+        scheduleRepository.saveAndFlush(first);
+
+        final IncomeScheduleEntity second = schedule("Outro salário", false, IncomeScheduleStatus.ACTIVE);
+        second.setReplacesFixedBillCode(fixedBillCode);
+        assertThrows(DataIntegrityViolationException.class, () -> scheduleRepository.saveAndFlush(second));
+
+        final IncomeScheduleEntity inactive = schedule("Salário antigo", false, IncomeScheduleStatus.INACTIVE);
+        inactive.setReplacesFixedBillCode(fixedBillCode);
+        scheduleRepository.saveAndFlush(inactive);
+        inactive.setStatus(IncomeScheduleStatus.ACTIVE);
+
+        assertThrows(DataIntegrityViolationException.class, () -> scheduleRepository.saveAndFlush(inactive));
+    }
+
+    @Test
     void shouldRejectReactivatingAnAnchorWhileAnotherAnchorIsActive() {
         scheduleRepository.save(schedule("Salário", true, IncomeScheduleStatus.ACTIVE));
         final IncomeScheduleEntity old = scheduleRepository.save(schedule("Antigo", true, IncomeScheduleStatus.INACTIVE));

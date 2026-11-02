@@ -17,6 +17,7 @@ import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBil
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -303,7 +304,8 @@ public class BalanceServiceTest {
 
         stubPeriod(JULY_1, SEPTEMBER_30, List.of());
         when(incomeScheduleService.findProjectedOccurrencesUntil(SEPTEMBER_30)).thenReturn(List.of(
-                new IncomeProjection(INCOME_SCHEDULE_CODE, july7, new BigDecimal("5000.00"), SALARY_CATEGORY)));
+                new IncomeProjection(INCOME_SCHEDULE_CODE, YearMonth.of(2026, 7), july7,
+                        new BigDecimal("5000.00"), SALARY_CATEGORY)));
 
         Set<DailyBalance> result = balanceService.findDailyBalanceBetween(JULY_1, SEPTEMBER_30);
 
@@ -322,7 +324,8 @@ public class BalanceServiceTest {
 
         stubMovements(JULY_1, SEPTEMBER_30, List.of());
         when(incomeScheduleService.findProjectedOccurrencesUntil(SEPTEMBER_30)).thenReturn(List.of(
-                new IncomeProjection(INCOME_SCHEDULE_CODE, july7, new BigDecimal("5000.00"), SALARY_CATEGORY)));
+                new IncomeProjection(INCOME_SCHEDULE_CODE, YearMonth.of(2026, 7), july7,
+                        new BigDecimal("5000.00"), SALARY_CATEGORY)));
 
         final List<BalanceCalcData> result = balanceService.findBalanceCalcDataBetween(JULY_1, SEPTEMBER_30);
 
@@ -336,14 +339,15 @@ public class BalanceServiceTest {
     @Test
     void shouldNotCountIncomeOccurrenceAlreadyPostedAsMovement() {
         final LocalDate july7 = LocalDate.of(2026, 7, 7);
-        // The movement an income occurrence generates carries the schedule code and the planned date.
+        // The occurrence key is the nominal month; the due date is the planned date.
         final FinancialMovement postedSalary = new FinancialMovement(CREDIT, "Salário", new BigDecimal("5000.00"),
-                july7.atStartOfDay(), july7.atStartOfDay(), PENDING, INCOME_SCHEDULE_CODE, july7);
+                july7.atStartOfDay(), july7.atStartOfDay(), PENDING, INCOME_SCHEDULE_CODE, JULY_1);
 
         stubPeriod(JULY_1, SEPTEMBER_30, List.of(postedSalary));
         when(incomeScheduleService.findProjectedOccurrencesUntil(SEPTEMBER_30)).thenReturn(List.of(
-                new IncomeProjection(INCOME_SCHEDULE_CODE, july7, new BigDecimal("5000.00"), SALARY_CATEGORY)));
-        when(financialMovementService.findRecurrenceOccurrencesBetween(Set.of(INCOME_SCHEDULE_CODE), july7, july7))
+                new IncomeProjection(INCOME_SCHEDULE_CODE, YearMonth.of(2026, 7), july7,
+                        new BigDecimal("5000.00"), SALARY_CATEGORY)));
+        when(financialMovementService.findRecurrenceOccurrencesBetween(Set.of(INCOME_SCHEDULE_CODE), JULY_1, JULY_1))
                 .thenReturn(List.of(postedSalary));
 
         Set<DailyBalance> result = balanceService.findDailyBalanceBetween(JULY_1, SEPTEMBER_30);
@@ -352,6 +356,33 @@ public class BalanceServiceTest {
                 findDailyBalance(result, july7).orElseThrow().getPendingTotalRevenue());
         assertValue(SEPTEMBER_30, "projectedClosingBalance", new BigDecimal("5000.00"),
                 findDailyBalance(result, SEPTEMBER_30).orElseThrow().getProjectedClosingBalance());
+    }
+
+    @Test
+    void shouldKeepIncomeProjectionWhenAnotherNominalMonthHasTheSamePlannedDate() {
+        final LocalDate plannedDate = LocalDate.of(2026, 3, 2);
+        final LocalDate februaryKey = LocalDate.of(2026, 2, 1);
+        final LocalDate marchKey = LocalDate.of(2026, 3, 1);
+        final FinancialMovement februarySalary = new FinancialMovement(
+                null, CREDIT, "Salário", new BigDecimal("5000.00"), null,
+                plannedDate.atStartOfDay(), plannedDate.atStartOfDay(), null, PENDING, true,
+                INCOME_SCHEDULE_CODE, februaryKey, SALARY_CATEGORY, plannedDate, false);
+
+        stubMovements(marchKey, LocalDate.of(2026, 3, 31), List.of(februarySalary));
+        when(fixedBillService.findAllByNextDueDateLessThanEqual(LocalDate.of(2026, 3, 31))).thenReturn(List.of());
+        when(installmentBillService.findAllByNextInstallmentDateLessThanEqual(LocalDate.of(2026, 3, 31)))
+                .thenReturn(List.of());
+        when(incomeScheduleService.findProjectedOccurrencesUntil(LocalDate.of(2026, 3, 31))).thenReturn(List.of(
+                new IncomeProjection(INCOME_SCHEDULE_CODE, YearMonth.of(2026, 3), plannedDate,
+                        new BigDecimal("5000.00"), SALARY_CATEGORY)));
+        when(financialMovementService.findRecurrenceOccurrencesBetween(
+                Set.of(INCOME_SCHEDULE_CODE), marchKey, marchKey)).thenReturn(List.of());
+
+        final List<BalanceCalcData> result =
+                balanceService.findBalanceCalcDataBetween(marchKey, LocalDate.of(2026, 3, 31));
+
+        assertThat(result).hasSize(2);
+        assertThat(sum(result, CREDIT, BalanceCalcData.PaymentStatus.PENDING)).isEqualByComparingTo("10000.00");
     }
 
     private static final UUID RENT_CATEGORY = UUID.fromString("22222222-2222-2222-2222-222222222222");

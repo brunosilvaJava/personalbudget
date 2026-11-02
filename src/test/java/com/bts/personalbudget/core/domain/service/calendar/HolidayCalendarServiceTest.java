@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -17,6 +18,7 @@ import com.bts.personalbudget.repository.HolidayCalendarReviewRepository;
 import com.bts.personalbudget.repository.HolidayRepository;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -122,7 +124,8 @@ class HolidayCalendarServiceTest {
     void shouldInsertTheHolidaysTrimAndMarkTheYearAsReviewed() {
         when(holidayRepository.findAllByHolidayDateBetweenOrderByHolidayDateAsc(JAN_1, DEC_31))
                 .thenReturn(List.of(), List.of(entity(SEP_7, "Independência"), entity(NOV_2, "Finados")));
-        when(reviewRepository.existsByCalendarYear(2026)).thenReturn(false, true);
+        when(reviewRepository.existsByCalendarYear(2026)).thenReturn(true);
+        when(reviewRepository.findForUpdateByCalendarYear(2026)).thenReturn(Optional.of(review(2026)));
 
         final HolidayYear year = service.reviewYear(2026,
                 List.of(new Holiday(SEP_7, "  Independência "), new Holiday(NOV_2, "Finados")));
@@ -133,9 +136,8 @@ class HolidayCalendarServiceTest {
                 .containsExactlyInAnyOrder(SEP_7, NOV_2);
         assertThat(saved.getAllValues()).extracting(HolidayEntity::getName)
                 .containsExactlyInAnyOrder("Independência", "Finados");
-        final ArgumentCaptor<HolidayCalendarReviewEntity> review = ArgumentCaptor.forClass(HolidayCalendarReviewEntity.class);
-        verify(reviewRepository).save(review.capture());
-        assertThat(review.getValue().getCalendarYear()).isEqualTo(2026);
+        verify(reviewRepository).insertIfAbsent(2026);
+        verify(reviewRepository, never()).save(any(HolidayCalendarReviewEntity.class));
         assertThat(year.reviewed()).isTrue();
         assertThat(year.holidays()).hasSize(2);
     }
@@ -148,6 +150,7 @@ class HolidayCalendarServiceTest {
         when(holidayRepository.findAllByHolidayDateBetweenOrderByHolidayDateAsc(JAN_1, DEC_31))
                 .thenReturn(List.of(unchanged, renamed, removed), List.of(unchanged, renamed));
         when(reviewRepository.existsByCalendarYear(2026)).thenReturn(true);
+        when(reviewRepository.findForUpdateByCalendarYear(2026)).thenReturn(Optional.of(review(2026)));
 
         service.reviewYear(2026, List.of(
                 new Holiday(SEP_7, "Independência"),
@@ -162,7 +165,8 @@ class HolidayCalendarServiceTest {
         final ArgumentCaptor<HolidayEntity> saved = ArgumentCaptor.forClass(HolidayEntity.class);
         verify(holidayRepository).save(saved.capture());
         assertThat(saved.getValue().getHolidayDate()).isEqualTo(OCT_12);
-        // The year was already reviewed: no second review row.
+        // The upsert is also the lock for previously reviewed years.
+        verify(reviewRepository).insertIfAbsent(2026);
         verify(reviewRepository, never()).save(any(HolidayCalendarReviewEntity.class));
     }
 
@@ -171,12 +175,14 @@ class HolidayCalendarServiceTest {
         final HolidayEntity existing = entity(SEP_7, "Independência");
         when(holidayRepository.findAllByHolidayDateBetweenOrderByHolidayDateAsc(JAN_1, DEC_31))
                 .thenReturn(List.of(existing), List.of());
-        when(reviewRepository.existsByCalendarYear(2026)).thenReturn(false, true);
+        when(reviewRepository.existsByCalendarYear(2026)).thenReturn(true);
+        when(reviewRepository.findForUpdateByCalendarYear(2026)).thenReturn(Optional.of(review(2026)));
 
         final HolidayYear year = service.reviewYear(2026, List.of());
 
         verify(holidayRepository).delete(existing);
-        verify(reviewRepository).save(any(HolidayCalendarReviewEntity.class));
+        verify(reviewRepository).insertIfAbsent(2026);
+        verify(reviewRepository, never()).save(any(HolidayCalendarReviewEntity.class));
         assertThat(year.reviewed()).isTrue();
         assertThat(year.holidays()).isEmpty();
     }
@@ -198,6 +204,22 @@ class HolidayCalendarServiceTest {
                         exception -> assertThat(exception.getValidations()).containsKey("holidays"));
 
         verifyNoInteractions(holidayRepository, reviewRepository);
+    }
+
+    @Test
+    void shouldAcquireThePerYearLockBeforeReadingHolidays() {
+        when(holidayRepository.findAllByHolidayDateBetweenOrderByHolidayDateAsc(JAN_1, DEC_31))
+                .thenReturn(List.of());
+        when(reviewRepository.existsByCalendarYear(2026)).thenReturn(true);
+        when(reviewRepository.findForUpdateByCalendarYear(2026)).thenReturn(Optional.of(review(2026)));
+
+        service.reviewYear(2026, List.of());
+
+        final var order = inOrder(reviewRepository, holidayRepository);
+        order.verify(reviewRepository).insertIfAbsent(2026);
+        order.verify(reviewRepository).findForUpdateByCalendarYear(2026);
+        order.verify(holidayRepository, times(2))
+                .findAllByHolidayDateBetweenOrderByHolidayDateAsc(JAN_1, DEC_31);
     }
 
     private HolidayEntity entity(final LocalDate date, final String name) {

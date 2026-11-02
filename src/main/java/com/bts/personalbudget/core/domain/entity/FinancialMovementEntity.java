@@ -77,9 +77,9 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
     private UUID recurrenceBillCode;
 
     /**
-     * Scheduled occurrence date of the recurrence bill (FixedBill/InstallmentBill) this movement
-     * was generated from. Immutable once persisted: unlike dueDate, the user cannot edit it via
-     * PATCH, so it is safe to key the idempotency check on it.
+     * Immutable idempotency key of the recurrence occurrence this movement was generated from.
+     * For income schedules this is the nominal month's first day; dueDate and competenceDate keep
+     * the planned date.
      */
     @Column(name = "occurrence_date", updatable = false)
     private LocalDate occurrenceDate;

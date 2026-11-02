@@ -41,4 +41,6 @@ public interface IncomeOccurrenceRepository extends JpaRepository<IncomeOccurren
     Optional<IncomeOccurrenceEntity> findByScheduleCodeAndNominalMonth(@Param("scheduleCode") UUID scheduleCode,
                                                                        @Param("nominalMonth") LocalDate nominalMonth);
 
+    Optional<IncomeOccurrenceEntity> findByMovementCode(UUID movementCode);
+
 }

@@ -1,6 +1,7 @@
 package com.bts.personalbudget.core.domain.service;
 
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
+import com.bts.personalbudget.core.domain.entity.IncomeOccurrenceEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
@@ -10,6 +11,7 @@ import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import com.bts.personalbudget.repository.FinancialMovementSpecifications;
+import com.bts.personalbudget.repository.IncomeOccurrenceRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +40,7 @@ public class FinancialMovementService {
     private final FinancialMovementRepository repository;
     private final FinancialMovementMapper mapper;
     private final CategoryService categoryService;
+    private final IncomeOccurrenceRepository incomeOccurrenceRepository;
 
     /**
      * The category is validated only for a movement the user creates. One generated from a
@@ -53,10 +56,17 @@ public class FinancialMovementService {
         return mapper.toModel(repository.save(mapper.toEntity(withCompetence(financialMovement))));
     }
 
+    @Transactional
+    public FinancialMovement createWithAutomaticCompetence(final FinancialMovement financialMovement) {
+        log.info("m=createWithAutomaticCompetence, financialMovement={}", financialMovement);
+        return mapper.toModel(repository.save(mapper.toEntity(
+                financialMovement.withCompetence(financialMovement.competenceDate(), false))));
+    }
+
     /**
-     * A competence informed by the client is manual. Otherwise it is automatic: the occurrence date
-     * for a movement generated from a recurrence bill (FixedBill/InstallmentBill), or the date of
-     * movement_date for a standalone one.
+     * A competence informed by the client is manual. Otherwise it is automatic: occurrence_date for
+     * a recurring movement or movement_date for a standalone one. Income occurrences use their
+     * frozen planned date through {@link #createWithAutomaticCompetence(FinancialMovement)}.
      */
     private FinancialMovement withCompetence(final FinancialMovement financialMovement) {
         if (financialMovement.competenceDate() != null) {
@@ -96,6 +106,19 @@ public class FinancialMovementService {
             return List.of();
         }
         return mapper.toModel(repository.findAllByRecurrenceBillCodeInAndOccurrenceDateBetween(
+                recurrenceBillCodes, initialDate, endDate));
+    }
+
+    @Transactional
+    public List<FinancialMovement> findRecurrenceOccurrencesBetweenForUpdate(final Collection<UUID> recurrenceBillCodes,
+                                                                            final LocalDate initialDate,
+                                                                            final LocalDate endDate) {
+        log.info("m=findRecurrenceOccurrencesBetweenForUpdate, recurrenceBillCodes={}, initialDate={}, endDate={}",
+                recurrenceBillCodes.size(), initialDate, endDate);
+        if (recurrenceBillCodes.isEmpty()) {
+            return List.of();
+        }
+        return mapper.toModel(repository.findForUpdateByRecurrenceBillCodeInAndOccurrenceDateBetween(
                 recurrenceBillCodes, initialDate, endDate));
     }
 
@@ -205,9 +228,9 @@ public class FinancialMovementService {
     }
 
     /**
-     * Due and pay dates never touch the competence. An automatic competence follows its base date
-     * (movement_date; the occurrence date, which is immutable, for a recurring movement); a manual
-     * one is only changed by the explicit commands.
+     * Due and pay dates never touch the competence. An automatic competence follows movement_date
+     * for a standalone movement or the frozen planned date for a recurring movement; a manual one
+     * is only changed by the explicit commands.
      */
     private void updateCompetence(final FinancialMovementUpdate changes, final FinancialMovementEntity entity) {
         if (changes.competenceDate() != null) {
@@ -235,9 +258,12 @@ public class FinancialMovementService {
     }
 
     private LocalDate automaticCompetence(final FinancialMovementEntity entity) {
-        return entity.getRecurrenceBillCode() != null
-                ? entity.getOccurrenceDate()
-                : entity.getMovementDate().toLocalDate();
+        if (entity.getRecurrenceBillCode() == null) {
+            return entity.getMovementDate().toLocalDate();
+        }
+        return incomeOccurrenceRepository.findByMovementCode(entity.getCode())
+                .map(IncomeOccurrenceEntity::getPlannedDate)
+                .orElse(entity.getOccurrenceDate());
     }
 
     /**

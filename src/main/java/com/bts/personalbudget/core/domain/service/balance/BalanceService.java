@@ -132,6 +132,7 @@ public class BalanceService {
         // counts instead), so the same receipt is never in the balance twice.
         incomeScheduleService.findProjectedOccurrencesUntil(endDate).forEach(income ->
                 projectedOccurrences.add(new ProjectedOccurrence(income.scheduleCode(), income.date(),
+                        income.nominalMonth().atDay(1),
                         income.amount(), OperationType.CREDIT, income.categoryCode())));
 
         return excludeAlreadyPosted(projectedOccurrences);
@@ -151,11 +152,11 @@ public class BalanceService {
                 .map(ProjectedOccurrence::recurrenceBillCode)
                 .collect(Collectors.toSet());
         final LocalDate firstOccurrence = projectedOccurrences.stream()
-                .map(ProjectedOccurrence::occurrenceDate)
+                .map(ProjectedOccurrence::occurrenceKeyDate)
                 .min(Comparator.naturalOrder())
                 .orElseThrow();
         final LocalDate lastOccurrence = projectedOccurrences.stream()
-                .map(ProjectedOccurrence::occurrenceDate)
+                .map(ProjectedOccurrence::occurrenceKeyDate)
                 .max(Comparator.naturalOrder())
                 .orElseThrow();
 
@@ -167,7 +168,7 @@ public class BalanceService {
 
         return projectedOccurrences.stream()
                 .filter(occurrence -> !postedOccurrences.contains(
-                        new OccurrenceKey(occurrence.recurrenceBillCode(), occurrence.occurrenceDate())))
+                        new OccurrenceKey(occurrence.recurrenceBillCode(), occurrence.occurrenceKeyDate())))
                 .toList();
     }
 

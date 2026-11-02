@@ -3,8 +3,10 @@ package com.bts.personalbudget.repository;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -38,6 +40,17 @@ public interface FinancialMovementRepository
             Collection<UUID> recurrenceBillCodes,
             LocalDate initialDate,
             LocalDate endDate);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT fm FROM FinancialMovementEntity fm
+            WHERE fm.recurrenceBillCode IN :recurrenceBillCodes
+              AND fm.occurrenceDate BETWEEN :initialDate AND :endDate
+            """)
+    List<FinancialMovementEntity> findForUpdateByRecurrenceBillCodeInAndOccurrenceDateBetween(
+            @Param("recurrenceBillCodes") Collection<UUID> recurrenceBillCodes,
+            @Param("initialDate") LocalDate initialDate,
+            @Param("endDate") LocalDate endDate);
 
     Optional<List<FinancialMovementEntity>> findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
             String description,

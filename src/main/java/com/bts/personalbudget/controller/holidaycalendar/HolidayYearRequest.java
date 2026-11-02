@@ -10,8 +10,7 @@ import java.util.List;
 public record HolidayYearRequest(
 
         @NotNull
-        @Valid
         @Schema(description = "Every holiday of the year; the ones left out are removed")
-        List<HolidayRequest> holidays
+        List<@NotNull @Valid HolidayRequest> holidays
 ) {
 }

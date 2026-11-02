@@ -41,9 +41,9 @@ public record FinancialMovement(
 
     /**
      * Used when generating a movement from a recurrence bill (FixedBill/InstallmentBill).
-     * {@code occurrenceDate} is the scheduled date the recurrence bill assigned to this
-     * occurrence; it is immutable once persisted, unlike {@code dueDate}, which the user can
-     * edit via PATCH. It is what the idempotency check keys on.
+     * {@code occurrenceDate} is the recurrence occurrence's immutable idempotency key, unlike
+     * {@code dueDate}, which the user can edit via PATCH. For income schedules it is the nominal
+     * month's first day; the planned date remains the due date and competence.
      */
     public FinancialMovement(
             OperationType operationType,
@@ -172,4 +172,3 @@ public record FinancialMovement(
         }
     }
 }
-

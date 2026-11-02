@@ -23,10 +23,14 @@ CREATE TABLE IF NOT EXISTS income_schedule
     replaces_fixed_bill_code BINARY(16)   NULL COMMENT 'FixedBill this schedule took over the receipt from',
     -- 1 only for the single ACTIVE anchor; NULL otherwise, and NULLs do not collide in a UNIQUE key.
     active_anchor_slot      TINYINT GENERATED ALWAYS AS (CASE WHEN is_anchor = 1 AND status = 'ACTIVE' THEN 1 END) STORED,
+    active_replacement_fixed_bill_code BINARY(16) GENERATED ALWAYS AS (
+        CASE WHEN status = 'ACTIVE' THEN replaces_fixed_bill_code END
+    ) STORED,
     created_date            DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Creation date',
     last_modified_date      DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Last modification date',
     CONSTRAINT uk_income_schedule_code UNIQUE (code),
-    CONSTRAINT uk_income_schedule_single_active_anchor UNIQUE (active_anchor_slot)
+    CONSTRAINT uk_income_schedule_single_active_anchor UNIQUE (active_anchor_slot),
+    CONSTRAINT uk_income_schedule_active_fixed_bill_replacement UNIQUE (active_replacement_fixed_bill_code)
 ) COMMENT 'Income schedule table';
 
 CREATE TABLE IF NOT EXISTS income_occurrence

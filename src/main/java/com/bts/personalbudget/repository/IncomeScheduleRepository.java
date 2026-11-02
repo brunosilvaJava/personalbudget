@@ -44,4 +44,16 @@ public interface IncomeScheduleRepository extends JpaRepository<IncomeScheduleEn
 
     boolean existsByReplacesFixedBillCodeAndStatus(UUID replacesFixedBillCode, IncomeScheduleStatus status);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT s FROM IncomeScheduleEntity s
+            WHERE s.replacesFixedBillCode = :fixedBillCode
+              AND s.status = :status
+              AND s.code <> :code
+            """)
+    List<IncomeScheduleEntity> findActiveReplacementsForUpdate(
+            @Param("fixedBillCode") UUID fixedBillCode,
+            @Param("status") IncomeScheduleStatus status,
+            @Param("code") UUID code);
+
 }
