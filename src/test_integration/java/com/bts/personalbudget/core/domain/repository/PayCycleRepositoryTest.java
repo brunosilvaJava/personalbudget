@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.bts.personalbudget.core.domain.entity.IncomeOccurrenceEntity;
 import com.bts.personalbudget.core.domain.entity.IncomeScheduleEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleConfigEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleEntity;
@@ -18,6 +19,8 @@ import com.bts.personalbudget.core.domain.enumerator.NonBusinessDayPolicy;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleKind;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleMode;
+import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarService;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleService;
 import com.bts.personalbudget.repository.IncomeOccurrenceRepository;
 import com.bts.personalbudget.repository.IncomeScheduleRepository;
 import com.bts.personalbudget.repository.PayCycleConfigRepository;
@@ -25,6 +28,7 @@ import com.bts.personalbudget.repository.PayCycleRepository;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -83,6 +87,12 @@ public class PayCycleRepositoryTest {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private PayCycleService payCycleService;
+
+    @Autowired
+    private HolidayCalendarService holidayCalendarService;
 
     @BeforeEach
     @AfterEach
@@ -290,6 +300,55 @@ public class PayCycleRepositoryTest {
     }
 
     @Test
+    void shouldRefreshAdjacentMovedBoundariesWithoutUniqueKeyConflicts() {
+        final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
+        activate(anchor, LocalDate.of(2026, 12, 1));
+        materialize(anchor, YearMonth.of(2027, 1), LocalDate.of(2027, 2, 1));
+        materialize(anchor, YearMonth.of(2027, 2), LocalDate.of(2027, 3, 1));
+        materialize(anchor, YearMonth.of(2027, 3), LocalDate.of(2027, 4, 1));
+        cycleRepository.saveAll(List.of(
+                cycle(anchor, LocalDate.of(2026, 12, 1), LocalDate.of(2027, 1, 1), LocalDate.of(2026, 12, 1)),
+                cycle(anchor, LocalDate.of(2027, 1, 1), LocalDate.of(2027, 2, 1), LocalDate.of(2027, 1, 1)),
+                cycle(anchor, LocalDate.of(2027, 2, 1), LocalDate.of(2027, 3, 1), LocalDate.of(2027, 2, 1))));
+        cycleRepository.flush();
+
+        assertDoesNotThrow(payCycleService::refresh);
+
+        final List<PayCycleEntity> refreshed =
+                cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE));
+        assertEquals(List.of(
+                        LocalDate.of(2026, 12, 1), LocalDate.of(2027, 2, 1), LocalDate.of(2027, 3, 1)),
+                refreshed.stream().map(PayCycleEntity::getStartDate).toList());
+        assertEquals(List.of(
+                        LocalDate.of(2027, 2, 1), LocalDate.of(2027, 3, 1), LocalDate.of(2027, 4, 1)),
+                refreshed.stream().map(PayCycleEntity::getEndDate).toList());
+    }
+
+    @Test
+    void shouldFlushMovedBoundariesBeforeIdentityInsertsDuringRefresh() {
+        final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
+        activate(anchor, LocalDate.of(2027, 1, 1));
+        materialize(anchor, YearMonth.of(2027, 1), LocalDate.of(2027, 1, 1));
+        materialize(anchor, YearMonth.of(2027, 2), LocalDate.of(2027, 2, 1));
+        materialize(anchor, YearMonth.of(2027, 3), LocalDate.of(2027, 3, 1));
+        materialize(anchor, YearMonth.of(2027, 4), LocalDate.of(2027, 4, 1));
+        cycleRepository.saveAndFlush(
+                cycle(anchor, LocalDate.of(2027, 1, 1), LocalDate.of(2027, 3, 1), LocalDate.of(2027, 1, 1)));
+
+        assertDoesNotThrow(payCycleService::refresh);
+
+        final List<PayCycleEntity> refreshed =
+                cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE));
+        assertEquals(3, refreshed.size());
+        assertEquals(List.of(
+                        LocalDate.of(2027, 1, 1), LocalDate.of(2027, 2, 1), LocalDate.of(2027, 3, 1)),
+                refreshed.stream().map(PayCycleEntity::getStartDate).toList());
+        assertEquals(List.of(
+                        LocalDate.of(2027, 2, 1), LocalDate.of(2027, 3, 1), LocalDate.of(2027, 4, 1)),
+                refreshed.stream().map(PayCycleEntity::getEndDate).toList());
+    }
+
+    @Test
     void shouldGiveTheKeysBackWhenACycleIsCancelled() {
         final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
         final PayCycleEntity entity = cycleRepository.save(cycle(anchor, NOV_5, DEC_7, NOV));
@@ -422,6 +481,27 @@ public class PayCycleRepositoryTest {
                 .anchor(anchor)
                 .status(IncomeScheduleStatus.ACTIVE)
                 .build();
+    }
+
+    private void activate(final IncomeScheduleEntity anchor, final LocalDate activationDate) {
+        holidayCalendarService.reviewYear(2027, List.of());
+        final PayCycleConfigEntity config = configRepository.findSingle().orElseThrow();
+        config.setMode(PayCycleMode.PAY_CYCLE);
+        config.setAnchorSchedule(anchor);
+        config.setActivationDate(activationDate);
+        configRepository.saveAndFlush(config);
+    }
+
+    private void materialize(final IncomeScheduleEntity anchor,
+                             final YearMonth nominalMonth,
+                             final LocalDate plannedDate) {
+        occurrenceRepository.save(IncomeOccurrenceEntity.builder()
+                .incomeSchedule(anchor)
+                .nominalMonth(nominalMonth.atDay(1))
+                .plannedDate(plannedDate)
+                .plannedAmount(new BigDecimal("5000.00"))
+                .movementCode(UUID.randomUUID())
+                .build());
     }
 
     private PayCycleEntity cycle(final IncomeScheduleEntity anchor,

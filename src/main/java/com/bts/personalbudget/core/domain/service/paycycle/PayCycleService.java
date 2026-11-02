@@ -15,6 +15,7 @@ import com.bts.personalbudget.repository.PayCycleRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -255,17 +256,32 @@ public class PayCycleService {
                       final IncomeScheduleEntity anchorEntity) {
         int created = 0;
         int moved = 0;
+        final List<PayCycle> movedCycles = new ArrayList<>();
         for (final PayCycle cycle : desired) {
             final PayCycleEntity entity = stored.get(cycle.code());
-            if (entity == null) {
-                cycleRepository.save(mapper.toEntity(cycle, cycle.anchorScheduleCode() == null ? null : anchorEntity));
-                created++;
-            } else if (!entity.getStartDate().equals(cycle.startDate()) || !entity.getEndDate().equals(cycle.endDate())) {
+            if (entity != null && (!entity.getStartDate().equals(cycle.startDate())
+                    || !entity.getEndDate().equals(cycle.endDate()))) {
                 log.info("m=save, message=PayCycleBoundaryMoved, code={}, from=[{},{}), to=[{},{})", cycle.code(),
                         entity.getStartDate(), entity.getEndDate(), cycle.startDate(), cycle.endDate());
+                entity.setLifecycle(PayCycleLifecycle.CANCELLED);
+                movedCycles.add(cycle);
+                moved++;
+            }
+        }
+        if (!movedCycles.isEmpty()) {
+            cycleRepository.flush();
+            movedCycles.forEach(cycle -> {
+                final PayCycleEntity entity = stored.get(cycle.code());
                 entity.setStartDate(cycle.startDate());
                 entity.setEndDate(cycle.endDate());
-                moved++;
+                entity.setLifecycle(cycle.lifecycle());
+            });
+            cycleRepository.flush();
+        }
+        for (final PayCycle cycle : desired) {
+            if (stored.get(cycle.code()) == null) {
+                cycleRepository.save(mapper.toEntity(cycle, cycle.anchorScheduleCode() == null ? null : anchorEntity));
+                created++;
             }
         }
         cycleRepository.flush();
