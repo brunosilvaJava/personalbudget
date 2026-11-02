@@ -38,6 +38,19 @@ public interface IncomeScheduleRepository extends JpaRepository<IncomeScheduleEn
      */
     List<IncomeScheduleEntity> findAllByStatusAndStartMonthLessThanEqual(IncomeScheduleStatus status, LocalDate startMonth);
 
+    /**
+     * At most one: a UNIQUE key on the generated active_anchor_slot column guarantees it.
+     */
+    Optional<IncomeScheduleEntity> findByAnchorTrueAndStatus(IncomeScheduleStatus status);
+
+    /**
+     * The active anchor, locked: read under the same lock the edits of a schedule take, so the pay
+     * cycles never build from a rule that is being changed.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM IncomeScheduleEntity s WHERE s.anchor = true AND s.status = :status")
+    Optional<IncomeScheduleEntity> findAnchorForUpdate(@Param("status") IncomeScheduleStatus status);
+
     boolean existsByAnchorTrueAndStatus(IncomeScheduleStatus status);
 
     boolean existsByAnchorTrueAndStatusAndCodeNot(IncomeScheduleStatus status, UUID code);

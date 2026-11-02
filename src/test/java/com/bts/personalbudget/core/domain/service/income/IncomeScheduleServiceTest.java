@@ -880,7 +880,72 @@ class IncomeScheduleServiceTest {
         assertThat(service.previewCalendarChange(2026, List.of(buildHoliday(2026, 8, 5)))).isEmpty();
     }
 
+    // ---- what the pay cycles read
+
+    @Test
+    void shouldFindTheActiveAnchor() {
+        final IncomeSchedule anchor = anchorSchedule();
+        when(scheduleRepository.findByAnchorTrueAndStatus(IncomeScheduleStatus.ACTIVE))
+                .thenReturn(Optional.of(buildEntity(anchor)));
+
+        assertEquals(Optional.of(anchor), service.findActiveAnchor());
+    }
+
+    @Test
+    void shouldFindNoActiveAnchorWhenThereIsNone() {
+        when(scheduleRepository.findByAnchorTrueAndStatus(IncomeScheduleStatus.ACTIVE)).thenReturn(Optional.empty());
+
+        assertTrue(service.findActiveAnchor().isEmpty());
+    }
+
+    @Test
+    void shouldFindTheActiveAnchorLockingIt() {
+        final IncomeSchedule anchor = anchorSchedule();
+        when(scheduleRepository.findAnchorForUpdate(IncomeScheduleStatus.ACTIVE))
+                .thenReturn(Optional.of(buildEntity(anchor)));
+
+        assertEquals(Optional.of(anchor), service.findActiveAnchorForUpdate());
+        verify(scheduleRepository, never()).findByAnchorTrueAndStatus(any());
+    }
+
+    @Test
+    void shouldFindAScheduleByCodeLockingIt() {
+        final IncomeSchedule schedule = buildSchedule(JUNE);
+        when(scheduleRepository.findForUpdateByCode(SCHEDULE_CODE)).thenReturn(Optional.of(buildEntity(schedule)));
+
+        assertEquals(schedule, service.findByCodeForUpdate(SCHEDULE_CODE));
+        verify(scheduleRepository, never()).findByCode(any());
+    }
+
+    @Test
+    void shouldFailToLockAScheduleThatDoesNotExist() {
+        when(scheduleRepository.findForUpdateByCode(SCHEDULE_CODE)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> service.findByCodeForUpdate(SCHEDULE_CODE));
+    }
+
+    @Test
+    void shouldFindTheMaterializedOccurrencesOfASchedule() {
+        final IncomeSchedule schedule = buildSchedule(JUNE);
+        when(occurrenceRepository.findByScheduleCode(SCHEDULE_CODE))
+                .thenReturn(List.of(buildOccurrenceEntity(schedule, JUNE, JUNE_5)));
+
+        final List<IncomeOccurrence> occurrences = service.findMaterializedOccurrences(SCHEDULE_CODE);
+
+        assertEquals(1, occurrences.size());
+        assertEquals(JUNE, occurrences.get(0).nominalMonth());
+        assertEquals(JUNE_5, occurrences.get(0).plannedDate());
+        assertEquals(SCHEDULE_CODE, occurrences.get(0).scheduleCode());
+    }
+
     // ---- helpers
+
+    private IncomeSchedule anchorSchedule() {
+        final IncomeSchedule schedule = buildSchedule(JUNE);
+        return new IncomeSchedule(schedule.code(), schedule.description(), schedule.amount(), schedule.categoryCode(),
+                schedule.rule(), schedule.startMonth(), schedule.endMonth(), true, schedule.status(),
+                schedule.replacesFixedBillCode());
+    }
 
     private IncomeScheduleEntity buildEntity(final IncomeSchedule schedule) {
         final IncomeScheduleEntity entity = IncomeScheduleMapper.INSTANCE.toEntity(schedule);
