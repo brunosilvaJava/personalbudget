@@ -216,6 +216,18 @@ class PayCyclePlannerTest {
     }
 
     @Test
+    void shouldActivateOnTheFirstDayOfJanuaryWithoutAReviewedDecemberForNthBusinessDay() {
+        final IncomeSchedule nthBusinessDay = buildSchedule(
+                IncomeDateRule.nthBusinessDay(5, BusinessWeek.MONDAY_TO_FRIDAY), DEC, null);
+
+        final PayCyclePlan plan = activate(nthBusinessDay, List.of(), buildReviewedCalendar(2027),
+                LocalDate.of(2027, 1, 1), LocalDate.of(2027, 1, 1));
+
+        assertEquals(LocalDate.of(2027, 1, 7), plan.cycles().get(0).endDate());
+        assertFalse(plan.pending().contains(PayCyclePending.calendarNotReviewed(DEC, 2026)));
+    }
+
+    @Test
     void shouldIgnoreAnUnreviewedPreviousMonthWhenFindingNextDateForTransition() {
         final IncomeSchedule nthBusinessDay = buildSchedule(
                 IncomeDateRule.nthBusinessDay(5, BusinessWeek.MONDAY_TO_FRIDAY), YearMonth.of(2026, 1), null);
@@ -328,6 +340,19 @@ class PayCyclePlannerTest {
         assertEquals(List.of(PayCyclePending.boundaryDiverges(
                         plan.cycles().get(1).code(), DEC, DEC_7, LocalDate.of(2026, 12, 8))),
                 plan.pending());
+    }
+
+    @Test
+    void shouldReportTerminalEndDivergenceWhenItsNextCycleIsBlocked() {
+        final PayCycle cycle = buildCycle(NOV_5, DEC_7, NOV);
+        final HolidayCalendar changed = buildCalendar(Set.of(2026), buildHoliday(2026, 12, 7));
+
+        final PayCyclePlan plan = PayCyclePlanner.plan(new Request(
+                schedule, List.of(), changed, NOV_5, List.of(cycle), LocalDate.of(2026, 11, 10)));
+
+        assertTrue(plan.pending().contains(PayCyclePending.boundaryDiverges(
+                null, DEC, DEC_7, LocalDate.of(2026, 12, 8))));
+        assertTrue(plan.pending().contains(PayCyclePending.calendarNotReviewed(JAN, 2027)));
     }
 
     @Test
@@ -488,6 +513,18 @@ class PayCyclePlannerTest {
         final PayCyclePlan later = replan(first.cycles(), CALENDAR, DEC_7.minusDays(1));
 
         assertEquals(3, later.cycles().size());
+    }
+
+    @Test
+    void shouldReportTerminalEndDivergenceAfterTheHorizonIsComplete() {
+        final PayCyclePlan first = activate(NOV_5, LocalDate.of(2026, 11, 2));
+        final HolidayCalendar changed = buildCalendar(Set.of(2026, 2027, 2028), buildHoliday(2027, 2, 5));
+        final PayCycle terminal = buildEndAdjusted(first.cycles().get(2), LocalDate.of(2027, 2, 5));
+        final PayCyclePlan plan = PayCyclePlanner.plan(new Request(schedule, List.of(), changed, NOV_5,
+                List.of(first.cycles().get(0), first.cycles().get(1), terminal), LocalDate.of(2026, 11, 2)));
+
+        assertTrue(plan.pending().contains(PayCyclePending.boundaryDiverges(
+                null, YearMonth.of(2027, 2), LocalDate.of(2027, 2, 5), LocalDate.of(2027, 2, 8))));
     }
 
     @Test

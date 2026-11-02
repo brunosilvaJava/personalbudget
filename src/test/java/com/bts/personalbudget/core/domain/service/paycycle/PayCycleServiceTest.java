@@ -458,6 +458,32 @@ class PayCycleServiceTest {
     }
 
     @Test
+    void shouldIgnoreAnOpenCycleFromAnEarlierActivation() {
+        when(configService.find()).thenReturn(buildPayCycleConfig(NOV_5, 2L));
+        when(incomeScheduleService.findByCode(SCHEDULE_CODE)).thenReturn(octoberSchedule);
+        when(cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)))
+                .thenReturn(List.of(entity(OCT_5, NOV_5, OCT)));
+        when(holidayCalendarService.findCalendar()).thenReturn(CALENDAR);
+
+        final CurrentPayCycle current = service.findCurrent();
+
+        assertNull(current.cycle());
+    }
+
+    @Test
+    void shouldKeepNoCurrentCycleUntilThePlannedExtensionIsPersisted() {
+        when(configService.find()).thenReturn(buildPayCycleConfig(OCT_5, 2L));
+        when(incomeScheduleService.findByCode(SCHEDULE_CODE)).thenReturn(octoberSchedule);
+        when(cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)))
+                .thenReturn(List.of(entity(OCT_5, LocalDate.of(2026, 11, 1), OCT)));
+        when(holidayCalendarService.findCalendar()).thenReturn(CALENDAR);
+
+        final PayCycleConfigView view = service.findConfig();
+
+        assertTrue(view.pending().contains(PayCyclePending.noCurrentCycle()));
+    }
+
+    @Test
     void shouldFindNoCurrentCycleWhenThePayCyclesAreOff() {
         when(configService.find()).thenReturn(buildCalendarMonthConfig());
 
