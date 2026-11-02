@@ -260,6 +260,22 @@ public final class PayCyclePlanner {
                 }
             }
         }
+        final PayCycle last = chain.get(chain.size() - 1);
+        final Optional<YearMonth> opening = nextAnchorMonth(last, null, dates, pending);
+        if (opening.isPresent()) {
+            switch (dates.at(opening.get())) {
+                case Known known -> {
+                    if (!known.date().equals(last.endDate())) {
+                        pending.add(PayCyclePending.boundaryDiverges(
+                                null, opening.get(), last.endDate(), known.date()));
+                    }
+                }
+                case Blocked blocked -> pending.add(blocked.pending());
+                case BeforeSchedule beforeSchedule -> {
+                    // Nothing to compare with.
+                }
+            }
+        }
     }
 
     /**
