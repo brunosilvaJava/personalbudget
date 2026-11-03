@@ -139,6 +139,7 @@ public interface CategoryMapper {
     Category toModel(CategoryRequest request);
 
     @Mapping(target = "groupCode", source = "categoryGroup.code")
+    @Mapping(target = "groupName", source = "categoryGroup.name")
     Category toModel(CategoryEntity entity);
 
     CategoryResponse toResponse(Category category);
