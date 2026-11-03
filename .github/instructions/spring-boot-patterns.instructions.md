@@ -55,22 +55,34 @@ public record CategoryRequest(
 
 `@Slf4j`, `@Service`, `@RequiredArgsConstructor`. Recebe e devolve domain models. Escrita com `@Transactional`. Código inexistente lança `EntityNotFoundException` (o handler responde 404 com mensagem genérica).
 
+**Relações obrigatórias:** o Mapper não preenche a relação (ele a ignora). O service busca a entidade relacionada, rejeita com `InvalidFieldsException` (400) se não existir e só então a atribui antes do `save`. O exemplo abaixo é o fluxo do `CategoryService.create` (que também normaliza o nome e rejeita nome duplicado):
+
 ```java
+private final CategoryRepository categoryRepository;
+private final CategoryGroupRepository categoryGroupRepository;
+private final CategoryMapper categoryMapper;
+
 @Transactional
 public Category create(final Category category) {
     log.info("m=create, category={}", category);
-    return mapper.toModel(repository.save(mapper.toEntity(category)));
+    final CategoryGroupEntity group = categoryGroupRepository.findByCode(category.groupCode())
+            .orElseThrow(() -> new InvalidFieldsException("Campos inválidos", CategoryService.class,
+                    Map.of("groupCode", "grupo não encontrado")));
+
+    final CategoryEntity entity = categoryMapper.toEntity(category);
+    entity.setCategoryGroup(group);
+    return categoryMapper.toModel(categoryRepository.save(entity));
 }
 
 public Category findByCode(final UUID code) {
     log.info("m=findByCode, code={}", code);
-    return mapper.toModel(repository.findByCode(code)
+    return categoryMapper.toModel(categoryRepository.findByCode(code)
             .orElseThrow(() -> new EntityNotFoundException("CategoryEntity not found for code " + code)));
 }
 ```
 
 - Operações que alteram estado de ciclos ou configuração conferem a versão esperada e lançam `ConflictException` (409).
-- Soft delete: `setFlagActive(false)` e salvar; consultas usam `findByCodeAndFlagActiveTrue`.
+- Soft delete: `setFlagActive(false)` e salvar; as leituras usam `findByCodeAndFlagActiveTrue`.
 
 ## Entity
 
@@ -97,6 +109,10 @@ public class CategoryEntity extends AuditingEntity implements Serializable {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "varchar")
     private CategoryStatus status;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "category_group_id", nullable = false)
+    private CategoryGroupEntity categoryGroup;
 
     @PrePersist
     public void prePersist() {
@@ -129,21 +145,22 @@ public interface CategoryMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "code", ignore = true)
+    @Mapping(target = "categoryGroup", ignore = true)
     CategoryEntity toEntity(Category category);
 }
 ```
 
-Quando uma relação depende de busca no banco, o Mapper não a preenche: o service é dono dessa busca.
+Quando uma relação depende de busca no banco, o Mapper a ignora e o service é dono dessa busca (ver "Service").
 
 ## Repository
 
 - `JpaRepository<{Feature}Entity, Long>`. Prefira consultas por nome de método; use `@Query` para as complexas.
-- Sempre filtre por `flagActive = true` onde há soft delete.
+- Filtre por `flagActive = true` nas leituras usuais onde há soft delete. **Exceção:** as consultas de idempotência da recorrência (por exemplo `existsByRecurrenceBillCodeAndOccurrenceDate`) não filtram, porque um lançamento excluído conta como já gerado e não pode ser recriado.
 - Leituras que serializam escritas concorrentes usam `@Lock(LockModeType.PESSIMISTIC_WRITE)` numa consulta própria (`findForUpdate...`).
 
 ## Tratamento de exceções
 
-O `ControllerExceptionHandler` centraliza as respostas. Não crie handlers por controller.
+O `ControllerExceptionHandler` (em `com.bts.personalbudget.exception`) centraliza as respostas. Não crie handlers por controller.
 
 | Exceção | Resposta |
 |---|---|
@@ -152,7 +169,7 @@ O `ControllerExceptionHandler` centraliza as respostas. Não crie handlers por c
 | `ConflictException`, `OptimisticLockingFailureException`, `OptimisticLockException` | 409 `{message}` |
 | Qualquer outra | 500 `{message: "Erro interno no servidor"}` |
 
-Exceções de domínio estendem `RuntimeException`. A mensagem de `ConflictException` é escrita para o usuário.
+`ConflictException`, `InvalidFieldsException` e `ErrorResponse` ficam em `com.bts.personalbudget.exception`: reuse-os. Exceções específicas do domínio (como `InstallmentBillAlreadyDeletedException`) ficam em `core/domain/exception/` e estendem `RuntimeException`. A mensagem de `ConflictException` é escrita para o usuário.
 
 ## Paginação e ordenação
 
