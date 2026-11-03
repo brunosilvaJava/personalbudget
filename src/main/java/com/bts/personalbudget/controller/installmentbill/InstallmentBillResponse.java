@@ -23,7 +23,7 @@ public record InstallmentBillResponse(
         @Schema(description = "Description of the installment bill", example = "Laptop purchase")
         String description,
 
-        @Schema(description = "Total amount of the installment bill", example = "1500.00")
+        @Schema(description = "Amount of each installment, not the purchase total", example = "125.00")
         BigDecimal amount,
 
         @Schema(description = "Current status of the installment bill (e.g., ACTIVE, COMPLETED, CANCELED)", example = "ACTIVE")
@@ -35,7 +35,11 @@ public record InstallmentBillResponse(
 
         @JsonProperty("installment_total")
         @Schema(description = "Total number of installments for the bill", example = "12")
-        Integer installmentTotal
+        Integer installmentTotal,
+
+        @Schema(description = "Code of the category, if any", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode
 ) {
     public InstallmentBillResponse {
         if (operationType == OperationType.DEBIT) {

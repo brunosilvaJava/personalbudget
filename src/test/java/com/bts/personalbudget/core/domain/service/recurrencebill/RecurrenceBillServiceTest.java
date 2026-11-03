@@ -1,39 +1,43 @@
 package com.bts.personalbudget.core.domain.service.recurrencebill;
 
-import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
-import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
-import com.bts.personalbudget.core.domain.factory.FixedBillFactory;
-import com.bts.personalbudget.core.domain.model.FinancialMovement;
-import com.bts.personalbudget.core.domain.service.FinancialMovementService;
-import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
-import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
-import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillFactory;
+import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
-import com.bts.personalbudget.mapper.FinancialMovementMapper;
+
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Set;
+import java.util.UUID;
+import java.util.function.Consumer;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
+
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * RecurrenceBillService is now a pure orchestrator - it finds which accounts have an occurrence
+ * due and dispatches each one to FixedBillService.postDueOccurrences /
+ * InstallmentBillService.postDueInstallments / IncomeScheduleService.postDueOccurrences
+ * through transactionTemplate. The actual posting
+ * logic (idempotency, catch-up, concluding a bill) is tested where it lives: see
+ * FixedBillServiceTest and InstallmentBillServiceTest.
+ */
 @ExtendWith(MockitoExtension.class)
-public class RecurrenceBillServiceTest {
+class RecurrenceBillServiceTest {
 
     @InjectMocks
     private RecurrenceBillService service;
-
-    @Mock
-    private FinancialMovementService financialMovementService;
 
     @Mock
     private InstallmentBillService installmentBillService;
@@ -41,45 +45,142 @@ public class RecurrenceBillServiceTest {
     @Mock
     private FixedBillService fixedBillService;
 
-    @Spy
-    private FinancialMovementMapper financialMovementMapper = FinancialMovementMapper.INSTANCE;
+    @Mock
+    private IncomeScheduleService incomeScheduleService;
 
-    @Test
-    void mustPostRecurrenceBill() {
-        // Cenário - lançar contas da data estipulada
-        InstallmentBill installmentBillMock = InstallmentBillFactory.buildModel();
-        LocalDate dueDate = installmentBillMock.getNextInstallmentDate();
-        FixedBill fixedBillMock = FixedBillFactory.buildModel(RecurrenceType.MONTHLY, Set.of(1));
-        FinancialMovement installmentBillFinancialMovementMock = financialMovementMapper.toFinancialMovement(installmentBillMock, FinancialMovementStatus.PENDING);
-        FinancialMovement fixedBillFinancialMovementMock = financialMovementMapper.toFinancialMovement(fixedBillMock, FinancialMovementStatus.PENDING);
+    @Mock
+    private TransactionTemplate transactionTemplate;
 
-        // Mocks
-        when(installmentBillService.findByNextInstallmentDate(dueDate)).thenReturn(List.of(installmentBillMock));
-        when(fixedBillService.findByNextDueDate(dueDate)).thenReturn(List.of(fixedBillMock));
-
-        // Teste - lançar contas recorrentes - fixas e parceladas com vencimento na data informada
-        service.postRecurringBills(dueDate);
-
-        // Validações
-        verify(financialMovementService).create(List.of(fixedBillFinancialMovementMock, installmentBillFinancialMovementMock));
-        verify(installmentBillService).updateNextInstallmentDate(installmentBillMock);
-        verify(fixedBillService).updateNextDueDate(fixedBillMock, dueDate.plusDays(1));
+    @BeforeEach
+    void setUp() {
+        // Runs the account's work right where the real REQUIRES_NEW transaction would, so each
+        // test only has to assert on fixedBillService/installmentBillService, not on the
+        // transaction plumbing itself.
+        lenient().doAnswer(invocation -> {
+            final Consumer<TransactionStatus> action = invocation.getArgument(0);
+            action.accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
     }
 
     @Test
-    void mustNotPostRecurrenceBill() {
-        LocalDate dueDate = LocalDate.now();
+    void shouldPostFixedBillOccurrencesForEachDueCode() {
+        final LocalDate date = LocalDate.of(2026, 6, 15);
+        final UUID code1 = UUID.randomUUID();
+        final UUID code2 = UUID.randomUUID();
 
-        when(installmentBillService.findByNextInstallmentDate(dueDate)).thenReturn(List.of());
-        when(fixedBillService.findByNextDueDate(dueDate)).thenReturn(List.of());
+        when(fixedBillService.findCodesByNextDueDateLessThanEqual(date)).thenReturn(List.of(code1, code2));
+        when(installmentBillService.findCodesByNextInstallmentDateLessThanEqual(date)).thenReturn(List.of());
 
-        service.postRecurringBills(dueDate);
+        service.postRecurringBills(date);
 
-        verify(financialMovementService).create(List.of());
-        verify(installmentBillService, never()).updateNextInstallmentDate(any());
-        verify(fixedBillService, never()).updateNextDueDate(any(), any());
+        verify(fixedBillService).postDueOccurrences(code1, date);
+        verify(fixedBillService).postDueOccurrences(code2, date);
     }
 
+    @Test
+    void shouldPostInstallmentBillOccurrencesForEachDueCode() {
+        final LocalDate date = LocalDate.of(2026, 6, 15);
+        final UUID code1 = UUID.randomUUID();
+        final UUID code2 = UUID.randomUUID();
 
+        when(fixedBillService.findCodesByNextDueDateLessThanEqual(date)).thenReturn(List.of());
+        when(installmentBillService.findCodesByNextInstallmentDateLessThanEqual(date)).thenReturn(List.of(code1, code2));
 
+        service.postRecurringBills(date);
+
+        verify(installmentBillService).postDueInstallments(code1, date);
+        verify(installmentBillService).postDueInstallments(code2, date);
+    }
+
+    @Test
+    void shouldDoNothingWhenNoBillIsDue() {
+        final LocalDate date = LocalDate.of(2026, 6, 15);
+
+        when(fixedBillService.findCodesByNextDueDateLessThanEqual(date)).thenReturn(List.of());
+        when(installmentBillService.findCodesByNextInstallmentDateLessThanEqual(date)).thenReturn(List.of());
+
+        service.postRecurringBills(date);
+
+        verify(fixedBillService, never()).postDueOccurrences(any(), any());
+        verify(installmentBillService, never()).postDueInstallments(any(), any());
+    }
+
+    @Test
+    void shouldContinueBatchWhenOneBillFails() {
+        final LocalDate date = LocalDate.of(2026, 6, 15);
+        final UUID failingFixedBillCode = UUID.randomUUID();
+        final UUID healthyFixedBillCode = UUID.randomUUID();
+        final UUID healthyInstallmentBillCode = UUID.randomUUID();
+
+        when(fixedBillService.findCodesByNextDueDateLessThanEqual(date))
+                .thenReturn(List.of(failingFixedBillCode, healthyFixedBillCode));
+        when(installmentBillService.findCodesByNextInstallmentDateLessThanEqual(date))
+                .thenReturn(List.of(healthyInstallmentBillCode));
+        doThrow(new RuntimeException("boom")).when(fixedBillService).postDueOccurrences(failingFixedBillCode, date);
+
+        service.postRecurringBills(date);
+
+        verify(fixedBillService).postDueOccurrences(failingFixedBillCode, date);
+        verify(fixedBillService).postDueOccurrences(healthyFixedBillCode, date);
+        verify(installmentBillService).postDueInstallments(healthyInstallmentBillCode, date);
+    }
+
+    @Test
+    void shouldContinueBatchWhenInstallmentBillFails() {
+        final LocalDate date = LocalDate.of(2026, 6, 15);
+        final UUID failingInstallmentBillCode = UUID.randomUUID();
+        final UUID healthyInstallmentBillCode = UUID.randomUUID();
+
+        when(fixedBillService.findCodesByNextDueDateLessThanEqual(date)).thenReturn(List.of());
+        when(installmentBillService.findCodesByNextInstallmentDateLessThanEqual(date))
+                .thenReturn(List.of(failingInstallmentBillCode, healthyInstallmentBillCode));
+        doThrow(new RuntimeException("boom")).when(installmentBillService).postDueInstallments(failingInstallmentBillCode, date);
+
+        service.postRecurringBills(date);
+
+        verify(installmentBillService).postDueInstallments(failingInstallmentBillCode, date);
+        verify(installmentBillService).postDueInstallments(healthyInstallmentBillCode, date);
+    }
+
+    @Test
+    void shouldPostIncomeScheduleOccurrencesForEachCodeToPost() {
+        final LocalDate date = LocalDate.of(2026, 6, 15);
+        final UUID code1 = UUID.randomUUID();
+        final UUID code2 = UUID.randomUUID();
+
+        when(incomeScheduleService.findCodesToPost(date)).thenReturn(List.of(code1, code2));
+
+        service.postRecurringBills(date);
+
+        verify(incomeScheduleService).postDueOccurrences(code1, date);
+        verify(incomeScheduleService).postDueOccurrences(code2, date);
+    }
+
+    @Test
+    void shouldContinueBatchWhenIncomeScheduleFails() {
+        final LocalDate date = LocalDate.of(2026, 6, 15);
+        final UUID failingCode = UUID.randomUUID();
+        final UUID healthyCode = UUID.randomUUID();
+        final UUID healthyFixedBillCode = UUID.randomUUID();
+
+        when(fixedBillService.findCodesByNextDueDateLessThanEqual(date)).thenReturn(List.of(healthyFixedBillCode));
+        when(incomeScheduleService.findCodesToPost(date)).thenReturn(List.of(failingCode, healthyCode));
+        doThrow(new RuntimeException("boom")).when(incomeScheduleService).postDueOccurrences(failingCode, date);
+
+        service.postRecurringBills(date);
+
+        verify(fixedBillService).postDueOccurrences(healthyFixedBillCode, date);
+        verify(incomeScheduleService).postDueOccurrences(failingCode, date);
+        verify(incomeScheduleService).postDueOccurrences(healthyCode, date);
+    }
+
+    @Test
+    void shouldNotPostIncomeScheduleWhenNoneIsToBePosted() {
+        final LocalDate date = LocalDate.of(2026, 6, 15);
+
+        service.postRecurringBills(date);
+
+        verify(incomeScheduleService, never()).postDueOccurrences(any(), any());
+    }
 }

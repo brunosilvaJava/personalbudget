@@ -6,11 +6,14 @@ import com.bts.personalbudget.exception.InvalidFieldsException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -31,6 +34,8 @@ class FinancialMovementTest {
                         null,
                         FinancialMovementStatus.PAID_OUT,
                         Boolean.TRUE,
+                        null,
+                        null,
                         null
                 ));
 
@@ -58,6 +63,8 @@ class FinancialMovementTest {
                         null,
                         FinancialMovementStatus.LATE,
                         Boolean.TRUE,
+                        null,
+                        null,
                         null
                 ));
 
@@ -83,6 +90,8 @@ class FinancialMovementTest {
                         null,
                         FinancialMovementStatus.LATE,
                         Boolean.TRUE,
+                        null,
+                        null,
                         null
                 ));
 
@@ -91,5 +100,105 @@ class FinancialMovementTest {
         assertEquals(FinancialMovement.class, exception.getAClass());
         assertTrue(validations.containsKey("dueDate"));
         assertEquals("a data de vencimento deve ser anterior à data atual", validations.get("dueDate"));
+    }
+
+    @Test
+    void shouldAcceptPositiveAmountPaidWhenDebitIsPaidOut() {
+        // The API sends amount_paid positive for a debit too; the sign is applied when it is
+        // stored. Guards the quick "already paid" expense of the front-end.
+        assertDoesNotThrow(() -> paidOut(OperationType.DEBIT, new BigDecimal("10.00"), new BigDecimal("10.00")));
+    }
+
+    @Test
+    void shouldUseAmountPaidInBalanceWhenDebitIsPartiallyPaid() {
+        final FinancialMovement financialMovement =
+                paidOut(OperationType.DEBIT, new BigDecimal("100.00"), new BigDecimal("60.00"));
+
+        assertEquals(0, new BigDecimal("-60.00").compareTo(financialMovement.getBalanceCalcValue()));
+    }
+
+    @Test
+    void shouldKeepStoredNegativeAmountPaidInBalanceWhenDebitIsPaidOut() {
+        final FinancialMovement financialMovement =
+                paidOut(OperationType.DEBIT, new BigDecimal("-100.00"), new BigDecimal("-60.00"));
+
+        assertEquals(0, new BigDecimal("-60.00").compareTo(financialMovement.getBalanceCalcValue()));
+    }
+
+    @Test
+    void shouldUseAmountPaidInBalanceWhenCreditIsPaidOut() {
+        final FinancialMovement financialMovement =
+                paidOut(OperationType.CREDIT, new BigDecimal("100.00"), new BigDecimal("60.00"));
+
+        assertEquals(0, new BigDecimal("60.00").compareTo(financialMovement.getBalanceCalcValue()));
+    }
+
+    @Test
+    void shouldExposeCategoryCodeToBalanceCalculation() {
+        final UUID categoryCode = UUID.randomUUID();
+        final LocalDateTime now = LocalDateTime.now();
+
+        final FinancialMovement financialMovement = new FinancialMovement(
+                UUID.randomUUID(), OperationType.DEBIT, "teste", new BigDecimal("10.00"), null,
+                now, now.plusDays(1), null, FinancialMovementStatus.PENDING, Boolean.TRUE,
+                null, null, categoryCode);
+
+        assertEquals(categoryCode, financialMovement.getCategoryCode());
+    }
+
+    @Test
+    void shouldExposeNullCategoryCodeWhenMovementHasNoCategory() {
+        assertNull(paidOut(OperationType.DEBIT, new BigDecimal("10.00"), new BigDecimal("10.00"))
+                .getCategoryCode());
+    }
+
+    private static FinancialMovement paidOut(final OperationType operationType,
+                                             final BigDecimal amount,
+                                             final BigDecimal amountPaid) {
+        final LocalDateTime now = LocalDateTime.now();
+        return new FinancialMovement(
+                UUID.randomUUID(),
+                operationType,
+                "teste pago",
+                amount,
+                amountPaid,
+                now,
+                now,
+                now,
+                FinancialMovementStatus.PAID_OUT,
+                Boolean.TRUE,
+                null,
+                null, null);
+    }
+
+    @Test
+    void shouldKeepCashBalanceCalculationIndependentOfCompetence() {
+        final LocalDateTime dueDate = LocalDateTime.of(2026, 11, 20, 0, 0);
+        final LocalDateTime payDate = LocalDateTime.of(2026, 12, 3, 0, 0);
+        final LocalDate competence = LocalDate.of(2026, 10, 1);
+        final FinancialMovement pending = new FinancialMovement(
+                UUID.randomUUID(), OperationType.DEBIT, "Aluguel", new BigDecimal("100.00"), null,
+                dueDate, dueDate, null, FinancialMovementStatus.PENDING, Boolean.TRUE, null, null, null,
+                competence, true);
+        final FinancialMovement paid = new FinancialMovement(
+                UUID.randomUUID(), OperationType.DEBIT, "Aluguel", new BigDecimal("100.00"), new BigDecimal("80.00"),
+                dueDate, dueDate, payDate, FinancialMovementStatus.PAID_OUT, Boolean.TRUE, null, null, null,
+                competence, true);
+
+        assertEquals(LocalDate.of(2026, 11, 20), pending.findBalanceCalcDate());
+        assertEquals(new BigDecimal("-100.00"), pending.getBalanceCalcValue());
+        assertEquals(LocalDate.of(2026, 12, 3), paid.findBalanceCalcDate());
+        assertEquals(new BigDecimal("-80.00"), paid.getBalanceCalcValue());
+    }
+
+    @Test
+    void shouldDefaultCompetenceOverriddenToFalse() {
+        final LocalDateTime now = LocalDateTime.now();
+        final FinancialMovement movement = new FinancialMovement(
+                UUID.randomUUID(), OperationType.CREDIT, "Salario", BigDecimal.TEN, null,
+                now, now, null, FinancialMovementStatus.PENDING, Boolean.TRUE, null, null, null);
+
+        assertEquals(Boolean.FALSE, movement.competenceOverridden());
+        assertNull(movement.competenceDate());
     }
 }

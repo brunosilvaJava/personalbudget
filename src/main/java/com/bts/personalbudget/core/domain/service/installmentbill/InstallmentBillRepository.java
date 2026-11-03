@@ -6,6 +6,7 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDeletedException;
 import com.bts.personalbudget.mapper.InstallmentBillMapper;
 import com.bts.personalbudget.repository.InstallmentBillJpaRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -70,20 +71,13 @@ public class InstallmentBillRepository {
     }
 
     @Transactional(readOnly = true)
-    public List<InstallmentBill> findAllByNextInstallmentDateBetweenAndStatus(final LocalDate initialDate,
-                                                                              final LocalDate endDate,
-                                                                              final InstallmentBillStatus installmentBillStatus) {
-        log.info("m=findAllByStatusAndNextInstallmentDateBetween status={} initialDate={} endDate={}",
-                installmentBillStatus, initialDate, endDate);
-
-        final List<InstallmentBillEntity> installmentBillEntityList =
-                jpaRepository.findAllByNextInstallmentDateBetweenAndStatusAndFlagActive(
-                        initialDate,
-                        endDate,
-                        installmentBillStatus,
-                        FLAG_ACTIVE);
-
-        return mapper.toModel(installmentBillEntityList);
+    public List<InstallmentBill> findAllByNextInstallmentDateLessThanEqualAndStatus(final LocalDate date,
+                                                                                    final InstallmentBillStatus installmentBillStatus) {
+        log.info("m=findAllByNextInstallmentDateLessThanEqualAndStatus date={} status={}", date, installmentBillStatus);
+        return mapper.toModel(jpaRepository.findAllByNextInstallmentDateLessThanEqualAndStatusAndFlagActive(
+                date,
+                installmentBillStatus,
+                FLAG_ACTIVE));
     }
 
     @Transactional
@@ -98,7 +92,41 @@ public class InstallmentBillRepository {
         entity.setInstallmentCount(installmentBill.getInstallmentCount());
         entity.setLastInstallmentDate(installmentBill.getLastInstallmentDate());
         entity.setNextInstallmentDate(installmentBill.getNextInstallmentDate());
+        entity.setCategoryCode(installmentBill.getCategoryCode());
+        // Fixed in passing: status was never copied here, so InstallmentBill.conclude() (called
+        // from updateInstallment() once the last installment posts) never reached the database -
+        // the bill stayed PENDING forever even after nextInstallmentDate went null.
+        entity.setStatus(installmentBill.getStatus());
         return mapper.toModel(entity);
+    }
+
+    /**
+     * Locks the row for the duration of the transaction - see
+     * InstallmentBillJpaRepository.findForUpdateByCode.
+     */
+    @Transactional
+    public InstallmentBill findForUpdateByCode(final UUID code) {
+        log.info("m=findForUpdateByCode code={}", code);
+        final InstallmentBillEntity entity = jpaRepository.findForUpdateByCode(code).orElseThrow(() -> {
+            log.error("m=findForUpdateByCode code={} error=installmentBill_not_found", code);
+            return new EntityNotFoundException("InstallmentBill not found for code " + code);
+        });
+        return mapper.toModel(entity);
+    }
+
+    /**
+     * Codes of the pending installment bills with at least one installment due on or before
+     * {@code date}. Used by RecurrenceBillService to decide which accounts postDueInstallments
+     * needs to process - each one is then handled in its own transaction.
+     */
+    @Transactional(readOnly = true)
+    public List<UUID> findAllCodesByNextInstallmentDateLessThanEqualAndStatus(final LocalDate date,
+                                                                               final InstallmentBillStatus installmentBillStatus) {
+        log.info("m=findAllCodesByNextInstallmentDateLessThanEqualAndStatus date={} status={}", date, installmentBillStatus);
+        return jpaRepository.findAllByNextInstallmentDateLessThanEqualAndStatusAndFlagActive(date, installmentBillStatus, FLAG_ACTIVE)
+                .stream()
+                .map(InstallmentBillEntity::getCode)
+                .toList();
     }
 
     @Transactional
@@ -112,7 +140,7 @@ public class InstallmentBillRepository {
     private InstallmentBillEntity findEntityByCode(final UUID code) {
         final InstallmentBillEntity entity = jpaRepository.findByCode(code).orElseThrow(() -> {
             log.error("m=findEntityByCode code={} error=installmentBill_not_found", code);
-            return new RuntimeException("InstallmentBill NotFoundException by code=" + code);
+            return new EntityNotFoundException("InstallmentBill not found for code " + code);
         });
         if (!entity.getFlagActive()) {
             log.error("m=findEntityByCode code={} msg=installmentBill_already_deleted", code);

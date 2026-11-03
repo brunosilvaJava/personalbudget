@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Comparator;
@@ -19,6 +20,7 @@ import java.util.Set;
 public class DashboardService {
 
     private final BalanceService balanceService;
+    private final Clock clock;
 
     /**
      * Busca dados do dashboard para o mês atual
@@ -26,7 +28,7 @@ public class DashboardService {
     public Dashboard getDashboard() {
         log.info("m=getDashboard");
 
-        final LocalDate today = LocalDate.now();
+        final LocalDate today = LocalDate.now(clock);
         final YearMonth currentMonth = YearMonth.from(today);
 
         return getDashboardForMonth(currentMonth);
@@ -40,7 +42,7 @@ public class DashboardService {
 
         final LocalDate firstDayOfMonth = yearMonth.atDay(1);
         final LocalDate lastDayOfMonth = yearMonth.atEndOfMonth();
-        final LocalDate today = LocalDate.now();
+        final LocalDate today = LocalDate.now(clock);
 
         // Buscar balanço diário do mês inteiro
         final Set<DailyBalance> dailyBalances = balanceService.findDailyBalanceBetween(

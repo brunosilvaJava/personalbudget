@@ -9,6 +9,8 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,18 +26,24 @@ public interface FixedBillControllerApiDocs {
 
     @Operation(
             summary = "Create a new fixed bill",
-            description = "This endpoint creates a new fixed bill based on the provided request data.")
+            description = "This endpoint creates a new fixed bill based on the provided request data. "
+                    + "If the first occurrence falls on the current day, its PENDING financial movement is "
+                    + "posted immediately and next_due_date already points to the following occurrence.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Fixed bill successfully created"),
+            @ApiResponse(responseCode = "201", description = "Fixed bill successfully created",
+                    content = @Content(schema = @Schema(implementation = FixedBillResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid request data")
     })
     @PostMapping
-    ResponseEntity<Void> create(@Valid @RequestBody FixedBillRequest fixedBillRequest);
+    ResponseEntity<FixedBillResponse> create(@Valid @RequestBody FixedBillRequest fixedBillRequest);
 
     @Operation(
             summary = "Retrieve all fixed bills",
             description = "Returns a paginated list of fixed bills based on search parameters.")
-    @ApiResponse(responseCode = "200", description = "Paginated list of fixed bills")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Paginated list of fixed bills"),
+            @ApiResponse(responseCode = "400", description = "Invalid parameters, including an unknown sort_by")
+    })
     ResponseEntity<PagedFixedBillResponse> find(
             @Parameter(description = "Filter by description (partial match)") String description,
             @Parameter(description = "Filter by operation type(s)") List<OperationType> operationTypes,
@@ -43,7 +51,7 @@ public interface FixedBillControllerApiDocs {
             @Parameter(description = "Filter by recurrence type(s)") List<RecurrenceType> recurrenceTypes,
             @Parameter(description = "Page number (0-indexed)") int page,
             @Parameter(description = "Number of items per page") int size,
-            @Parameter(description = "Field to sort by") String sortBy,
+            @Parameter(description = "Field to sort by: description, amount, operation_type, status, recurrence_type, start_date, next_due_date, end_date") String sortBy,
             @Parameter(description = "Sort direction (ASC or DESC)") String sortDirection
     );
 

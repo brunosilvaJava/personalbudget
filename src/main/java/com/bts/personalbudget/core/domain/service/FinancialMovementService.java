@@ -1,14 +1,20 @@
 package com.bts.personalbudget.core.domain.service;
 
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
+import com.bts.personalbudget.core.domain.entity.IncomeOccurrenceEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
+import com.bts.personalbudget.exception.InvalidFieldsException;
+import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
+import com.bts.personalbudget.repository.FinancialMovementSpecifications;
+import com.bts.personalbudget.repository.IncomeOccurrenceRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -17,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.LATE;
@@ -31,16 +39,98 @@ public class FinancialMovementService {
 
     private final FinancialMovementRepository repository;
     private final FinancialMovementMapper mapper;
+    private final CategoryService categoryService;
+    private final IncomeOccurrenceRepository incomeOccurrenceRepository;
+
+    /**
+     * The category is validated only for a movement the user creates. One generated from a
+     * recurrence bill (recurrenceBillCode set - the API has no field for it) is saved as is: a
+     * bill whose category was inactivated later keeps posting its occurrences with it.
+     */
+    @Transactional
+    public FinancialMovement create(final FinancialMovement financialMovement) {
+        log.info("m=create, financialMovement={}", financialMovement);
+        if (financialMovement.recurrenceBillCode() == null && financialMovement.categoryCode() != null) {
+            categoryService.validateForUse(financialMovement.categoryCode(), financialMovement.operationType());
+        }
+        return mapper.toModel(repository.save(mapper.toEntity(withCompetence(financialMovement))));
+    }
 
     @Transactional
-    public void create(final FinancialMovement financialMovement) {
-        log.info("m=create, financialMovement={}", financialMovement);
-        repository.save(mapper.toEntity(financialMovement));
+    public FinancialMovement createWithAutomaticCompetence(final FinancialMovement financialMovement) {
+        log.info("m=createWithAutomaticCompetence, financialMovement={}", financialMovement);
+        return mapper.toModel(repository.save(mapper.toEntity(
+                financialMovement.withCompetence(financialMovement.competenceDate(), false))));
+    }
+
+    /**
+     * A competence informed by the client is manual. Otherwise it is automatic: occurrence_date for
+     * a recurring movement or movement_date for a standalone one. Income occurrences use their
+     * frozen planned date through {@link #createWithAutomaticCompetence(FinancialMovement)}.
+     */
+    private FinancialMovement withCompetence(final FinancialMovement financialMovement) {
+        if (financialMovement.competenceDate() != null) {
+            return financialMovement.withCompetence(financialMovement.competenceDate(), true);
+        }
+        final LocalDate automaticCompetence = financialMovement.recurrenceBillCode() != null
+                ? financialMovement.occurrenceDate()
+                : financialMovement.movementDate().toLocalDate();
+        return financialMovement.withCompetence(automaticCompetence, false);
     }
 
     @Transactional
     public void create(final List<FinancialMovement> financialMovementList) {
         financialMovementList.forEach(this::create);
+    }
+
+    /**
+     * Deliberately not scoped to flagActive: a soft-deleted movement still counts as "already
+     * generated" for this occurrence, so the recurrence job must not recreate it.
+     */
+    public boolean existsByRecurrenceBillCodeAndOccurrenceDate(final UUID recurrenceBillCode, final LocalDate occurrenceDate) {
+        log.info("m=existsByRecurrenceBillCodeAndOccurrenceDate, recurrenceBillCode={}, occurrenceDate={}", recurrenceBillCode, occurrenceDate);
+        return repository.existsByRecurrenceBillCodeAndOccurrenceDate(recurrenceBillCode, occurrenceDate);
+    }
+
+    /**
+     * Movements already generated for these recurrence bills with occurrence_date in the period,
+     * soft-deleted ones included (same rule as existsByRecurrenceBillCodeAndOccurrenceDate). Used
+     * by the balance projection to skip occurrences that are no longer pending generation.
+     */
+    public List<FinancialMovement> findRecurrenceOccurrencesBetween(final Collection<UUID> recurrenceBillCodes,
+                                                                    final LocalDate initialDate,
+                                                                    final LocalDate endDate) {
+        log.info("m=findRecurrenceOccurrencesBetween, recurrenceBillCodes={}, initialDate={}, endDate={}",
+                recurrenceBillCodes.size(), initialDate, endDate);
+        if (recurrenceBillCodes.isEmpty()) {
+            return List.of();
+        }
+        return mapper.toModel(repository.findAllByRecurrenceBillCodeInAndOccurrenceDateBetween(
+                recurrenceBillCodes, initialDate, endDate));
+    }
+
+    @Transactional
+    public List<FinancialMovement> findRecurrenceOccurrencesBetweenForUpdate(final Collection<UUID> recurrenceBillCodes,
+                                                                            final LocalDate initialDate,
+                                                                            final LocalDate endDate) {
+        log.info("m=findRecurrenceOccurrencesBetweenForUpdate, recurrenceBillCodes={}, initialDate={}, endDate={}",
+                recurrenceBillCodes.size(), initialDate, endDate);
+        if (recurrenceBillCodes.isEmpty()) {
+            return List.of();
+        }
+        return mapper.toModel(repository.findForUpdateByRecurrenceBillCodeInAndOccurrenceDateBetween(
+                recurrenceBillCodes, initialDate, endDate));
+    }
+
+    /**
+     * The active movements whose competence date is in {@code [from, toExclusive)}, oldest competence
+     * first: what a cycle boundary at {@code from} or {@code toExclusive} would hand from one cycle to
+     * the other. Soft-deleted movements are left out, and so are the legacy ones with no competence
+     * date, which belong to no interval.
+     */
+    public List<FinancialMovement> findByCompetenceInterval(final LocalDate from, final LocalDate toExclusive) {
+        log.info("m=findByCompetenceInterval, from={}, toExclusive={}", from, toExclusive);
+        return mapper.toModel(repository.findActiveByCompetenceDateInterval(from, toExclusive));
     }
 
     public Page<FinancialMovement> find(
@@ -49,46 +139,56 @@ public class FinancialMovementService {
             final List<FinancialMovementStatus> statuses,
             final LocalDate startDate,
             final LocalDate endDate,
+            final List<UUID> categoryCodes,
+            final boolean withoutCategory,
             final Pageable pageable) {
 
-        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, pageable={}",
-                description, operationTypes, statuses, startDate, endDate, pageable);
+        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, categoryCodes={}, withoutCategory={}, pageable={}",
+                description, operationTypes, statuses, startDate, endDate, categoryCodes, withoutCategory, pageable);
 
         final List<OperationType> filterOperationTypes = operationTypes != null && !operationTypes.isEmpty() ?
                 operationTypes : Arrays.stream(OperationType.values()).toList();
         final List<FinancialMovementStatus> filterStatuses = statuses != null && !statuses.isEmpty() ?
                 statuses : Arrays.stream(FinancialMovementStatus.values()).toList();
 
-        Page<FinancialMovementEntity> pagedEntities =
-                repository.findAllByDescriptionContainsAndOperationTypeInAndStatusInAndMovementDateBetweenAndFlagActiveTrue(
+        final Page<FinancialMovementEntity> pagedEntities = repository.findAll(
+                FinancialMovementSpecifications.filter(
                         description,
                         filterOperationTypes,
                         filterStatuses,
                         startDate.atStartOfDay(),
                         endDate.atStartOfDay().plusDays(1),
-                        pageable);
+                        categoryCodes,
+                        withoutCategory),
+                pageable);
 
         return pagedEntities.map(mapper::toModel);
     }
 
-    public FinancialMovement find(final UUID code) throws NotFoundException {
+    public FinancialMovement find(final UUID code) {
         log.info("m=find, code={}", code);
         return mapper.toModel(findEntity(code));
     }
 
     @Transactional
-    public FinancialMovement update(final FinancialMovement financialMovement) throws NotFoundException {
+    public FinancialMovement update(final FinancialMovementUpdate financialMovement) {
         log.info("m=update, financialMovement={}", financialMovement);
         final FinancialMovementEntity financialMovementEntity = findEntity(financialMovement.code());
+        validateCategoryOnUpdate(financialMovement, financialMovementEntity);
         update(financialMovement, financialMovementEntity);
         return mapper.toModel(financialMovementEntity);
     }
 
-    private FinancialMovementEntity findEntity(final UUID code) throws NotFoundException {
-        return repository.findByCode(code).orElseThrow(NotFoundException::new);
+    /**
+     * Soft-deleted movements are not found, as in FixedBillService: GET, PATCH and DELETE on them
+     * answer 404 (see ControllerExceptionHandler).
+     */
+    private FinancialMovementEntity findEntity(final UUID code) {
+        return repository.findByCodeAndFlagActiveTrue(code)
+                .orElseThrow(() -> new EntityNotFoundException("FinancialMovementEntity not found for code " + code));
     }
 
-    private void update(final FinancialMovement financialMovement, final FinancialMovementEntity financialMovementEntity) {
+    private void update(final FinancialMovementUpdate financialMovement, final FinancialMovementEntity financialMovementEntity) {
         if (financialMovement.operationType() != null &&
                 financialMovement.operationType() != financialMovementEntity.getOperationType()) {
             financialMovementEntity.setOperationType(financialMovement.operationType());
@@ -128,10 +228,87 @@ public class FinancialMovementService {
                 !financialMovement.status().equals(financialMovementEntity.getStatus())) {
             financialMovementEntity.setStatus(financialMovement.status());
         }
+
+        if (financialMovement.categoryCode() != null &&
+                !financialMovement.categoryCode().equals(financialMovementEntity.getCategoryCode())) {
+            financialMovementEntity.setCategoryCode(financialMovement.categoryCode());
+        }
+
+        normalizeAmountSigns(financialMovementEntity);
+        updateCompetence(financialMovement, financialMovementEntity);
+    }
+
+    /**
+     * Due and pay dates never touch the competence. An automatic competence follows movement_date
+     * for a standalone movement or the frozen planned date for a recurring movement; a manual one
+     * is only changed by the explicit commands.
+     */
+    private void updateCompetence(final FinancialMovementUpdate changes, final FinancialMovementEntity entity) {
+        if (changes.competenceDate() != null) {
+            entity.setCompetenceDate(changes.competenceDate());
+            entity.setCompetenceOverridden(true);
+            return;
+        }
+        if (changes.restoreAutomaticCompetence()) {
+            final LocalDate automaticCompetence = automaticCompetence(entity);
+            if (automaticCompetence == null) {
+                throw new InvalidFieldsException("Campos inválidos", FinancialMovementUpdate.class, Map.of(
+                        "restoreAutomaticCompetence",
+                        "movimentação recorrente sem occurrence_date não tem competência automática"));
+            }
+            entity.setCompetenceDate(automaticCompetence);
+            entity.setCompetenceOverridden(false);
+            return;
+        }
+        if (!Boolean.TRUE.equals(entity.getCompetenceOverridden())) {
+            final LocalDate automaticCompetence = automaticCompetence(entity);
+            if (automaticCompetence != null) {
+                entity.setCompetenceDate(automaticCompetence);
+            }
+        }
+    }
+
+    private LocalDate automaticCompetence(final FinancialMovementEntity entity) {
+        if (entity.getRecurrenceBillCode() == null) {
+            return entity.getMovementDate().toLocalDate();
+        }
+        return incomeOccurrenceRepository.findByMovementCode(entity.getCode())
+                .map(IncomeOccurrenceEntity::getPlannedDate)
+                .orElse(entity.getOccurrenceDate());
+    }
+
+    /**
+     * The category has to fit the operation type the movement ends up with, so changing only the
+     * operation type is checked against the stored category too. Runs only when one of the two
+     * actually changes: a movement whose category was inactivated later can still be edited.
+     */
+    private void validateCategoryOnUpdate(final FinancialMovementUpdate changes, final FinancialMovementEntity current) {
+        final OperationType finalOperationType =
+                changes.operationType() != null ? changes.operationType() : current.getOperationType();
+        final UUID finalCategoryCode =
+                changes.categoryCode() != null ? changes.categoryCode() : current.getCategoryCode();
+        final boolean categoryChanged =
+                changes.categoryCode() != null && !changes.categoryCode().equals(current.getCategoryCode());
+        final boolean operationTypeChanged = finalOperationType != current.getOperationType();
+        if (finalCategoryCode != null && (categoryChanged || operationTypeChanged)) {
+            categoryService.validateForUse(finalCategoryCode, finalOperationType);
+        }
+    }
+
+    /**
+     * Re-applies the sign convention (DEBIT negative, CREDIT positive) to the stored values with
+     * the movement's current operation type. The entity setters only negate a positive debit
+     * value being set, so a PATCH that changes only operation_type would otherwise keep the old
+     * sign and the movement would count on the wrong side of the balance.
+     */
+    private void normalizeAmountSigns(final FinancialMovementEntity financialMovementEntity) {
+        final OperationType operationType = financialMovementEntity.getOperationType();
+        financialMovementEntity.setAmount(mapper.normalizeValue(financialMovementEntity.getAmount(), operationType));
+        financialMovementEntity.setAmountPaid(mapper.normalizeValue(financialMovementEntity.getAmountPaid(), operationType));
     }
 
     @Transactional
-    public void delete(final UUID code) throws NotFoundException {
+    public void delete(final UUID code) {
         log.info("m=delete, code={}", code);
         final FinancialMovementEntity financialMovementEntity = findEntity(code);
         financialMovementEntity.delete();

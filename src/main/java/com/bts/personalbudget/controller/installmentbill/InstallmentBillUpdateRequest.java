@@ -28,7 +28,7 @@ public record InstallmentBillUpdateRequest(
 
         @DecimalMin(value = "0.01", inclusive = false)
         @Digits(integer = 8, fraction = 2)
-        @Schema(description = "Updated total amount of the installment bill", example = "1550.00")
+        @Schema(description = "Updated amount of each installment, not the purchase total", example = "130.00")
         BigDecimal amount,
 
         @JsonProperty("purchase_date")
@@ -38,6 +38,10 @@ public record InstallmentBillUpdateRequest(
         @Min(1)
         @JsonProperty("installment_total")
         @Schema(description = "Updated total number of installments for the bill", example = "12")
-        Integer installmentTotal
+        Integer installmentTotal,
+
+        @Schema(description = "Code of the category to set. Replaces the current one for the installments posted from now on; omitting it keeps it, and it cannot be removed", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode
 ) {
 }

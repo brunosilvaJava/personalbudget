@@ -4,10 +4,12 @@ import com.bts.personalbudget.core.domain.entity.FixedBillEntity;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -23,10 +25,22 @@ public interface FixedBillRepository extends JpaRepository<FixedBillEntity, Long
 
     List<FixedBillEntity> findAllByNextDueDateAndStatusAndFlagActive(LocalDate nextDueDate, FixedBillStatus fixedBillStatus, Boolean flagActive);
 
-    List<FixedBillEntity> findAllByFlagActiveTrueAndStatusAndNextDueDateBetween(
-            FixedBillStatus status,
-            LocalDate startDate,
-            LocalDate endDate);
+    /**
+     * Fetches the calendar too: the balance projection maps every bill to a model (days included)
+     * to enumerate its occurrences.
+     */
+    @EntityGraph(attributePaths = {"calendarFixedBillEntityList"})
+    List<FixedBillEntity> findAllByNextDueDateLessThanEqualAndStatusAndFlagActive(LocalDate nextDueDate, FixedBillStatus fixedBillStatus, Boolean flagActive);
+
+    /**
+     * Locks the row for the duration of the transaction so the scheduled job and a concurrent
+     * request (e.g. the account being edited while the catch-up loop runs) serialize on the
+     * same FixedBill instead of racing each other.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"calendarFixedBillEntityList"})
+    @Query("SELECT fb FROM FixedBillEntity fb WHERE fb.code = :code AND fb.flagActive = true")
+    Optional<FixedBillEntity> findForUpdateByCode(@Param("code") UUID code);
 
     @Query("""
             SELECT fb FROM FixedBillEntity fb

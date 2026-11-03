@@ -30,11 +30,21 @@ public record FinancialMovement(
         LocalDateTime payDate,
         FinancialMovementStatus status,
         Boolean flagActive,
-        UUID recurrenceBillCode
+        UUID recurrenceBillCode,
+        LocalDate occurrenceDate,
+        UUID categoryCode,
+        LocalDate competenceDate,
+        Boolean competenceOverridden
 ) implements BalanceCalcData {
 
     private static final String MSG_FIELD_NULL_OR_EMPTY = "deve ser informado um valor válido quando o status for ";
 
+    /**
+     * Used when generating a movement from a recurrence bill (FixedBill/InstallmentBill).
+     * {@code occurrenceDate} is the recurrence occurrence's immutable idempotency key, unlike
+     * {@code dueDate}, which the user can edit via PATCH. For income schedules it is the nominal
+     * month's first day; the planned date remains the due date and competence.
+     */
     public FinancialMovement(
             OperationType operationType,
             String description,
@@ -42,10 +52,33 @@ public record FinancialMovement(
             LocalDateTime movementDate,
             LocalDateTime dueDate,
             FinancialMovementStatus status,
-            UUID recurrenceBillCode
+            UUID recurrenceBillCode,
+            LocalDate occurrenceDate
     ) {
         this(null, operationType, description, amount, null, movementDate, dueDate, null,
-                status, Boolean.TRUE, recurrenceBillCode);
+                status, Boolean.TRUE, recurrenceBillCode, occurrenceDate, null, null, null);
+    }
+
+    /**
+     * Without competence: FinancialMovementService.create derives it (automatic) when it is null.
+     */
+    public FinancialMovement(
+            UUID code,
+            OperationType operationType,
+            String description,
+            BigDecimal amount,
+            BigDecimal amountPaid,
+            LocalDateTime movementDate,
+            LocalDateTime dueDate,
+            LocalDateTime payDate,
+            FinancialMovementStatus status,
+            Boolean flagActive,
+            UUID recurrenceBillCode,
+            LocalDate occurrenceDate,
+            UUID categoryCode
+    ) {
+        this(code, operationType, description, amount, amountPaid, movementDate, dueDate, payDate,
+                status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode, null, null);
     }
 
     public FinancialMovement {
@@ -53,6 +86,13 @@ public record FinancialMovement(
         if (code == null) {
             code = UUID.randomUUID();
         }
+        competenceOverridden = Boolean.TRUE.equals(competenceOverridden);
+    }
+
+    public FinancialMovement withCompetence(final LocalDate newCompetenceDate, final boolean overridden) {
+        return new FinancialMovement(code, operationType, description, amount, amountPaid, movementDate,
+                dueDate, payDate, status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
+                newCompetenceDate, overridden);
     }
 
     @Override
@@ -61,9 +101,11 @@ public record FinancialMovement(
             case PENDING, LATE -> amount;
             case PAID_OUT -> amountPaid;
         };
+        // Negates the value picked above, not amount: for a partially paid debit, amountPaid is
+        // what left the balance.
         if (operationType == OperationType.DEBIT) {
             if (balanceCalcValue != null && balanceCalcValue.compareTo(ZERO) > 0) {
-                return amount.negate();
+                return balanceCalcValue.negate();
             }
         }
         return balanceCalcValue;
@@ -80,6 +122,11 @@ public record FinancialMovement(
     @Override
     public OperationType getOperationType() {
         return operationType;
+    }
+
+    @Override
+    public UUID getCategoryCode() {
+        return categoryCode;
     }
 
     @Override
@@ -101,9 +148,12 @@ public record FinancialMovement(
             if (payDate == null) {
                 errorsMsg.put("payDate", MSG_FIELD_NULL_OR_EMPTY + PAID_OUT);
             }
-            if (amountPaid == null || amountPaid.compareTo(ZERO) == 0 ||
-                    operationType == OperationType.CREDIT && amountPaid.compareTo(ZERO) < 0 ||
-                    operationType == OperationType.DEBIT && amountPaid.compareTo(ZERO) > 0) {
+            // No sign check: the API sends amount_paid as a positive value for both types, and
+            // FinancialMovementMapper.toEntity / FinancialMovementEntity.setAmountPaid store it
+            // negative for DEBIT. (The sign check that used to be here read the operationType
+            // field before the compact constructor assigns it, so it was always null and the
+            // check never ran; enabling it would reject every paid debit sent by the API.)
+            if (amountPaid == null || amountPaid.compareTo(ZERO) == 0) {
                 errorsMsg.put("amountPaid", MSG_FIELD_NULL_OR_EMPTY + PAID_OUT);
             }
         }
@@ -122,4 +172,3 @@ public record FinancialMovement(
         }
     }
 }
-

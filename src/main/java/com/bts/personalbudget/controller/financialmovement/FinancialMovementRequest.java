@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -58,6 +59,14 @@ public record FinancialMovementRequest(
 
         @NotNull
         @Schema(description = "Status of the financial movement (e.g., PENDING, COMPLETED, CANCELLED)", example = "PENDING")
-        FinancialMovementStatus status
+        FinancialMovementStatus status,
+
+        @Schema(description = "Code of the category. Must be an ACTIVE category of the same operation type", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode,
+
+        @Schema(description = "Budget competence date. Optional: when informed it is manual and never recalculated; when omitted it is automatic (the date of movement_date)", example = "2024-11-01", type = "string", format = "date")
+        @JsonProperty("competence_date")
+        LocalDate competenceDate
 ) {
 }

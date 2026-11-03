@@ -12,6 +12,7 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Schema(description = "Request data for creating a new installment bill.")
 public record InstallmentBillRequest(
@@ -28,7 +29,7 @@ public record InstallmentBillRequest(
         @NotNull
         @DecimalMin(value = "0.01", inclusive = false)
         @Digits(integer = 8, fraction = 2)
-        @Schema(description = "Total amount of the installment bill", example = "1500.00")
+        @Schema(description = "Amount of each installment, not the purchase total", example = "125.00")
         BigDecimal amount,
 
         @JsonProperty("purchase_date")
@@ -39,6 +40,10 @@ public record InstallmentBillRequest(
         @Min(1)
         @JsonProperty("installment_total")
         @Schema(description = "Total number of installments for the bill", example = "12")
-        Integer installmentTotal
+        Integer installmentTotal,
+
+        @Schema(description = "Code of the category. Must be an ACTIVE category of the same operation type. The installments posted from this bill take it", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode
 ) {
 }

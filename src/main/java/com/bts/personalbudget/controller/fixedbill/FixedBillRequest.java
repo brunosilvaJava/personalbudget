@@ -15,6 +15,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -56,11 +57,16 @@ public class FixedBillRequest {
     @JsonProperty("reference_year")
     private Integer referenceYear;
 
-    @Schema(description = "Fixed bill starting date.", format = "date")
+    @Schema(description = "Fixed bill starting date. Defaults to the current date when omitted.", format = "date")
     @JsonProperty("start_date")
     private LocalDate startDate;
 
     @Schema(description = "Fixed bill end date.", format = "date")
     @JsonProperty("end_date")
     private LocalDate endDate;
+
+    @Schema(description = "Code of the category. Must be an ACTIVE category of the same operation type. "
+            + "The occurrences posted from this bill take it.")
+    @JsonProperty("category_code")
+    private UUID categoryCode;
 }

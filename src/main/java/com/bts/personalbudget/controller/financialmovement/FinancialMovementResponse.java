@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import static java.math.BigDecimal.ZERO;
@@ -47,7 +48,23 @@ public record FinancialMovementResponse (
 
         @Schema(description = "Code of the recurrence bill associated with this movement, if any", example = "123e4567-e89b-12d3-a456-426614174000")
         @JsonProperty("recurrence_bill_code")
-        UUID recurrenceBillCode
+        UUID recurrenceBillCode,
+
+        @Schema(description = "Scheduled occurrence date from the recurrence bill this movement was generated from, if any. Immutable.", example = "2026-11-10")
+        @JsonProperty("occurrence_date")
+        LocalDate occurrenceDate,
+
+        @Schema(description = "Code of the category, if any", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("category_code")
+        UUID categoryCode,
+
+        @Schema(description = "Budget competence date: when the obligation/revenue belongs to the budget, independent of due and pay dates. Null only for legacy recurring movements pending reconciliation", example = "2026-11-01", type = "string", format = "date")
+        @JsonProperty("competence_date")
+        LocalDate competenceDate,
+
+        @Schema(description = "true when the competence was informed by the client and is not recalculated automatically", example = "false")
+        @JsonProperty("competence_overridden")
+        Boolean competenceOverridden
 ) {
     public FinancialMovementResponse {
         if (operationType == OperationType.DEBIT) {

@@ -7,6 +7,7 @@ import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 
@@ -28,7 +29,7 @@ public interface FinancialMovementMapper {
     FinancialMovementMapper INSTANCE = Mappers.getMapper(FinancialMovementMapper.class);
 
     FinancialMovement toModel(FinancialMovementRequest request);
-    FinancialMovement toModel(FinancialMovementUpdateRequest updateRequest, UUID code);
+    FinancialMovementUpdate toUpdate(FinancialMovementUpdateRequest updateRequest, UUID code);
     FinancialMovement toModel(FinancialMovementEntity entity);
     List<FinancialMovement> toModel(List<FinancialMovementEntity> financialMovementEntities);
     @Mapping(target = "amount", expression = "java(normalizeValue(financialMovement.amount(), financialMovement.operationType()))")
@@ -40,6 +41,8 @@ public interface FinancialMovementMapper {
     @Mapping(target = "recurrenceBillCode", source = "installmentBill.code")
     @Mapping(target = "movementDate", source = "installmentBill.purchaseDate")
     @Mapping(target = "dueDate", source = "installmentBill.nextInstallmentDate")
+    @Mapping(target = "occurrenceDate", source = "installmentBill.nextInstallmentDate")
+    @Mapping(target = "categoryCode", source = "installmentBill.categoryCode")
     @Mapping(target = "status", source = "financialMovementStatus")
     @Mapping(target = "amount", expression = "java(normalizeValue(installmentBill.getAmount(), installmentBill.getOperationType()))")
     FinancialMovement toFinancialMovement(InstallmentBill installmentBill, FinancialMovementStatus financialMovementStatus);
@@ -53,6 +56,8 @@ public interface FinancialMovementMapper {
     @Mapping(target = "recurrenceBillCode", source = "fixedBill.code")
     @Mapping(target = "movementDate", source = "fixedBill.nextDueDate")
     @Mapping(target = "dueDate", source = "fixedBill.nextDueDate")
+    @Mapping(target = "occurrenceDate", source = "fixedBill.nextDueDate")
+    @Mapping(target = "categoryCode", source = "fixedBill.categoryCode")
     @Mapping(target = "status", source = "financialMovementStatus")
     @Mapping(target = "amount", expression = "java(normalizeValue(fixedBill.getAmount(), fixedBill.getOperationType()))")
     FinancialMovement toFinancialMovement(FixedBill fixedBill, FinancialMovementStatus financialMovementStatus);

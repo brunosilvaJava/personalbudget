@@ -13,6 +13,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
@@ -75,12 +76,45 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
     @Column(name = "recurrence_bill_code")
     private UUID recurrenceBillCode;
 
+    /**
+     * Immutable idempotency key of the recurrence occurrence this movement was generated from.
+     * For income schedules this is the nominal month's first day; dueDate and competenceDate keep
+     * the planned date.
+     */
+    @Column(name = "occurrence_date", updatable = false)
+    private LocalDate occurrenceDate;
+
+    /**
+     * Budget competence: when the obligation/revenue belongs to the budget, independent of
+     * due/pay dates (cash). Null only for legacy recurring movements without occurrence_date,
+     * which have no safe automatic value.
+     */
+    @Column(name = "competence_date")
+    private LocalDate competenceDate;
+
+    /**
+     * True when the client informed the competence; such a value is never overwritten by the
+     * automatic recalculation.
+     */
+    @Column(name = "competence_overridden", nullable = false)
+    private Boolean competenceOverridden;
+
+    /**
+     * Plain column, not a JPA relationship: the movement only needs the category's code, and
+     * the category's name is resolved when a report asks for it.
+     */
+    @Column(name = "category_code")
+    private UUID categoryCode;
+
     @PrePersist
     public void prePersist() {
         if (code == null) {
             code = UUID.randomUUID();
         }
         flagActive = Boolean.TRUE;
+        if (competenceOverridden == null) {
+            competenceOverridden = Boolean.FALSE;
+        }
     }
 
     @Override

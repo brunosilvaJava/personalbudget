@@ -1,5 +1,6 @@
 package com.bts.personalbudget.controller.fixedbill;
 
+import com.bts.personalbudget.controller.common.SortFieldResolver;
 import com.bts.personalbudget.controller.fixedbill.config.FixedBillControllerApiDocs;
 import com.bts.personalbudget.core.domain.enumerator.FixedBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
@@ -10,13 +11,13 @@ import com.bts.personalbudget.mapper.FixedBillMapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,16 +29,29 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class FixedBillController implements FixedBillControllerApiDocs {
 
+    /**
+     * sort_by values accepted by GET /fixed_bill, mapped to the entity property.
+     */
+    private static final Map<String, String> SORT_FIELDS = Map.of(
+            "description", "description",
+            "amount", "amount",
+            "operation_type", "operationType",
+            "status", "status",
+            "recurrence_type", "recurrenceType",
+            "start_date", "startDate",
+            "next_due_date", "nextDueDate",
+            "end_date", "endDate");
+
     private final FixedBillService fixedBillService;
     private final FixedBillMapper fixedBillMapper;
 
     @Override
     @PostMapping
-    public ResponseEntity<Void> create(@Valid @RequestBody FixedBillRequest fixedBillRequest) {
+    public ResponseEntity<FixedBillResponse> create(@Valid @RequestBody FixedBillRequest fixedBillRequest) {
         log.info("m=create fixedBillRequest={}", fixedBillRequest);
         final FixedBill fixedBill = fixedBillMapper.toModel(fixedBillRequest);
-        fixedBillService.save(fixedBill);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        final FixedBill savedFixedBill = fixedBillService.save(fixedBill);
+        return ResponseEntity.status(HttpStatus.CREATED).body(fixedBillMapper.toResponse(savedFixedBill));
     }
 
     @GetMapping
@@ -49,14 +63,13 @@ public class FixedBillController implements FixedBillControllerApiDocs {
             @RequestParam(value = "recurrence_type", required = false) List<RecurrenceType> recurrenceTypes,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "description") String sortBy,
-            @RequestParam(defaultValue = "ASC") String sortDirection) {
+            @RequestParam(value = "sort_by", defaultValue = "description") String sortBy,
+            @RequestParam(value = "sort_direction", defaultValue = "ASC") String sortDirection) {
 
         log.info("m=find, description={}, operationTypes={}, statuses={}, recurrenceTypes={}, page={}, size={}, sortBy={}, sortDirection={}",
                 description, operationTypes, statuses, recurrenceTypes, page, size, sortBy, sortDirection);
 
-        Sort.Direction direction = sortDirection.equalsIgnoreCase("ASC") ? Sort.Direction.ASC : Sort.Direction.DESC;
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+        Pageable pageable = PageRequest.of(page, size, SortFieldResolver.resolve(sortBy, sortDirection, SORT_FIELDS));
 
         Page<FixedBill> pagedResult = fixedBillService.find(description, operationTypes, statuses, recurrenceTypes, pageable);
 
@@ -85,18 +98,7 @@ public class FixedBillController implements FixedBillControllerApiDocs {
     public ResponseEntity<FixedBillResponse> update(@PathVariable UUID code,
                                                     @RequestBody @Valid final FixedBillUpdateRequest fixedBillUpdateRequest){
         log.info("m=update code={} fixedBillUpdateRequest={}", code, fixedBillUpdateRequest);
-        final FixedBill fixedBill = fixedBillService.update(
-                code,
-                fixedBillUpdateRequest.operationType(),
-                fixedBillUpdateRequest.description(),
-                fixedBillUpdateRequest.amount(),
-                fixedBillUpdateRequest.recurrenceType(),
-                fixedBillUpdateRequest.days(),
-                fixedBillUpdateRequest.referenceYear(),
-                fixedBillUpdateRequest.status(),
-                fixedBillUpdateRequest.startDate(),
-                fixedBillUpdateRequest.endDate()
-        );
+        final FixedBill fixedBill = fixedBillService.update(code, fixedBillMapper.toUpdate(fixedBillUpdateRequest));
 
         return ResponseEntity.ok(fixedBillMapper.toResponse(fixedBill));
     }
