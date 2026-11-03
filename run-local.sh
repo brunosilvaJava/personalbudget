@@ -7,10 +7,23 @@ wait_for_mysql() {
   done
 }
 
-# Set default values if variables are not set
+# Load the variables from .env when it exists (copy .env.example to .env and fill it in)
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+# Set default values for the variables that are not secret
 DB_USERNAME=${DB_USERNAME:-financialbudgetuser}
-DB_PASSWORD=${DB_PASSWORD:-cadI1fzFK3t#El%I}
 DB_DATABASE=${DB_DATABASE:-financialbudgetdb}
+
+# The passwords have no default: they must come from .env or from the environment
+if [ -z "$DB_PASSWORD" ] || [ -z "$DB_ROOT_PASSWORD" ]; then
+  echo "DB_PASSWORD and DB_ROOT_PASSWORD must be set in .env (see .env.example) or exported." >&2
+  exit 1
+fi
+export DB_PASSWORD DB_ROOT_PASSWORD
 
 # Start Docker containers
 docker compose --profile dependents up -d
