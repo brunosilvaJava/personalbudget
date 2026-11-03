@@ -108,6 +108,23 @@ public record PayCycle(
                 startAdjusted, endAdjusted, version);
     }
 
+    /**
+     * This cycle with its end fixed by hand at {@code newEnd}: from then on the end is not recalculated.
+     */
+    public PayCycle withEndAdjusted(final LocalDate newEnd) {
+        return new PayCycle(code, startDate, newEnd, kind, anchorScheduleCode, anchorNominalMonth, lifecycle,
+                startAdjusted, true, version);
+    }
+
+    /**
+     * This cycle with its start fixed by hand at {@code newStart}: from then on the start is not
+     * recalculated.
+     */
+    public PayCycle withStartAdjusted(final LocalDate newStart) {
+        return new PayCycle(code, newStart, endDate, kind, anchorScheduleCode, anchorNominalMonth, lifecycle,
+                true, endAdjusted, version);
+    }
+
     public PayCycle cancelled() {
         return new PayCycle(code, startDate, endDate, kind, anchorScheduleCode, anchorNominalMonth,
                 PayCycleLifecycle.CANCELLED, startAdjusted, endAdjusted, version);

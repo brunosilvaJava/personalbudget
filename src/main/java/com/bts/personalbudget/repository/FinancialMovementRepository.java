@@ -91,4 +91,20 @@ public interface FinancialMovementRepository
             @Param("statuses") List<FinancialMovementStatus> statuses,
             @Param("dueDate") LocalDateTime dueDate
     );
+
+    /**
+     * The active movements whose competence date is in {@code [from, toExclusive)}, oldest competence
+     * first. A movement without competence date matches nothing. Backed by
+     * idx_financial_movement_competence_date.
+     */
+    @Query("""
+            SELECT fm FROM FinancialMovementEntity fm
+            WHERE fm.flagActive = true
+              AND fm.competenceDate >= :from AND fm.competenceDate < :toExclusive
+            ORDER BY fm.competenceDate ASC, fm.id ASC
+            """)
+    List<FinancialMovementEntity> findActiveByCompetenceDateInterval(
+            @Param("from") LocalDate from,
+            @Param("toExclusive") LocalDate toExclusive
+    );
 }

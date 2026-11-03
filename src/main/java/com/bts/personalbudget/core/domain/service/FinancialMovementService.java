@@ -122,6 +122,17 @@ public class FinancialMovementService {
                 recurrenceBillCodes, initialDate, endDate));
     }
 
+    /**
+     * The active movements whose competence date is in {@code [from, toExclusive)}, oldest competence
+     * first: what a cycle boundary at {@code from} or {@code toExclusive} would hand from one cycle to
+     * the other. Soft-deleted movements are left out, and so are the legacy ones with no competence
+     * date, which belong to no interval.
+     */
+    public List<FinancialMovement> findByCompetenceInterval(final LocalDate from, final LocalDate toExclusive) {
+        log.info("m=findByCompetenceInterval, from={}, toExclusive={}", from, toExclusive);
+        return mapper.toModel(repository.findActiveByCompetenceDateInterval(from, toExclusive));
+    }
+
     public Page<FinancialMovement> find(
             final String description,
             final List<OperationType> operationTypes,

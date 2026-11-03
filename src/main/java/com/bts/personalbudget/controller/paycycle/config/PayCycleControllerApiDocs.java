@@ -1,7 +1,13 @@
 package com.bts.personalbudget.controller.paycycle.config;
 
+import com.bts.personalbudget.controller.paycycle.PayCycleAdjustmentResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleCurrentNotFoundResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentPreviewRequest;
+import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentPreviewResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentRequest;
+import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleResponse;
+import com.bts.personalbudget.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -9,14 +15,15 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 
-@Tag(name = "Pay cycle", description = "API for reading the financial cycles")
+@Tag(name = "Pay cycle", description = "API for reading and adjusting the financial cycles")
 public interface PayCycleControllerApiDocs {
 
     @Operation(
@@ -59,5 +66,66 @@ public interface PayCycleControllerApiDocs {
             @ApiResponse(responseCode = "404", description = "Cycle not found")
     })
     ResponseEntity<PayCycleResponse> findByCode(@PathVariable UUID code);
+
+    @Operation(
+            summary = "Preview moving the end of a pay cycle",
+            description = "Shows what moving the end of the cycle to new_end_date would do, and changes nothing. The "
+                    + "end of a cycle is the day the next one opens, so the start of the next cycle moves with it and "
+                    + "the two stay contiguous, with no gap and no overlap. The answer has the two cycles before and "
+                    + "after, the financial movements whose competence date would change from one cycle to the other "
+                    + "(the competence date itself does not change) and the income occurrences planned for the moved "
+                    + "days. The versions in the answer are the ones the adjustment expects. The same rules as the "
+                    + "adjustment apply, so a date the preview accepts is a date the adjustment accepts.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The preview",
+                    content = @Content(schema = @Schema(implementation = PayCycleEndAdjustmentPreviewResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request data: new_end_date missing, equal to the "
+                    + "current end, or not after the start of the cycle and before the end of the next one"),
+            @ApiResponse(responseCode = "404", description = "Cycle not found"),
+            @ApiResponse(responseCode = "409", description = "The pay cycles are off, or the cycle cannot be adjusted: "
+                    + "it is cancelled, belongs to an earlier activation or has no next cycle",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<PayCycleEndAdjustmentPreviewResponse> previewEndAdjustment(
+            @PathVariable UUID code,
+            @Valid @RequestBody PayCycleEndAdjustmentPreviewRequest request);
+
+    @Operation(
+            summary = "Move the end of a pay cycle",
+            description = "Moves the end of the cycle, and with it the start of the next one, to new_end_date. Both "
+                    + "cycles are marked as adjusted (end_adjusted and start_adjusted), so the automatic "
+                    + "recalculation never moves that boundary again, and the change is recorded in the history of "
+                    + "both cycles in the same transaction. A justification is required. expected_version and "
+                    + "expected_next_version are the versions of the two cycles the preview was made with: if either "
+                    + "changed, the answer is 409 and nothing is written. The cycle codes and their reference months "
+                    + "do not change. There is no undo: going back is another adjustment, with its own preview.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Boundary moved",
+                    content = @Content(schema = @Schema(implementation = PayCycleEndAdjustmentResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request data: justification missing or longer "
+                    + "than 500 characters, or new_end_date missing, equal to the current end, or not after the start "
+                    + "of the cycle and before the end of the next one"),
+            @ApiResponse(responseCode = "404", description = "Cycle not found"),
+            @ApiResponse(responseCode = "409", description = "One of the two versions changed, the pay cycles are off, "
+                    + "or the cycle cannot be adjusted: it is cancelled, belongs to an earlier activation or has no "
+                    + "next cycle",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<PayCycleEndAdjustmentResponse> adjustEnd(
+            @PathVariable UUID code,
+            @Valid @RequestBody PayCycleEndAdjustmentRequest request);
+
+    @Operation(
+            summary = "Retrieve the adjustment history of a pay cycle",
+            description = "Returns the entries of the history that touched the cycle, as the previous or as the next "
+                    + "one of a boundary, newest first. A manual adjustment is in the history of both cycles around "
+                    + "the boundary; a deactivation is in the history of the last cycle that had started and of the "
+                    + "first one it cancelled. The list is empty when nothing touched the cycle. Cancelled cycles can "
+                    + "be asked for too.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The history, possibly empty"),
+            @ApiResponse(responseCode = "404", description = "Cycle not found")
+    })
+    ResponseEntity<List<PayCycleAdjustmentResponse>> findAdjustments(@PathVariable UUID code);
 
 }

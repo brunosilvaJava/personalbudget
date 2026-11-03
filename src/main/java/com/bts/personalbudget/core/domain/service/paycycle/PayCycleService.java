@@ -3,14 +3,17 @@ package com.bts.personalbudget.core.domain.service.paycycle;
 import com.bts.personalbudget.core.domain.entity.IncomeScheduleEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleEntity;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
+import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarService;
 import com.bts.personalbudget.core.domain.service.income.IncomeSchedule;
 import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAdjustmentPlanner.EndAdjustment;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCyclePlanner.Request;
 import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.PayCycleMapper;
 import com.bts.personalbudget.repository.IncomeScheduleRepository;
+import com.bts.personalbudget.repository.PayCycleAdjustmentRepository;
 import com.bts.personalbudget.repository.PayCycleRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.time.Clock;
@@ -19,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -45,13 +49,20 @@ public class PayCycleService {
      */
     static final int ACTIVATION_WINDOW_DAYS = 31;
 
+    /**
+     * Longest justification the history stores (the width of the column).
+     */
+    static final int JUSTIFICATION_MAX_LENGTH = 500;
+
     private static final String INVALID_FIELDS_MESSAGE = "Campos inválidos";
 
     private final PayCycleConfigService configService;
     private final IncomeScheduleService incomeScheduleService;
     private final IncomeScheduleRepository scheduleRepository;
     private final HolidayCalendarService holidayCalendarService;
+    private final FinancialMovementService financialMovementService;
     private final PayCycleRepository cycleRepository;
+    private final PayCycleAdjustmentRepository adjustmentRepository;
     private final PayCycleMapper mapper;
     private final Clock clock;
 
@@ -155,6 +166,59 @@ public class PayCycleService {
                 pending);
     }
 
+    /**
+     * What moving the end of the cycle (and with it the start of the next one) to {@code newEndDate}
+     * would do, without changing anything: the two cycles before and after, the movements whose
+     * competence date moves from one cycle to the other, and the income occurrences planned for the moved
+     * days. The same rules as {@link #adjustEnd}, so what the preview accepts the application accepts.
+     *
+     * @throws EntityNotFoundException (404) when there is no cycle with the code
+     * @throws InvalidFieldsException  (400) when the new date is missing, equals the current end, or
+     *                                 leaves one of the two cycles empty
+     * @throws ConflictException       (409) when the pay cycles are off or the cycle cannot be adjusted
+     *                                 (cancelled, from an earlier activation, or with no next cycle)
+     */
+    @Transactional(readOnly = true)
+    public PayCycleEndAdjustmentPreview previewEndAdjustment(final UUID code, final LocalDate newEndDate) {
+        log.info("m=previewEndAdjustment, code={}, newEndDate={}", code, newEndDate);
+        final LocalDate today = LocalDate.now(clock);
+        final PayCycleConfig config = configService.find();
+        requirePayCycleMode(config);
+        final AdjustablePair pair = findAdjustablePair(code, config,
+                cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)));
+        final PayCycle previous = mapper.toModel(pair.previous());
+        final PayCycle next = mapper.toModel(pair.next());
+        final EndAdjustment adjustment = planEndAdjustment(previous, next, newEndDate);
+
+        final List<PayCycle> chain = mapper.toModelList(pair.chain());
+        final List<PayCyclePending> pendingBefore = findPending(config, chain);
+        final List<PayCyclePending> pendingAfter = findPending(config, replacePair(chain, adjustment));
+        return new PayCycleEndAdjustmentPreview(
+                adjustment.oldBoundary(),
+                adjustment.newBoundary(),
+                toViews(List.of(previous, next), today, pendingBefore),
+                toViews(List.of(adjustment.previous(), adjustment.next()), today, pendingAfter),
+                adjustment.leavingCycleCode(),
+                adjustment.receivingCycleCode(),
+                financialMovementService.findByCompetenceInterval(adjustment.movedFrom(), adjustment.movedUntil()),
+                incomeScheduleService.findOccurrencesPlannedBetween(adjustment.movedFrom(), adjustment.movedUntil()));
+    }
+
+    /**
+     * The adjustments that touched the cycle, as the previous or as the next one of a boundary, newest
+     * first. A deactivation is in the history of the last cycle that had started and of the first one
+     * it cancelled.
+     *
+     * @throws EntityNotFoundException (404) when there is no cycle with the code
+     */
+    @Transactional(readOnly = true)
+    public List<PayCycleAdjustment> findAdjustments(final UUID code) {
+        log.info("m=findAdjustments, code={}", code);
+        final PayCycleEntity cycle = cycleRepository.findByCode(code)
+                .orElseThrow(() -> new EntityNotFoundException("PayCycleEntity not found for code " + code));
+        return mapper.toAdjustmentModelList(adjustmentRepository.findByCycleId(cycle.getId()));
+    }
+
     // --- writing ---
 
     /**
@@ -192,30 +256,106 @@ public class PayCycleService {
 
     /**
      * Turns the cycles off: the cycles that have not started are cancelled; the ones that started stay
-     * as history. The cycles can be activated again from the end of the last one.
+     * as history. The cycles can be activated again from the end of the last one. The reason goes to the
+     * history in this same transaction, together with the last cycle that had started and the first one
+     * that was cancelled, so the entry shows up in the history of both.
      *
-     * @throws ConflictException (409) when the version changed or the cycles are already off
+     * @param justification why the cycles are turned off; required
+     * @throws InvalidFieldsException (400) when the justification is missing or too long
+     * @throws ConflictException      (409) when the version changed or the cycles are already off
      */
     @Transactional
-    public PayCycleConfigView deactivate(final Long expectedVersion) {
-        log.info("m=deactivate, expectedVersion={}", expectedVersion);
+    public PayCycleConfigView deactivate(final Long expectedVersion, final String justification) {
+        log.info("m=deactivate, expectedVersion={}, justification={}", expectedVersion, justification);
+        final String reason = requireJustification(justification);
         final LocalDate today = LocalDate.now(clock);
         final PayCycleConfig config = configService.lock();
         configService.requireVersion(config, expectedVersion);
-        if (!config.isPayCycle()) {
-            throw new ConflictException("Os ciclos financeiros não estão ativados");
-        }
+        requirePayCycleMode(config);
 
+        final List<PayCycleEntity> active = cycleRepository.findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE);
+        PayCycleEntity lastStarted = null;
+        PayCycleEntity firstCancelled = null;
+        for (final PayCycleEntity entity : currentChain(active, config)) {
+            if (!entity.getStartDate().isAfter(today)) {
+                lastStarted = entity;
+            } else if (firstCancelled == null) {
+                firstCancelled = entity;
+            }
+        }
         int cancelled = 0;
-        for (final PayCycleEntity entity : cycleRepository.findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE)) {
+        for (final PayCycleEntity entity : active) {
             if (entity.getStartDate().isAfter(today)) {
                 entity.setLifecycle(PayCycleLifecycle.CANCELLED);
                 cancelled++;
             }
         }
+        adjustmentRepository.save(mapper.toEntity(PayCycleAdjustment.deactivation(
+                lastStarted == null ? null : lastStarted.getCode(),
+                firstCancelled == null ? null : firstCancelled.getCode(),
+                firstCancelled == null ? null : firstCancelled.getStartDate(),
+                reason,
+                expectedVersion), lastStarted, firstCancelled));
         final PayCycleConfig updated = configService.switchToCalendarMonth();
         log.info("m=deactivate, message=PayCyclesDeactivated, cancelled={}", cancelled);
         return new PayCycleConfigView(updated, List.of());
+    }
+
+    /**
+     * Moves the end of the cycle, and with it the start of the next one, to {@code newEndDate}: both
+     * cycles are marked as adjusted, so the automatic recalculation never moves that boundary again, and
+     * the change is recorded in the history, all in this transaction. The two cycles are locked after the
+     * configuration, in the order the whole feature uses; if either one is not at the version the caller
+     * read, nothing is written and the answer is a conflict.
+     *
+     * <p>The previous cycle and the next one stay contiguous by construction, so no gap or overlap can
+     * result. Whether a cycle can still be adjusted is decided in {@link #requireAdjustable}.
+     *
+     * @param expectedVersion     version of the cycle named by {@code code}, as the caller read it
+     * @param expectedNextVersion version of the cycle that follows it, as the caller read it
+     * @throws EntityNotFoundException (404) when there is no cycle with the code
+     * @throws InvalidFieldsException  (400) when the justification is missing or too long, or the new
+     *                                 date is missing, equals the current end, or leaves a cycle empty
+     * @throws ConflictException       (409) when a version changed, the pay cycles are off, or the cycle
+     *                                 cannot be adjusted (cancelled, from an earlier activation, or with
+     *                                 no next cycle)
+     */
+    @Transactional
+    public PayCycleEndAdjustmentResult adjustEnd(final UUID code,
+                                                 final LocalDate newEndDate,
+                                                 final String justification,
+                                                 final Long expectedVersion,
+                                                 final Long expectedNextVersion) {
+        log.info("m=adjustEnd, code={}, newEndDate={}, justification={}, expectedVersion={}, expectedNextVersion={}",
+                code, newEndDate, justification, expectedVersion, expectedNextVersion);
+        final String reason = requireJustification(justification);
+        final LocalDate today = LocalDate.now(clock);
+        final PayCycleConfig config = configService.lock();
+        requirePayCycleMode(config);
+        final AdjustablePair pair = findAdjustablePair(code, config,
+                cycleRepository.findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE));
+        requireVersion(pair.previous(), expectedVersion);
+        requireVersion(pair.next(), expectedNextVersion);
+
+        final PayCycle previous = mapper.toModel(pair.previous());
+        final PayCycle next = mapper.toModel(pair.next());
+        final EndAdjustment adjustment = planEndAdjustment(previous, next, newEndDate);
+
+        pair.previous().setEndDate(adjustment.newBoundary());
+        pair.previous().setEndAdjusted(true);
+        pair.next().setStartDate(adjustment.newBoundary());
+        pair.next().setStartAdjusted(true);
+        cycleRepository.flush();
+        final PayCycleAdjustment saved = mapper.toModel(adjustmentRepository.save(mapper.toEntity(
+                PayCycleAdjustment.manualBoundary(previous, next, adjustment.newBoundary(), reason,
+                        expectedVersion, expectedNextVersion),
+                pair.previous(), pair.next())));
+
+        final List<PayCycleView> views = toViews(
+                mapper.toModelList(List.of(pair.previous(), pair.next())), today, findPending(config));
+        log.info("m=adjustEnd, message=PayCycleBoundaryAdjusted, previous={}, next={}, from={}, to={}",
+                previous.code(), next.code(), adjustment.oldBoundary(), adjustment.newBoundary());
+        return new PayCycleEndAdjustmentResult(saved, views.get(0), views.get(1));
     }
 
     /**
@@ -304,15 +444,22 @@ public class PayCycleService {
         if (!config.isPayCycle()) {
             return List.of();
         }
+        return findPending(config, mapper.toModelList(currentChain(
+                cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)), config)));
+    }
+
+    /**
+     * The same, for a chain handed over: the one that is stored, or the one a change under preview would
+     * leave. The configuration is in PAY_CYCLE.
+     */
+    private List<PayCyclePending> findPending(final PayCycleConfig config, final List<PayCycle> existing) {
         final IncomeSchedule anchor = incomeScheduleService.findByCode(config.anchorScheduleCode());
-        final List<PayCycle> existing = mapper.toModelList(currentChain(
-                cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)), config));
         final LocalDate today = LocalDate.now(clock);
         final List<PayCyclePending> pending = plan(anchor, config.activationDate(), existing, today).pending();
         if (!today.isBefore(config.activationDate())
                 && existing.stream().noneMatch(cycle -> cycle.contains(today))
                 && !pending.contains(PayCyclePending.noCurrentCycle())) {
-            final List<PayCyclePending> withNoCurrent = new java.util.ArrayList<>(pending);
+            final List<PayCyclePending> withNoCurrent = new ArrayList<>(pending);
             withNoCurrent.add(PayCyclePending.noCurrentCycle());
             return List.copyOf(withNoCurrent);
         }
@@ -339,6 +486,103 @@ public class PayCycleService {
                 .toList();
     }
 
+    /**
+     * A cycle and the one that follows it, as stored, and the chain of the current activation they come
+     * from (to see what the pendencies would be after a change).
+     */
+    private record AdjustablePair(List<PayCycleEntity> chain, PayCycleEntity previous, PayCycleEntity next) {
+    }
+
+    /**
+     * The cycle named by {@code code} and the one that follows it, when the end of the first one can be
+     * adjusted. The pay cycles have to be on, and the cycle has to be in the chain of the current
+     * activation: the first cycle of an activation starts on the activation date, so a boundary that
+     * belongs to an earlier activation is history and is not moved.
+     *
+     * @param active the ACTIVE cycles, ordered by start date; read after {@link #requirePayCycleMode},
+     *               so nothing is queried (nor locked) while the cycles are off
+     * @throws EntityNotFoundException (404) when there is no cycle with the code
+     * @throws ConflictException       (409) when the cycle is cancelled or from an earlier activation, or
+     *                                 it is the last one of the chain
+     */
+    private AdjustablePair findAdjustablePair(final UUID code, final PayCycleConfig config, final List<PayCycleEntity> active) {
+        final List<PayCycleEntity> chain = currentChain(active, config);
+        int index = -1;
+        for (int i = 0; i < chain.size(); i++) {
+            if (chain.get(i).getCode().equals(code)) {
+                index = i;
+            }
+        }
+        if (index < 0) {
+            final PayCycleEntity entity = cycleRepository.findByCode(code)
+                    .orElseThrow(() -> new EntityNotFoundException("PayCycleEntity not found for code " + code));
+            throw new ConflictException(entity.getLifecycle() == PayCycleLifecycle.CANCELLED
+                    ? "O ciclo está cancelado e não pode ser ajustado"
+                    : "O ciclo pertence a uma ativação anterior e não pode ser ajustado");
+        }
+        if (index + 1 >= chain.size()) {
+            throw new ConflictException("O ciclo não tem ciclo seguinte: o fim do último ciclo acompanha "
+                    + "a agenda âncora e não pode ser ajustado");
+        }
+        final AdjustablePair pair = new AdjustablePair(chain, chain.get(index), chain.get(index + 1));
+        requireAdjustable(pair.previous(), pair.next());
+        return pair;
+    }
+
+    /**
+     * Whether the boundary between the two cycles can still be moved. Today any two ACTIVE cycles can;
+     * this is where a cycle that was closed will be refused (409) once cycles can be closed.
+     */
+    private void requireAdjustable(final PayCycleEntity previous, final PayCycleEntity next) {
+        if (previous.getLifecycle() != PayCycleLifecycle.ACTIVE || next.getLifecycle() != PayCycleLifecycle.ACTIVE) {
+            throw new ConflictException("Só ciclos ativos podem ser ajustados");
+        }
+    }
+
+    private EndAdjustment planEndAdjustment(final PayCycle previous, final PayCycle next, final LocalDate newEndDate) {
+        PayCycleAdjustmentPlanner.validate(previous, next, newEndDate).ifPresent(message -> {
+            throw invalid("newEndDate", message);
+        });
+        return PayCycleAdjustmentPlanner.adjust(previous, next, newEndDate);
+    }
+
+    /**
+     * The chain with the two cycles of the adjustment in place of the ones they replace.
+     */
+    private static List<PayCycle> replacePair(final List<PayCycle> chain, final EndAdjustment adjustment) {
+        return chain.stream()
+                .map(cycle -> {
+                    if (cycle.code().equals(adjustment.previous().code())) {
+                        return adjustment.previous();
+                    }
+                    return cycle.code().equals(adjustment.next().code()) ? adjustment.next() : cycle;
+                })
+                .toList();
+    }
+
+    private void requireVersion(final PayCycleEntity entity, final Long expectedVersion) {
+        if (!Objects.equals(entity.getVersion(), expectedVersion)) {
+            log.info("m=requireVersion, message=VersionConflict, code={}, current={}, expected={}",
+                    entity.getCode(), entity.getVersion(), expectedVersion);
+            throw new ConflictException("O ciclo foi alterado por outra operação; recarregue e tente novamente");
+        }
+    }
+
+    /**
+     * @return the justification without the spaces around it
+     * @throws InvalidFieldsException (400) when it is missing, blank or longer than the history stores
+     */
+    private String requireJustification(final String justification) {
+        if (justification == null || justification.isBlank()) {
+            throw invalid("justification", "deve ser informada");
+        }
+        final String reason = justification.strip();
+        if (reason.length() > JUSTIFICATION_MAX_LENGTH) {
+            throw invalid("justification", "não pode passar de " + JUSTIFICATION_MAX_LENGTH + " caracteres");
+        }
+        return reason;
+    }
+
     private IncomeScheduleEntity findScheduleEntity(final UUID code) {
         return scheduleRepository.findByCode(code)
                 .orElseThrow(() -> new EntityNotFoundException("IncomeScheduleEntity not found for code " + code));
@@ -351,6 +595,12 @@ public class PayCycleService {
     private void requireCalendarMonthMode(final PayCycleConfig config) {
         if (config.isPayCycle()) {
             throw new ConflictException("Os ciclos financeiros já estão ativados");
+        }
+    }
+
+    private void requirePayCycleMode(final PayCycleConfig config) {
+        if (!config.isPayCycle()) {
+            throw new ConflictException("Os ciclos financeiros não estão ativados");
         }
     }
 

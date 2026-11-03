@@ -51,7 +51,8 @@ public class PayCycleConfigController implements PayCycleConfigControllerApiDocs
     @PostMapping("/deactivation")
     public ResponseEntity<PayCycleConfigResponse> deactivate(@Valid @RequestBody PayCycleDeactivationRequest request) {
         log.info("m=deactivate, request={}", request);
-        return ResponseEntity.ok(payCycleMapper.toResponse(payCycleService.deactivate(request.expectedVersion())));
+        return ResponseEntity.ok(payCycleMapper.toResponse(
+                payCycleService.deactivate(request.expectedVersion(), request.justification())));
     }
 
 }
