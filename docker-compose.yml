@@ -6,10 +6,10 @@ services:
     restart: always
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-time-zone=-03:00
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env (see .env.example)}"
       MYSQL_DATABASE: financialbudgetdb
       MYSQL_USER: financialbudgetuser
-      MYSQL_PASSWORD: cadI1fzFK3t#El%I
+      MYSQL_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env (see .env.example)}"
       TZ: America/Sao_Paulo
     ports:
       - "3306:3306"
@@ -29,7 +29,7 @@ services:
       DB_HOST: mysql
       DB_DATABASE: financialbudgetdb
       DB_USERNAME: financialbudgetuser
-      DB_PASSWORD: cadI1fzFK3t#El%I
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env (see .env.example)}"
     ports:
       - "8080:8080"
     depends_on:
