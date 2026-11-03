@@ -17,7 +17,8 @@ Regras gerais do repositório: `.github/copilot-instructions.md`. Exemplos de c�
 | `controller/{feature}/config/` | Interface com anotações OpenAPI (`{Feature}ControllerApiDocs`) |
 | `core/domain/entity/` | Entidades JPA (`{Feature}Entity`) |
 | `core/domain/enumerator/` | Enums de domínio |
-| `core/domain/exception/` | Exceções de domínio |
+| `core/domain/exception/` | Exceções específicas do domínio (ex.: `InstallmentBillAlreadyDeletedException`) |
+| `exception/` | Exceções e respostas de erro da API: `ConflictException` (409), `InvalidFieldsException` (400), `ErrorResponse` e o `ControllerExceptionHandler`. Reuse-as; não crie equivalentes |
 | `core/domain/model/` | Domain models (records) de features simples |
 | `core/domain/service/{feature}/` | Services com as regras de negócio da feature e, quando a feature tem regra própria, o domain model |
 | `core/domain/factory/` (em `src/test`) | Factories de teste |
@@ -53,7 +54,7 @@ Regras gerais do repositório: `.github/copilot-instructions.md`. Exemplos de c�
 ## Identificadores e persistência
 
 - Identificador público sempre `code` (UUID gerado na criação); `id` (Long, `@GeneratedValue`) é interno ao banco e nunca exposto na API.
-- Soft delete: setar `flagActive = false`; nunca `DELETE` físico.
+- Soft delete: setar `flagActive = false`; nunca `DELETE` físico. As leituras usuais filtram por `flagActive = true`; a exceção são as consultas de idempotência da recorrência, que incluem registros excluídos.
 - Auditoria: a entidade estende `AuditingEntity` (`createdDate` e `lastModifiedDate`). Tabelas só de inserção (histórico) usam entidade `@Immutable`, sem `AuditingEntity`.
 
 ## JSON, validação e erros
