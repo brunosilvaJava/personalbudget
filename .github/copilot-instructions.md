@@ -46,17 +46,17 @@ HTTP → Controller → Service → Repository → MySQL
 - `FixedBillService` e `InstallmentBillService` têm repositórios de domínio próprios (interfaces nos subpacotes) que encapsulam o JpaRepository.
 - Lógica pura (cálculo de datas, planejadores de ciclo) fica em classes Java **sem Spring**, testáveis sem banco. Exemplos: `IncomeDateCalculator`, `PayCyclePlanner`, `PayCycleAdjustmentPlanner`.
 
-Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{Feature}ControllerApiDocs`), `core/domain/entity`, `core/domain/enumerator`, `core/domain/model` (models simples, como `Category`), `core/domain/service/{feature}/` (services e os models de features com regra própria: `fixedbill`, `installmentbill`, `income`, `calendar`, `paycycle`, `balance`, `category`, `dashboard`, `recurrencebill`), `mapper/`, `repository/`, `job/`, `exception/`, `config/`.
+Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{Feature}ControllerApiDocs`), `core/domain/entity`, `core/domain/enumerator`, `core/domain/model` (models simples, como `Category`), `core/domain/service/{feature}/` (services e os models de features com regra própria: `fixedbill`, `installmentbill`, `income`, `calendar`, `paycycle`, `balance`, `category`, `dashboard`, `recurrencebill`), `core/domain/exception` (exceções específicas do domínio), `exception/` (exceções e respostas de erro da API: `ConflictException`, `InvalidFieldsException`, `ErrorResponse`, `ControllerExceptionHandler`), `mapper/`, `repository/`, `job/`, `config/`.
 
 ## Convenções de código
 
 - Injeção via `@RequiredArgsConstructor` com campos `final`; Lombok para boilerplate.
 - Nomes: `{Feature}Controller/Service/Entity/Repository/Mapper`, `{Feature}Request`, `{Feature}UpdateRequest`, `{Feature}Response`, `Paged{Feature}Response`, `{Feature}ControllerApiDocs`.
 - Identificador público é `code` (UUID); `id` (Long) é interno.
-- Soft delete: `flagActive = false`, nunca DELETE físico. Consultas filtram por `flagActive = true`.
+- Soft delete: `flagActive = false`, nunca DELETE físico. As leituras usuais filtram por `flagActive = true`. **Exceção:** as consultas de idempotência da recorrência (`existsByRecurrenceBillCodeAndOccurrenceDate` e a consulta equivalente por intervalo) não filtram, porque um lançamento excluído conta como já gerado e não pode ser recriado.
 - Log no início de todo método público: `log.info("m=metodo, param={}", valor)`.
 - Escrita com `@Transactional`.
-- Exceções: `EntityNotFoundException` → 404 ("Registro não encontrado"); `ConflictException` → 409; `InvalidFieldsException` → 400 com `validations`; o resto → 500 genérico. Não vaze nomes de classes internas nas mensagens.
+- Exceções: `EntityNotFoundException` → 404 ("Registro não encontrado"); `ConflictException` → 409; `InvalidFieldsException` → 400 com `validations`; o resto → 500 genérico. Reuse as exceções de `com.bts.personalbudget.exception`; não crie equivalentes. Não vaze nomes de classes internas nas mensagens.
 
 ## API e contrato
 
