@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -364,6 +365,53 @@ public class IncomeScheduleService {
                     });
         }
         return projections;
+    }
+
+    /**
+     * The occurrences of the active schedules planned for {@code [from, toExclusive)}, materialized
+     * (their frozen date) or only projected (the rule and the current calendar), oldest first: what a
+     * pay cycle boundary inside that range would hand from one cycle to the other. Months that cannot
+     * be calculated have no date and are left out; the pay cycle pendencies already say so.
+     */
+    public List<IncomeOccurrenceImpact> findOccurrencesPlannedBetween(final LocalDate from, final LocalDate toExclusive) {
+        log.info("m=findOccurrencesPlannedBetween, from={}, toExclusive={}", from, toExclusive);
+        final List<IncomeSchedule> schedules =
+                mapper.toModelList(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE));
+        if (schedules.isEmpty() || !from.isBefore(toExclusive)) {
+            return List.of();
+        }
+
+        final HolidayCalendar calendar = holidayCalendarService.findCalendar();
+        final Map<UUID, List<IncomeOccurrence>> occurrencesBySchedule = findOccurrencesBySchedule(schedules);
+        // A calculated date can move across reviewed years; include their full span on either side.
+        final int firstReviewedYear = calendar.reviewedYears().stream().mapToInt(Integer::intValue).min().orElse(0);
+        final int lastReviewedYear = calendar.reviewedYears().stream().mapToInt(Integer::intValue).max().orElse(-1);
+        final long displacementMonths = lastReviewedYear < firstReviewedYear
+                ? 0
+                : ((long) lastReviewedYear - firstReviewedYear + 1) * 12;
+        final YearMonth firstMonth = YearMonth.from(from).minusMonths(displacementMonths);
+        final YearMonth lastMonth = YearMonth.from(toExclusive.minusDays(1)).plusMonths(displacementMonths);
+
+        final List<IncomeOccurrenceImpact> impacts = new ArrayList<>();
+        for (final IncomeSchedule schedule : schedules) {
+            final List<IncomeOccurrence> occurrences =
+                    occurrencesBySchedule.getOrDefault(schedule.code(), List.of());
+            occurrences.stream()
+                    .filter(occurrence -> !occurrence.plannedDate().isBefore(from)
+                            && occurrence.plannedDate().isBefore(toExclusive))
+                    .map(IncomeOccurrenceView::materialized)
+                    .forEach(view -> impacts.add(
+                            new IncomeOccurrenceImpact(schedule.code(), schedule.description(), view)));
+            IncomeOccurrenceResolver.resolve(schedule, occurrences, calendar, firstMonth, lastMonth)
+                    .stream()
+                    .filter(view -> view.state() == IncomeOccurrenceView.State.PROJECTED)
+                    .filter(view -> !view.plannedDate().isBefore(from) && view.plannedDate().isBefore(toExclusive))
+                    .forEach(view -> impacts.add(
+                            new IncomeOccurrenceImpact(schedule.code(), schedule.description(), view)));
+        }
+        impacts.sort(Comparator.comparing((IncomeOccurrenceImpact impact) -> impact.occurrence().plannedDate())
+                .thenComparing(IncomeOccurrenceImpact::scheduleDescription));
+        return impacts;
     }
 
     /**

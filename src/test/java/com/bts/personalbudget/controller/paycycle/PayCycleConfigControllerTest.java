@@ -105,16 +105,16 @@ class PayCycleConfigControllerTest {
 
     @Test
     void shouldAnswerOkWithTheConfigurationAfterTheDeactivation() {
-        when(payCycleService.deactivate(1L))
+        when(payCycleService.deactivate(1L, "Mudei de emprego"))
                 .thenReturn(new PayCycleConfigView(buildCalendarMonthConfig(), List.of()));
 
         final ResponseEntity<PayCycleConfigResponse> response =
-                controller.deactivate(new PayCycleDeactivationRequest(1L));
+                controller.deactivate(new PayCycleDeactivationRequest(1L, "Mudei de emprego"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().mode()).isEqualTo(PayCycleMode.CALENDAR_MONTH);
         assertThat(response.getBody().anchorScheduleCode()).isNull();
-        verify(payCycleService).deactivate(1L);
+        verify(payCycleService).deactivate(1L, "Mudei de emprego");
     }
 }

@@ -9,24 +9,43 @@ import static com.bts.personalbudget.core.domain.factory.PayCycleFactory.buildTr
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bts.personalbudget.controller.paycycle.PayCycleActivationPreviewResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleAdjustmentResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleConfigResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleCurrentNotFoundResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentPreviewResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleIncomeImpactResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleMovementImpactResponse;
 import com.bts.personalbudget.controller.paycycle.PayCyclePendingResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleResponse;
 import com.bts.personalbudget.core.domain.entity.IncomeScheduleEntity;
+import com.bts.personalbudget.core.domain.entity.PayCycleAdjustmentEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleConfigEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleEntity;
+import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
+import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.enumerator.PayCycleAdjustmentType;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleKind;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleMode;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleStatus;
+import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory;
+import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.service.income.IncomeOccurrenceImpact;
+import com.bts.personalbudget.core.domain.service.income.IncomeOccurrenceView;
 import com.bts.personalbudget.core.domain.service.paycycle.CurrentPayCycle;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycle;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleActivationPreview;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAdjustment;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAdjustmentPlanner;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleConfig;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleConfigView;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleEndAdjustmentPreview;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleEndAdjustmentResult;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCyclePending;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleView;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
@@ -38,6 +57,7 @@ class PayCycleMapperTest {
     private static final YearMonth NOV = YearMonth.of(2026, 11);
     private static final YearMonth DEC = YearMonth.of(2026, 12);
     private static final LocalDate NOV_5 = LocalDate.of(2026, 11, 5);
+    private static final LocalDate NOV_10 = LocalDate.of(2026, 11, 10);
     private static final LocalDate DEC_7 = LocalDate.of(2026, 12, 7);
     private static final LocalDate JAN_5 = LocalDate.of(2027, 1, 5);
 
@@ -296,5 +316,217 @@ class PayCycleMapperTest {
         assertThat(response.message()).isEqualTo("Nenhum ciclo em andamento");
         assertThat(response.pending()).extracting(PayCyclePendingResponse::type)
                 .containsExactly(PayCyclePending.Type.NO_CURRENT_CYCLE);
+    }
+
+    // ---- history of adjustments
+
+    @Test
+    void shouldMapAHistoryEntityToTheModelWithTheCodesOfTheCycles() {
+        final PayCycleEntity previous = cycleEntity(UUID.randomUUID());
+        final PayCycleEntity next = cycleEntity(UUID.randomUUID());
+        final Instant createdDate = Instant.parse("2026-11-02T21:35:00Z");
+        final PayCycleAdjustmentEntity entity = PayCycleAdjustmentEntity.builder()
+                .id(3L)
+                .code(UUID.randomUUID())
+                .type(PayCycleAdjustmentType.MANUAL_BOUNDARY)
+                .previousCycle(previous)
+                .nextCycle(next)
+                .oldBoundary(NOV_5)
+                .newBoundary(NOV_10)
+                .justification("Motivo")
+                .expectedPreviousVersion(2L)
+                .expectedNextVersion(5L)
+                .createdDate(createdDate)
+                .build();
+
+        final PayCycleAdjustment model = mapper.toModel(entity);
+
+        assertThat(model.code()).isEqualTo(entity.getCode());
+        assertThat(model.type()).isEqualTo(PayCycleAdjustmentType.MANUAL_BOUNDARY);
+        assertThat(model.previousCycleCode()).isEqualTo(previous.getCode());
+        assertThat(model.nextCycleCode()).isEqualTo(next.getCode());
+        assertThat(model.oldBoundary()).isEqualTo(NOV_5);
+        assertThat(model.newBoundary()).isEqualTo(NOV_10);
+        assertThat(model.justification()).isEqualTo("Motivo");
+        assertThat(model.expectedPreviousVersion()).isEqualTo(2L);
+        assertThat(model.expectedNextVersion()).isEqualTo(5L);
+        assertThat(model.expectedConfigVersion()).isNull();
+        assertThat(model.createdDate()).isEqualTo(createdDate);
+    }
+
+    @Test
+    void shouldMapAHistoryEntityWithoutCyclesToNullCodes() {
+        final PayCycleAdjustmentEntity entity = PayCycleAdjustmentEntity.builder()
+                .code(UUID.randomUUID())
+                .type(PayCycleAdjustmentType.DEACTIVATION)
+                .justification("Motivo")
+                .expectedConfigVersion(3L)
+                .build();
+
+        final PayCycleAdjustment model = mapper.toModel(entity);
+
+        assertThat(model.previousCycleCode()).isNull();
+        assertThat(model.nextCycleCode()).isNull();
+        assertThat(model.expectedConfigVersion()).isEqualTo(3L);
+    }
+
+    @Test
+    void shouldMapAnAdjustmentToANewEntityWithTheCyclesGivenAndNoCreationDate() {
+        final PayCycle first = buildCycle(NOV_5.minusMonths(1), NOV_5, YearMonth.of(2026, 10));
+        final PayCycle second = buildCycle(NOV_5, DEC_7, NOV);
+        final PayCycleEntity previousEntity = cycleEntity(first.code());
+        final PayCycleEntity nextEntity = cycleEntity(second.code());
+        final PayCycleAdjustment adjustment = PayCycleAdjustment.manualBoundary(first, second, NOV_10, "Motivo", 2L, 5L);
+
+        final PayCycleAdjustmentEntity entity = mapper.toEntity(adjustment, previousEntity, nextEntity);
+
+        assertThat(entity.getId()).isNull();
+        assertThat(entity.getCode()).isEqualTo(adjustment.code());
+        assertThat(entity.getType()).isEqualTo(PayCycleAdjustmentType.MANUAL_BOUNDARY);
+        assertThat(entity.getPreviousCycle()).isSameAs(previousEntity);
+        assertThat(entity.getNextCycle()).isSameAs(nextEntity);
+        assertThat(entity.getOldBoundary()).isEqualTo(NOV_5);
+        assertThat(entity.getNewBoundary()).isEqualTo(NOV_10);
+        assertThat(entity.getJustification()).isEqualTo("Motivo");
+        assertThat(entity.getExpectedPreviousVersion()).isEqualTo(2L);
+        assertThat(entity.getExpectedNextVersion()).isEqualTo(5L);
+        assertThat(entity.getCreatedDate()).isNull();
+    }
+
+    @Test
+    void shouldMapADeactivationToAnEntityThatMayHaveNoCycle() {
+        final PayCycleAdjustment adjustment = PayCycleAdjustment.deactivation(null, null, null, "Motivo", 3L);
+
+        final PayCycleAdjustmentEntity entity = mapper.toEntity(adjustment, null, null);
+
+        assertThat(entity.getType()).isEqualTo(PayCycleAdjustmentType.DEACTIVATION);
+        assertThat(entity.getPreviousCycle()).isNull();
+        assertThat(entity.getNextCycle()).isNull();
+        assertThat(entity.getOldBoundary()).isNull();
+        assertThat(entity.getNewBoundary()).isNull();
+        assertThat(entity.getExpectedConfigVersion()).isEqualTo(3L);
+    }
+
+    @Test
+    void shouldMapAnAdjustmentToTheResponse() {
+        final PayCycleAdjustment adjustment = PayCycleAdjustment.deactivation(
+                UUID.randomUUID(), UUID.randomUUID(), DEC_7, "Motivo", 3L);
+
+        final PayCycleAdjustmentResponse response = mapper.toResponse(adjustment);
+
+        assertThat(response.code()).isEqualTo(adjustment.code());
+        assertThat(response.type()).isEqualTo(PayCycleAdjustmentType.DEACTIVATION);
+        assertThat(response.previousCycleCode()).isEqualTo(adjustment.previousCycleCode());
+        assertThat(response.nextCycleCode()).isEqualTo(adjustment.nextCycleCode());
+        assertThat(response.oldBoundary()).isEqualTo(DEC_7);
+        assertThat(response.newBoundary()).isNull();
+        assertThat(response.expectedConfigVersion()).isEqualTo(3L);
+        assertThat(mapper.toAdjustmentResponseList(List.of(adjustment, adjustment))).hasSize(2);
+    }
+
+    // ---- end adjustment
+
+    @Test
+    void shouldMapTheMovementThatChangesCycleWithAPositiveAmountForADebit() {
+        final FinancialMovement debit = FinancialMovementFactory.buildModel(
+                LocalDate.of(2026, 11, 7), OperationType.DEBIT, "120.00", FinancialMovementStatus.PENDING);
+
+        final PayCycleMovementImpactResponse response = mapper.toResponse(debit);
+
+        assertThat(response.code()).isEqualTo(debit.code());
+        assertThat(response.description()).isEqualTo(debit.description());
+        assertThat(response.operationType()).isEqualTo(OperationType.DEBIT);
+        assertThat(response.amount()).isEqualByComparingTo("120.00");
+        assertThat(response.status()).isEqualTo(FinancialMovementStatus.PENDING);
+        assertThat(response.competenceDate()).isEqualTo(debit.competenceDate());
+    }
+
+    @Test
+    void shouldKeepTheAmountOfACreditAsItIs() {
+        final FinancialMovement credit = FinancialMovementFactory.buildModel(
+                LocalDate.of(2026, 11, 7), OperationType.CREDIT, "500.00", FinancialMovementStatus.PENDING);
+
+        assertThat(mapper.toResponse(credit).amount()).isEqualByComparingTo("500.00");
+    }
+
+    @Test
+    void shouldMapTheIncomeOccurrenceThatChangesCycle() {
+        final UUID movementCode = UUID.randomUUID();
+        final IncomeOccurrenceImpact impact = new IncomeOccurrenceImpact(SCHEDULE_CODE, "Salário",
+                new IncomeOccurrenceView(NOV, IncomeOccurrenceView.State.MATERIALIZED, LocalDate.of(2026, 11, 6),
+                        new BigDecimal("5000.00"), movementCode, null));
+
+        final PayCycleIncomeImpactResponse response = mapper.toResponse(impact);
+
+        assertThat(response.scheduleCode()).isEqualTo(SCHEDULE_CODE);
+        assertThat(response.scheduleDescription()).isEqualTo("Salário");
+        assertThat(response.nominalMonth()).isEqualTo(NOV);
+        assertThat(response.state()).isEqualTo(IncomeOccurrenceView.State.MATERIALIZED);
+        assertThat(response.plannedDate()).isEqualTo(LocalDate.of(2026, 11, 6));
+        assertThat(response.amount()).isEqualByComparingTo("5000.00");
+        assertThat(response.movementCode()).isEqualTo(movementCode);
+    }
+
+    @Test
+    void shouldMapThePreviewWithTheVersionsOfBothCyclesToSendBack() {
+        final PayCycle first = new PayCycle(null, NOV_5.minusMonths(1), NOV_5, PayCycleKind.REGULAR, SCHEDULE_CODE,
+                YearMonth.of(2026, 10), PayCycleLifecycle.ACTIVE, false, false, 4L);
+        final PayCycle second = new PayCycle(null, NOV_5, DEC_7, PayCycleKind.REGULAR, SCHEDULE_CODE, NOV,
+                PayCycleLifecycle.ACTIVE, false, false, 9L);
+        final PayCycleAdjustmentPlanner.EndAdjustment adjustment = PayCycleAdjustmentPlanner.adjust(first, second, NOV_10);
+        final PayCycleEndAdjustmentPreview preview = new PayCycleEndAdjustmentPreview(NOV_5, NOV_10,
+                List.of(new PayCycleView(first, PayCycleStatus.OPEN, List.of()),
+                        new PayCycleView(second, PayCycleStatus.PLANNED, List.of())),
+                List.of(new PayCycleView(adjustment.previous(), PayCycleStatus.OPEN, List.of()),
+                        new PayCycleView(adjustment.next(), PayCycleStatus.PLANNED, List.of())),
+                second.code(), first.code(), List.of(), List.of());
+
+        final PayCycleEndAdjustmentPreviewResponse response = mapper.toResponse(preview);
+
+        assertThat(response.oldEndDate()).isEqualTo(NOV_5);
+        assertThat(response.newEndDate()).isEqualTo(NOV_10);
+        assertThat(response.expectedVersion()).isEqualTo(4L);
+        assertThat(response.expectedNextVersion()).isEqualTo(9L);
+        assertThat(response.cyclesBefore()).extracting(PayCycleResponse::endDateExclusive).containsExactly(NOV_5, DEC_7);
+        assertThat(response.cyclesAfter()).extracting(PayCycleResponse::endDateExclusive).containsExactly(NOV_10, DEC_7);
+        assertThat(response.cyclesAfter()).extracting(PayCycleResponse::startDate).containsExactly(first.startDate(), NOV_10);
+        assertThat(response.cyclesAfter().get(0).endAdjusted()).isTrue();
+        assertThat(response.cyclesAfter().get(1).startAdjusted()).isTrue();
+        assertThat(response.leavingCycleCode()).isEqualTo(second.code());
+        assertThat(response.receivingCycleCode()).isEqualTo(first.code());
+        assertThat(response.movements()).isEmpty();
+        assertThat(response.incomeOccurrences()).isEmpty();
+    }
+
+    @Test
+    void shouldMapTheAnswerOfAnAdjustmentWithTheEntryAndBothCycles() {
+        final PayCycle first = buildCycle(NOV_5.minusMonths(1), NOV_5, YearMonth.of(2026, 10));
+        final PayCycle second = buildCycle(NOV_5, DEC_7, NOV);
+        final PayCycleAdjustmentPlanner.EndAdjustment adjustment = PayCycleAdjustmentPlanner.adjust(first, second, NOV_10);
+        final PayCycleAdjustment entry = PayCycleAdjustment.manualBoundary(first, second, NOV_10, "Motivo", 0L, 0L);
+
+        final PayCycleEndAdjustmentResponse response = mapper.toResponse(new PayCycleEndAdjustmentResult(entry,
+                new PayCycleView(adjustment.previous(), PayCycleStatus.OPEN, List.of()),
+                new PayCycleView(adjustment.next(), PayCycleStatus.PLANNED, List.of())));
+
+        assertThat(response.adjustment().code()).isEqualTo(entry.code());
+        assertThat(response.cycle().code()).isEqualTo(first.code());
+        assertThat(response.cycle().endDateExclusive()).isEqualTo(NOV_10);
+        assertThat(response.nextCycle().code()).isEqualTo(second.code());
+        assertThat(response.nextCycle().startDate()).isEqualTo(NOV_10);
+    }
+
+    private PayCycleEntity cycleEntity(final UUID code) {
+        return PayCycleEntity.builder()
+                .id((long) (code.hashCode() & 0xffff))
+                .code(code)
+                .startDate(NOV_5.minusMonths(1))
+                .endDate(NOV_5)
+                .kind(PayCycleKind.REGULAR)
+                .lifecycle(PayCycleLifecycle.ACTIVE)
+                .startAdjusted(false)
+                .endAdjusted(false)
+                .version(0L)
+                .build();
     }
 }

@@ -74,11 +74,15 @@ public interface PayCycleConfigControllerApiDocs {
     @Operation(
             summary = "Deactivate the pay cycles",
             description = "Turns the pay cycles off: the cycles that have not started are cancelled and the ones "
-                    + "that started stay as history. They can be activated again from the end of the last one.")
+                    + "that started stay as history. They can be activated again from the end of the last one. A "
+                    + "justification is required and is recorded in the history of the last cycle that had started "
+                    + "and of the first one that was cancelled (GET /pay_cycle/{code}/adjustment), in the same "
+                    + "transaction.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Pay cycles deactivated",
                     content = @Content(schema = @Schema(implementation = PayCycleConfigResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request data"),
+            @ApiResponse(responseCode = "400", description = "Invalid request data: justification missing or "
+                    + "longer than 500 characters"),
             @ApiResponse(responseCode = "409", description = "The configuration changed since expected_version, or "
                     + "the pay cycles are already off",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))

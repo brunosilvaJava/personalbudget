@@ -8,6 +8,7 @@ import static com.bts.personalbudget.core.domain.factory.IncomeScheduleFactory.b
 import static com.bts.personalbudget.core.domain.factory.PayCycleFactory.buildCalendarMonthConfig;
 import static com.bts.personalbudget.core.domain.factory.PayCycleFactory.buildPayCycleConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -21,21 +22,32 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bts.personalbudget.core.domain.entity.IncomeScheduleEntity;
+import com.bts.personalbudget.core.domain.entity.PayCycleAdjustmentEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleEntity;
+import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
+import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.enumerator.PayCycleAdjustmentType;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleKind;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleMode;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleStatus;
+import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory;
+import com.bts.personalbudget.core.domain.model.FinancialMovement;
+import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendar;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarService;
+import com.bts.personalbudget.core.domain.service.income.IncomeOccurrenceImpact;
+import com.bts.personalbudget.core.domain.service.income.IncomeOccurrenceView;
 import com.bts.personalbudget.core.domain.service.income.IncomeSchedule;
 import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
 import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.PayCycleMapper;
 import com.bts.personalbudget.repository.IncomeScheduleRepository;
+import com.bts.personalbudget.repository.PayCycleAdjustmentRepository;
 import com.bts.personalbudget.repository.PayCycleRepository;
 import jakarta.persistence.EntityNotFoundException;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -74,6 +86,9 @@ class PayCycleServiceTest {
     private static final LocalDate NOV_5 = LocalDate.of(2026, 11, 5);
     private static final LocalDate DEC_7 = LocalDate.of(2026, 12, 7);
     private static final LocalDate JAN_5 = LocalDate.of(2027, 1, 5);
+    private static final LocalDate NOV_10 = LocalDate.of(2026, 11, 10);
+
+    private static final String JUSTIFICATION = "O salário caiu mais tarde neste mês";
 
     private static final HolidayCalendar CALENDAR = buildReviewedCalendar(2026, 2027, 2028);
 
@@ -93,7 +108,13 @@ class PayCycleServiceTest {
     private HolidayCalendarService holidayCalendarService;
 
     @Mock
+    private FinancialMovementService financialMovementService;
+
+    @Mock
     private PayCycleRepository cycleRepository;
+
+    @Mock
+    private PayCycleAdjustmentRepository adjustmentRepository;
 
     @Spy
     private PayCycleMapper mapper = PayCycleMapper.INSTANCE;
@@ -307,7 +328,7 @@ class PayCycleServiceTest {
         when(cycleRepository.findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE)).thenReturn(List.of(started, planned, later));
         when(configService.switchToCalendarMonth()).thenReturn(buildCalendarMonthConfig());
 
-        final PayCycleConfigView view = service.deactivate(2L);
+        final PayCycleConfigView view = service.deactivate(2L, JUSTIFICATION);
 
         assertEquals(PayCycleLifecycle.ACTIVE, started.getLifecycle());
         assertEquals(PayCycleLifecycle.CANCELLED, planned.getLifecycle());
@@ -317,11 +338,115 @@ class PayCycleServiceTest {
     }
 
     @Test
+    void shouldRecordTheDeactivationInTheHistoryOfTheLastStartedAndTheFirstCancelledCycle() {
+        final PayCycleEntity started = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity planned = entity(NOV_5, DEC_7, NOV);
+        final PayCycleEntity later = entity(DEC_7, JAN_5, DEC);
+        stubDeactivation(2L, started, planned, later);
+
+        service.deactivate(2L, "  " + JUSTIFICATION + "  ");
+
+        final PayCycleAdjustmentEntity recorded = savedAdjustment();
+        assertEquals(PayCycleAdjustmentType.DEACTIVATION, recorded.getType());
+        assertEquals(started, recorded.getPreviousCycle());
+        assertEquals(planned, recorded.getNextCycle());
+        assertEquals(NOV_5, recorded.getOldBoundary());
+        assertNull(recorded.getNewBoundary());
+        assertEquals(JUSTIFICATION, recorded.getJustification());
+        assertEquals(2L, recorded.getExpectedConfigVersion());
+        assertNull(recorded.getExpectedPreviousVersion());
+        assertNull(recorded.getExpectedNextVersion());
+    }
+
+    @Test
+    void shouldRecordTheDeactivationBeforeSwitchingTheModeAndUnderTheLocks() {
+        stubDeactivation(2L, entity(OCT_5, NOV_5, OCT), entity(NOV_5, DEC_7, NOV));
+
+        service.deactivate(2L, JUSTIFICATION);
+
+        final InOrder order = inOrder(configService, cycleRepository, adjustmentRepository);
+        order.verify(configService).lock();
+        order.verify(cycleRepository).findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE);
+        order.verify(adjustmentRepository).save(any(PayCycleAdjustmentEntity.class));
+        order.verify(configService).switchToCalendarMonth();
+    }
+
+    @Test
+    void shouldRecordTheDeactivationWithNoPreviousCycleWhenNoneHadStarted() {
+        final PayCycleEntity upcoming = entity(NOV_5, DEC_7, NOV);
+        when(configService.lock()).thenReturn(buildPayCycleConfig(NOV_5, 2L));
+        when(cycleRepository.findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE)).thenReturn(List.of(upcoming));
+        when(configService.switchToCalendarMonth()).thenReturn(buildCalendarMonthConfig());
+
+        service.deactivate(2L, JUSTIFICATION);
+
+        final PayCycleAdjustmentEntity recorded = savedAdjustment();
+        assertNull(recorded.getPreviousCycle());
+        assertEquals(upcoming, recorded.getNextCycle());
+        assertEquals(NOV_5, recorded.getOldBoundary());
+    }
+
+    @Test
+    void shouldRecordTheDeactivationWithNoNextCycleWhenNothingWasCancelled() {
+        final PayCycleEntity started = entity(OCT_5, NOV_5, OCT);
+        stubDeactivation(2L, started);
+
+        service.deactivate(2L, JUSTIFICATION);
+
+        final PayCycleAdjustmentEntity recorded = savedAdjustment();
+        assertEquals(started, recorded.getPreviousCycle());
+        assertNull(recorded.getNextCycle());
+        assertNull(recorded.getOldBoundary());
+    }
+
+    @Test
+    void shouldLinkTheDeactivationOnlyToTheCyclesOfTheCurrentActivation() {
+        final PayCycleEntity history = entity(LocalDate.of(2026, 8, 5), LocalDate.of(2026, 9, 7), YearMonth.of(2026, 8));
+        final PayCycleEntity started = entity(OCT_5, NOV_5, OCT);
+        stubDeactivation(2L, history, started);
+
+        service.deactivate(2L, JUSTIFICATION);
+
+        assertEquals(started, savedAdjustment().getPreviousCycle());
+        assertEquals(PayCycleLifecycle.ACTIVE, history.getLifecycle());
+    }
+
+    @Test
+    void shouldRejectADeactivationWithoutAJustification() {
+        final InvalidFieldsException blank =
+                assertThrows(InvalidFieldsException.class, () -> service.deactivate(2L, "   "));
+        final InvalidFieldsException missing =
+                assertThrows(InvalidFieldsException.class, () -> service.deactivate(2L, null));
+
+        assertTrue(blank.getValidations().containsKey("justification"));
+        assertTrue(missing.getValidations().containsKey("justification"));
+        verifyNoInteractions(configService, cycleRepository, adjustmentRepository);
+    }
+
+    @Test
+    void shouldRejectADeactivationWithATooLongJustification() {
+        final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
+                () -> service.deactivate(2L, "x".repeat(PayCycleService.JUSTIFICATION_MAX_LENGTH + 1)));
+
+        assertTrue(exception.getValidations().get("justification").contains("500"));
+        verifyNoInteractions(configService, cycleRepository, adjustmentRepository);
+    }
+
+    @Test
+    void shouldAcceptAJustificationWithTheMaximumLength() {
+        stubDeactivation(2L, entity(OCT_5, NOV_5, OCT));
+
+        service.deactivate(2L, "x".repeat(PayCycleService.JUSTIFICATION_MAX_LENGTH));
+
+        assertEquals(PayCycleService.JUSTIFICATION_MAX_LENGTH, savedAdjustment().getJustification().length());
+    }
+
+    @Test
     void shouldRejectADeactivationWhenThePayCyclesAreOff() {
         when(configService.lock()).thenReturn(buildCalendarMonthConfig());
 
-        assertThrows(ConflictException.class, () -> service.deactivate(0L));
-        verifyNoInteractions(cycleRepository);
+        assertThrows(ConflictException.class, () -> service.deactivate(0L, JUSTIFICATION));
+        verifyNoInteractions(cycleRepository, adjustmentRepository);
         verify(configService, never()).switchToCalendarMonth();
     }
 
@@ -331,8 +456,525 @@ class PayCycleServiceTest {
         when(configService.lock()).thenReturn(config);
         doThrow(new ConflictException("stale")).when(configService).requireVersion(config, 1L);
 
-        assertThrows(ConflictException.class, () -> service.deactivate(1L));
-        verifyNoInteractions(cycleRepository);
+        assertThrows(ConflictException.class, () -> service.deactivate(1L, JUSTIFICATION));
+        verifyNoInteractions(cycleRepository, adjustmentRepository);
+    }
+
+    // ---- end adjustment: preview
+
+    @Test
+    void shouldPreviewMovingTheEndLaterWithTheMovementsAndIncomesThatChangeCycle() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        final PayCycleEntity third = entity(DEC_7, JAN_5, DEC);
+        stubReadChain(first, second, third);
+        final FinancialMovement movement = FinancialMovementFactory.buildModel(
+                LocalDate.of(2026, 11, 7), OperationType.DEBIT, "120.00", FinancialMovementStatus.PENDING);
+        final IncomeOccurrenceImpact income = incomeImpact(LocalDate.of(2026, 11, 7));
+        when(financialMovementService.findByCompetenceInterval(NOV_5, NOV_10)).thenReturn(List.of(movement));
+        when(incomeScheduleService.findOccurrencesPlannedBetween(NOV_5, NOV_10)).thenReturn(List.of(income));
+
+        final PayCycleEndAdjustmentPreview preview = service.previewEndAdjustment(first.getCode(), NOV_10);
+
+        assertEquals(NOV_5, preview.oldEndDate());
+        assertEquals(NOV_10, preview.newEndDate());
+        assertEquals(List.of(movement), preview.movements());
+        assertEquals(List.of(income), preview.incomeOccurrences());
+        assertEquals(second.getCode(), preview.leavingCycleCode());
+        assertEquals(first.getCode(), preview.receivingCycleCode());
+    }
+
+    @Test
+    void shouldPreviewTheTwoCyclesBeforeAndAfter() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubReadChain(first, second, entity(DEC_7, JAN_5, DEC));
+
+        final PayCycleEndAdjustmentPreview preview = service.previewEndAdjustment(first.getCode(), NOV_10);
+
+        assertEquals(2, preview.before().size());
+        assertEquals(NOV_5, preview.before().get(0).cycle().endDate());
+        assertEquals(NOV_5, preview.before().get(1).cycle().startDate());
+        assertFalse(preview.before().get(0).cycle().endAdjusted());
+        assertEquals(2, preview.after().size());
+        assertEquals(first.getCode(), preview.after().get(0).cycle().code());
+        assertEquals(NOV_10, preview.after().get(0).cycle().endDate());
+        assertTrue(preview.after().get(0).cycle().endAdjusted());
+        assertEquals(second.getCode(), preview.after().get(1).cycle().code());
+        assertEquals(NOV_10, preview.after().get(1).cycle().startDate());
+        assertEquals(DEC_7, preview.after().get(1).cycle().endDate());
+        assertTrue(preview.after().get(1).cycle().startAdjusted());
+    }
+
+    @Test
+    void shouldPreviewTheDivergenceFromTheAnchorTheAdjustmentLeaves() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubReadChain(first, second, entity(DEC_7, JAN_5, DEC));
+
+        final PayCycleEndAdjustmentPreview preview = service.previewEndAdjustment(first.getCode(), NOV_10);
+
+        assertTrue(preview.before().stream().allMatch(view -> view.pending().isEmpty()));
+        assertEquals(List.of(PayCyclePending.boundaryDiverges(second.getCode(), NOV, NOV_10, NOV_5)),
+                preview.after().get(1).pending());
+    }
+
+    @Test
+    void shouldPreviewMovingTheEndEarlierWithTheDaysThatLeaveTheFirstCycle() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubReadChain(first, second, entity(DEC_7, JAN_5, DEC));
+        final LocalDate nov1 = LocalDate.of(2026, 11, 1);
+
+        final PayCycleEndAdjustmentPreview preview = service.previewEndAdjustment(first.getCode(), nov1);
+
+        verify(financialMovementService).findByCompetenceInterval(nov1, NOV_5);
+        verify(incomeScheduleService).findOccurrencesPlannedBetween(nov1, NOV_5);
+        assertEquals(first.getCode(), preview.leavingCycleCode());
+        assertEquals(second.getCode(), preview.receivingCycleCode());
+    }
+
+    @Test
+    void shouldChangeNothingOnPreview() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubReadChain(first, second, entity(DEC_7, JAN_5, DEC));
+
+        service.previewEndAdjustment(first.getCode(), NOV_10);
+
+        assertEquals(NOV_5, first.getEndDate());
+        assertFalse(first.getEndAdjusted());
+        assertEquals(NOV_5, second.getStartDate());
+        assertFalse(second.getStartAdjusted());
+        assertEquals(0L, first.getVersion());
+        verify(cycleRepository, never()).save(any());
+        verify(cycleRepository, never()).flush();
+        verify(configService, never()).lock();
+        verifyNoInteractions(adjustmentRepository);
+    }
+
+    @Test
+    void shouldRejectAPreviewWithTheDateOfTheBoundaryThatAlreadyExists() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        stubPairLookup(first, entity(NOV_5, DEC_7, NOV));
+
+        final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
+                () -> service.previewEndAdjustment(first.getCode(), NOV_5));
+
+        assertTrue(exception.getValidations().get("newEndDate").contains("2026-11-05"));
+        verifyNoInteractions(financialMovementService);
+    }
+
+    @Test
+    void shouldRejectAPreviewThatWouldLeaveACycleEmpty() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        stubPairLookup(first, entity(NOV_5, DEC_7, NOV));
+
+        assertTrue(assertThrows(InvalidFieldsException.class,
+                () -> service.previewEndAdjustment(first.getCode(), OCT_5)).getValidations().containsKey("newEndDate"));
+        assertTrue(assertThrows(InvalidFieldsException.class,
+                () -> service.previewEndAdjustment(first.getCode(), DEC_7)).getValidations().containsKey("newEndDate"));
+        verifyNoInteractions(financialMovementService);
+    }
+
+    @Test
+    void shouldRejectAPreviewWithoutADate() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        stubPairLookup(first, entity(NOV_5, DEC_7, NOV));
+
+        final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
+                () -> service.previewEndAdjustment(first.getCode(), null));
+
+        assertTrue(exception.getValidations().containsKey("newEndDate"));
+    }
+
+    @Test
+    void shouldRejectAPreviewWhenThePayCyclesAreOff() {
+        when(configService.find()).thenReturn(buildCalendarMonthConfig());
+
+        assertThrows(ConflictException.class, () -> service.previewEndAdjustment(UUID.randomUUID(), NOV_10));
+        verifyNoInteractions(cycleRepository, financialMovementService);
+    }
+
+    @Test
+    void shouldRejectAPreviewOfTheLastCycleOfTheChain() {
+        final PayCycleEntity last = entity(DEC_7, JAN_5, DEC);
+        stubPairLookup(entity(OCT_5, NOV_5, OCT), entity(NOV_5, DEC_7, NOV), last);
+
+        final ConflictException exception = assertThrows(ConflictException.class,
+                () -> service.previewEndAdjustment(last.getCode(), LocalDate.of(2026, 12, 20)));
+
+        assertTrue(exception.getMessage().contains("não tem ciclo seguinte"));
+    }
+
+    @Test
+    void shouldRejectAPreviewOfACycleOfAnEarlierActivation() {
+        final PayCycleEntity history = entity(LocalDate.of(2026, 8, 5), LocalDate.of(2026, 9, 7), YearMonth.of(2026, 8));
+        stubPairLookup(history, entity(OCT_5, NOV_5, OCT), entity(NOV_5, DEC_7, NOV));
+        when(cycleRepository.findByCode(history.getCode())).thenReturn(Optional.of(history));
+
+        final ConflictException exception = assertThrows(ConflictException.class,
+                () -> service.previewEndAdjustment(history.getCode(), LocalDate.of(2026, 8, 20)));
+
+        assertTrue(exception.getMessage().contains("ativação anterior"));
+    }
+
+    @Test
+    void shouldRejectAPreviewOfACancelledCycle() {
+        final PayCycleEntity cancelled = entity(DEC_7, JAN_5, DEC);
+        cancelled.setLifecycle(PayCycleLifecycle.CANCELLED);
+        stubPairLookup(entity(OCT_5, NOV_5, OCT), entity(NOV_5, DEC_7, NOV));
+        when(cycleRepository.findByCode(cancelled.getCode())).thenReturn(Optional.of(cancelled));
+
+        final ConflictException exception = assertThrows(ConflictException.class,
+                () -> service.previewEndAdjustment(cancelled.getCode(), LocalDate.of(2026, 12, 20)));
+
+        assertTrue(exception.getMessage().contains("cancelado"));
+    }
+
+    @Test
+    void shouldFailToPreviewACycleThatDoesNotExist() {
+        final UUID code = UUID.randomUUID();
+        stubPairLookup(entity(OCT_5, NOV_5, OCT), entity(NOV_5, DEC_7, NOV));
+        when(cycleRepository.findByCode(code)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> service.previewEndAdjustment(code, NOV_10));
+    }
+
+    // ---- end adjustment: apply
+
+    @Test
+    void shouldMoveTheBoundaryOfBothCyclesAndMarkThemAsAdjusted() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        final PayCycleEntity third = entity(DEC_7, JAN_5, DEC);
+        stubAdjustEnd(first, second, third);
+
+        final PayCycleEndAdjustmentResult result = service.adjustEnd(first.getCode(), NOV_10, JUSTIFICATION, 0L, 0L);
+
+        assertEquals(OCT_5, first.getStartDate());
+        assertEquals(NOV_10, first.getEndDate());
+        assertTrue(first.getEndAdjusted());
+        assertFalse(first.getStartAdjusted());
+        assertEquals(NOV_10, second.getStartDate());
+        assertEquals(DEC_7, second.getEndDate());
+        assertTrue(second.getStartAdjusted());
+        assertFalse(second.getEndAdjusted());
+        assertEquals(DEC_7, third.getStartDate());
+        assertFalse(third.getStartAdjusted());
+        assertEquals(first.getCode(), result.previous().cycle().code());
+        assertEquals(NOV_10, result.previous().cycle().endDate());
+        assertEquals(second.getCode(), result.next().cycle().code());
+        assertEquals(NOV_10, result.next().cycle().startDate());
+    }
+
+    @Test
+    void shouldLeaveNoGapAndNoOverlapAfterTheAdjustment() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        final PayCycleEntity third = entity(DEC_7, JAN_5, DEC);
+        stubAdjustEnd(first, second, third);
+
+        service.adjustEnd(first.getCode(), LocalDate.of(2026, 11, 1), JUSTIFICATION, 0L, 0L);
+
+        assertEquals(first.getEndDate(), second.getStartDate());
+        assertEquals(second.getEndDate(), third.getStartDate());
+        assertTrue(first.getStartDate().isBefore(first.getEndDate()));
+        assertTrue(second.getStartDate().isBefore(second.getEndDate()));
+    }
+
+    @Test
+    void shouldWriteTheHistoryInTheSameTransactionAsTheChange() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubAdjustEnd(first, second, entity(DEC_7, JAN_5, DEC));
+
+        final PayCycleEndAdjustmentResult result =
+                service.adjustEnd(first.getCode(), NOV_10, "  " + JUSTIFICATION + "  ", 0L, 0L);
+
+        final PayCycleAdjustmentEntity recorded = savedAdjustment();
+        assertEquals(PayCycleAdjustmentType.MANUAL_BOUNDARY, recorded.getType());
+        assertEquals(first, recorded.getPreviousCycle());
+        assertEquals(second, recorded.getNextCycle());
+        assertEquals(NOV_5, recorded.getOldBoundary());
+        assertEquals(NOV_10, recorded.getNewBoundary());
+        assertEquals(JUSTIFICATION, recorded.getJustification());
+        assertEquals(0L, recorded.getExpectedPreviousVersion());
+        assertEquals(0L, recorded.getExpectedNextVersion());
+        assertNull(recorded.getExpectedConfigVersion());
+        assertEquals(recorded.getCode(), result.adjustment().code());
+        assertEquals(PayCycleAdjustmentType.MANUAL_BOUNDARY, result.adjustment().type());
+        assertEquals(first.getCode(), result.adjustment().previousCycleCode());
+        assertEquals(second.getCode(), result.adjustment().nextCycleCode());
+    }
+
+    @Test
+    void shouldLockInOrderAndWriteTheCyclesBeforeTheHistory() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        stubAdjustEnd(first, entity(NOV_5, DEC_7, NOV), entity(DEC_7, JAN_5, DEC));
+
+        service.adjustEnd(first.getCode(), NOV_10, JUSTIFICATION, 0L, 0L);
+
+        final InOrder order = inOrder(configService, cycleRepository, adjustmentRepository);
+        order.verify(configService).lock();
+        order.verify(cycleRepository).findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE);
+        order.verify(cycleRepository).flush();
+        order.verify(adjustmentRepository).save(any(PayCycleAdjustmentEntity.class));
+    }
+
+    @Test
+    void shouldKeepThePendingDivergenceFromTheAnchorAfterTheAdjustment() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubAdjustEnd(first, second, entity(DEC_7, JAN_5, DEC));
+
+        final PayCycleEndAdjustmentResult result = service.adjustEnd(first.getCode(), NOV_10, JUSTIFICATION, 0L, 0L);
+
+        assertEquals(List.of(PayCyclePending.boundaryDiverges(second.getCode(), NOV, NOV_10, NOV_5)),
+                result.next().pending());
+    }
+
+    @Test
+    void shouldAdjustTheEndOfACycleThatHasNotStarted() {
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        final PayCycleEntity third = entity(DEC_7, JAN_5, DEC);
+        stubAdjustEnd(entity(OCT_5, NOV_5, OCT), second, third);
+
+        service.adjustEnd(second.getCode(), LocalDate.of(2026, 12, 10), JUSTIFICATION, 0L, 0L);
+
+        assertEquals(LocalDate.of(2026, 12, 10), second.getEndDate());
+        assertEquals(LocalDate.of(2026, 12, 10), third.getStartDate());
+    }
+
+    @Test
+    void shouldAdjustAPastBoundary() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubAdjustEnd(first, second, entity(DEC_7, JAN_5, DEC));
+
+        service.adjustEnd(first.getCode(), LocalDate.of(2026, 10, 20), JUSTIFICATION, 0L, 0L);
+
+        assertEquals(LocalDate.of(2026, 10, 20), first.getEndDate());
+        assertEquals(LocalDate.of(2026, 10, 20), second.getStartDate());
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentWhenTheVersionOfTheCycleIsStale() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubAdjustmentLocks(first, second, entity(DEC_7, JAN_5, DEC));
+
+        final ConflictException exception = assertThrows(ConflictException.class,
+                () -> service.adjustEnd(first.getCode(), NOV_10, JUSTIFICATION, 3L, 0L));
+
+        assertTrue(exception.getMessage().contains("recarregue"));
+        assertNothingWasWritten(first, second);
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentWhenTheVersionOfTheNextCycleIsStale() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubAdjustmentLocks(first, second, entity(DEC_7, JAN_5, DEC));
+
+        assertThrows(ConflictException.class,
+                () -> service.adjustEnd(first.getCode(), NOV_10, JUSTIFICATION, 0L, 3L));
+
+        assertNothingWasWritten(first, second);
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentWithoutTheExpectedVersions() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubAdjustmentLocks(first, second, entity(DEC_7, JAN_5, DEC));
+
+        assertThrows(ConflictException.class, () -> service.adjustEnd(first.getCode(), NOV_10, JUSTIFICATION, null, 0L));
+        assertThrows(ConflictException.class, () -> service.adjustEnd(first.getCode(), NOV_10, JUSTIFICATION, 0L, null));
+
+        assertNothingWasWritten(first, second);
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentWithoutAJustification() {
+        final InvalidFieldsException blank = assertThrows(InvalidFieldsException.class,
+                () -> service.adjustEnd(UUID.randomUUID(), NOV_10, "  ", 0L, 0L));
+        final InvalidFieldsException missing = assertThrows(InvalidFieldsException.class,
+                () -> service.adjustEnd(UUID.randomUUID(), NOV_10, null, 0L, 0L));
+
+        assertTrue(blank.getValidations().containsKey("justification"));
+        assertTrue(missing.getValidations().containsKey("justification"));
+        verifyNoInteractions(configService, cycleRepository, adjustmentRepository);
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentWithATooLongJustification() {
+        final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
+                () -> service.adjustEnd(UUID.randomUUID(), NOV_10,
+                        "x".repeat(PayCycleService.JUSTIFICATION_MAX_LENGTH + 1), 0L, 0L));
+
+        assertTrue(exception.getValidations().get("justification").contains("500"));
+        verifyNoInteractions(configService, cycleRepository, adjustmentRepository);
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentToTheSameDate() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubAdjustmentLocks(first, second, entity(DEC_7, JAN_5, DEC));
+
+        final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
+                () -> service.adjustEnd(first.getCode(), NOV_5, JUSTIFICATION, 0L, 0L));
+
+        assertTrue(exception.getValidations().containsKey("newEndDate"));
+        assertNothingWasWritten(first, second);
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentThatWouldLeaveACycleEmpty() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubAdjustmentLocks(first, second, entity(DEC_7, JAN_5, DEC));
+
+        assertThrows(InvalidFieldsException.class, () -> service.adjustEnd(first.getCode(), OCT_5, JUSTIFICATION, 0L, 0L));
+        assertThrows(InvalidFieldsException.class, () -> service.adjustEnd(first.getCode(), DEC_7, JUSTIFICATION, 0L, 0L));
+
+        assertNothingWasWritten(first, second);
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentWithoutADate() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        stubAdjustmentLocks(first, second, entity(DEC_7, JAN_5, DEC));
+
+        final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
+                () -> service.adjustEnd(first.getCode(), null, JUSTIFICATION, 0L, 0L));
+
+        assertTrue(exception.getValidations().containsKey("newEndDate"));
+        assertNothingWasWritten(first, second);
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentWhenThePayCyclesAreOff() {
+        when(configService.lock()).thenReturn(buildCalendarMonthConfig());
+
+        assertThrows(ConflictException.class, () -> service.adjustEnd(UUID.randomUUID(), NOV_10, JUSTIFICATION, 0L, 0L));
+        verifyNoInteractions(cycleRepository, adjustmentRepository);
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentOfTheLastCycleOfTheChain() {
+        final PayCycleEntity last = entity(DEC_7, JAN_5, DEC);
+        stubAdjustmentLocks(entity(OCT_5, NOV_5, OCT), entity(NOV_5, DEC_7, NOV), last);
+
+        assertThrows(ConflictException.class,
+                () -> service.adjustEnd(last.getCode(), LocalDate.of(2026, 12, 20), JUSTIFICATION, 0L, 0L));
+
+        assertEquals(JAN_5, last.getEndDate());
+        verify(cycleRepository, never()).flush();
+        verifyNoInteractions(adjustmentRepository);
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentOfACycleOfAnEarlierActivation() {
+        final PayCycleEntity history = entity(LocalDate.of(2026, 8, 5), LocalDate.of(2026, 9, 7), YearMonth.of(2026, 8));
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        stubAdjustmentLocks(history, first, entity(NOV_5, DEC_7, NOV));
+        when(cycleRepository.findByCode(history.getCode())).thenReturn(Optional.of(history));
+
+        assertThrows(ConflictException.class,
+                () -> service.adjustEnd(history.getCode(), LocalDate.of(2026, 8, 20), JUSTIFICATION, 0L, 0L));
+
+        assertEquals(LocalDate.of(2026, 9, 7), history.getEndDate());
+        verifyNoInteractions(adjustmentRepository);
+    }
+
+    @Test
+    void shouldRejectAnAdjustmentOfACancelledCycle() {
+        final PayCycleEntity cancelled = entity(DEC_7, JAN_5, DEC);
+        cancelled.setLifecycle(PayCycleLifecycle.CANCELLED);
+        stubAdjustmentLocks(entity(OCT_5, NOV_5, OCT), entity(NOV_5, DEC_7, NOV));
+        when(cycleRepository.findByCode(cancelled.getCode())).thenReturn(Optional.of(cancelled));
+
+        assertThrows(ConflictException.class,
+                () -> service.adjustEnd(cancelled.getCode(), LocalDate.of(2026, 12, 20), JUSTIFICATION, 0L, 0L));
+
+        verifyNoInteractions(adjustmentRepository);
+    }
+
+    @Test
+    void shouldFailToAdjustACycleThatDoesNotExist() {
+        final UUID code = UUID.randomUUID();
+        stubAdjustmentLocks(entity(OCT_5, NOV_5, OCT), entity(NOV_5, DEC_7, NOV));
+        when(cycleRepository.findByCode(code)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> service.adjustEnd(code, NOV_10, JUSTIFICATION, 0L, 0L));
+        verifyNoInteractions(adjustmentRepository);
+    }
+
+    // ---- end adjustment: history
+
+    @Test
+    void shouldFindTheHistoryOfACycle() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, DEC_7, NOV);
+        final PayCycleAdjustmentEntity newer = PayCycleAdjustmentEntity.builder()
+                .code(UUID.randomUUID())
+                .type(PayCycleAdjustmentType.MANUAL_BOUNDARY)
+                .previousCycle(first)
+                .nextCycle(second)
+                .oldBoundary(NOV_5)
+                .newBoundary(NOV_10)
+                .justification(JUSTIFICATION)
+                .expectedPreviousVersion(0L)
+                .expectedNextVersion(0L)
+                .createdDate(Instant.parse("2026-11-02T13:00:00Z"))
+                .build();
+        when(cycleRepository.findByCode(second.getCode())).thenReturn(Optional.of(second));
+        when(adjustmentRepository.findByCycleId(second.getId())).thenReturn(List.of(newer));
+
+        final List<PayCycleAdjustment> history = service.findAdjustments(second.getCode());
+
+        assertEquals(1, history.size());
+        assertEquals(newer.getCode(), history.get(0).code());
+        assertEquals(PayCycleAdjustmentType.MANUAL_BOUNDARY, history.get(0).type());
+        assertEquals(first.getCode(), history.get(0).previousCycleCode());
+        assertEquals(second.getCode(), history.get(0).nextCycleCode());
+        assertEquals(NOV_5, history.get(0).oldBoundary());
+        assertEquals(NOV_10, history.get(0).newBoundary());
+        assertEquals(JUSTIFICATION, history.get(0).justification());
+        assertEquals(Instant.parse("2026-11-02T13:00:00Z"), history.get(0).createdDate());
+    }
+
+    @Test
+    void shouldFindAnEmptyHistoryForACycleNothingTouched() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        when(cycleRepository.findByCode(first.getCode())).thenReturn(Optional.of(first));
+        when(adjustmentRepository.findByCycleId(first.getId())).thenReturn(List.of());
+
+        assertTrue(service.findAdjustments(first.getCode()).isEmpty());
+    }
+
+    @Test
+    void shouldFindTheHistoryOfACancelledCycle() {
+        final PayCycleEntity cancelled = entity(DEC_7, JAN_5, DEC);
+        cancelled.setLifecycle(PayCycleLifecycle.CANCELLED);
+        when(cycleRepository.findByCode(cancelled.getCode())).thenReturn(Optional.of(cancelled));
+        when(adjustmentRepository.findByCycleId(cancelled.getId())).thenReturn(List.of());
+
+        service.findAdjustments(cancelled.getCode());
+
+        verify(adjustmentRepository).findByCycleId(cancelled.getId());
+    }
+
+    @Test
+    void shouldFailToFindTheHistoryOfACycleThatDoesNotExist() {
+        final UUID code = UUID.randomUUID();
+        when(cycleRepository.findByCode(code)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> service.findAdjustments(code));
+        verifyNoInteractions(adjustmentRepository);
     }
 
     // ---- refresh
@@ -590,6 +1232,55 @@ class PayCycleServiceTest {
         assertThrows(EntityNotFoundException.class, () -> service.findByCode(code));
     }
 
+    // ---- refresh keeps what was adjusted by hand
+
+    @Test
+    void shouldKeepAnAdjustedBoundaryOfCyclesThatHaveNotStartedOnRefresh() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, LocalDate.of(2026, 12, 10), NOV);
+        final PayCycleEntity third = entity(LocalDate.of(2026, 12, 10), JAN_5, DEC);
+        second.setEndAdjusted(true);
+        third.setStartAdjusted(true);
+        stubRefresh(CALENDAR, first, second, third);
+
+        service.refresh();
+
+        assertEquals(LocalDate.of(2026, 12, 10), second.getEndDate());
+        assertEquals(LocalDate.of(2026, 12, 10), third.getStartDate());
+        verify(cycleRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldMoveTheSameBoundaryBackOnRefreshWhenItWasNotAdjusted() {
+        final PayCycleEntity first = entity(OCT_5, NOV_5, OCT);
+        final PayCycleEntity second = entity(NOV_5, LocalDate.of(2026, 12, 10), NOV);
+        final PayCycleEntity third = entity(LocalDate.of(2026, 12, 10), JAN_5, DEC);
+        stubRefresh(CALENDAR, first, second, third);
+
+        service.refresh();
+
+        assertEquals(DEC_7, second.getEndDate());
+        assertEquals(DEC_7, third.getStartDate());
+    }
+
+    @Test
+    void shouldKeepTheAdjustedBoundaryOfTheCycleThatAlreadyStartedOnRefresh() {
+        final PayCycleEntity first = entity(OCT_5, NOV_10, OCT);
+        final PayCycleEntity second = entity(NOV_10, DEC_7, NOV);
+        final PayCycleEntity third = entity(DEC_7, JAN_5, DEC);
+        first.setEndAdjusted(true);
+        second.setStartAdjusted(true);
+        stubRefresh(CALENDAR, first, second, third);
+
+        service.refresh();
+
+        assertEquals(NOV_10, first.getEndDate());
+        assertEquals(NOV_10, second.getStartDate());
+        assertEquals(DEC_7, second.getEndDate());
+        verify(cycleRepository, never()).save(any());
+        verifyNoInteractions(adjustmentRepository);
+    }
+
     // ---- helpers
 
     private PayCycleEntity entity(final LocalDate start, final LocalDate end, final YearMonth anchorMonth) {
@@ -648,5 +1339,63 @@ class PayCycleServiceTest {
     private void stubCyclesInCalendarMonthMode(final PayCycleEntity... cycles) {
         when(configService.find()).thenReturn(buildCalendarMonthConfig());
         when(cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE))).thenReturn(List.of(cycles));
+    }
+
+    private void stubDeactivation(final long version, final PayCycleEntity... chain) {
+        when(configService.lock()).thenReturn(buildPayCycleConfig(OCT_5, version));
+        when(cycleRepository.findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE)).thenReturn(List.of(chain));
+        when(configService.switchToCalendarMonth()).thenReturn(buildCalendarMonthConfig());
+    }
+
+    /**
+     * Only what the preview needs to find the pair: the configuration and the active cycles.
+     */
+    private void stubPairLookup(final PayCycleEntity... chain) {
+        when(configService.find()).thenReturn(buildPayCycleConfig(OCT_5, 2L));
+        when(cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE))).thenReturn(List.of(chain));
+    }
+
+    /**
+     * The locks an adjustment takes before it looks at versions and dates.
+     */
+    private void stubAdjustmentLocks(final PayCycleEntity... chain) {
+        when(configService.lock()).thenReturn(buildPayCycleConfig(OCT_5, 2L));
+        when(cycleRepository.findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE)).thenReturn(List.of(chain));
+    }
+
+    /**
+     * Everything a successful adjustment touches: the locks, the pendencies read after the change and
+     * the save of the history.
+     */
+    private void stubAdjustEnd(final PayCycleEntity... chain) {
+        stubAdjustmentLocks(chain);
+        when(cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE))).thenReturn(List.of(chain));
+        when(incomeScheduleService.findByCode(SCHEDULE_CODE)).thenReturn(octoberSchedule);
+        when(holidayCalendarService.findCalendar()).thenReturn(CALENDAR);
+        when(adjustmentRepository.save(any(PayCycleAdjustmentEntity.class))).thenAnswer(call -> call.getArgument(0));
+    }
+
+    private PayCycleAdjustmentEntity savedAdjustment() {
+        final ArgumentCaptor<PayCycleAdjustmentEntity> saved = ArgumentCaptor.forClass(PayCycleAdjustmentEntity.class);
+        verify(adjustmentRepository).save(saved.capture());
+        return saved.getValue();
+    }
+
+    /**
+     * A refused adjustment leaves the pair as it was and writes neither the cycles nor the history.
+     */
+    private void assertNothingWasWritten(final PayCycleEntity first, final PayCycleEntity second) {
+        assertEquals(NOV_5, first.getEndDate());
+        assertFalse(first.getEndAdjusted());
+        assertEquals(NOV_5, second.getStartDate());
+        assertFalse(second.getStartAdjusted());
+        verify(cycleRepository, never()).flush();
+        verify(cycleRepository, never()).save(any());
+        verifyNoInteractions(adjustmentRepository);
+    }
+
+    private IncomeOccurrenceImpact incomeImpact(final LocalDate plannedDate) {
+        return new IncomeOccurrenceImpact(SCHEDULE_CODE, "Salário", new IncomeOccurrenceView(
+                NOV, IncomeOccurrenceView.State.PROJECTED, plannedDate, new BigDecimal("1000.00"), null, null));
     }
 }

@@ -105,6 +105,50 @@ class FinancialMovementCompetenceTest {
                 .subtract(service.findBalance(LocalDate.of(2054, 1, 31))));
     }
 
+    @Test
+    void shouldFindTheActiveMovementsWhoseCompetenceIsInAnIntervalWithTheEndExcluded() {
+        final LocalDate from = LocalDate.of(2061, 1, 5);
+        final LocalDate toExclusive = LocalDate.of(2061, 1, 10);
+        final FinancialMovement before = createWithCompetence(LocalDate.of(2061, 1, 4));
+        final FinancialMovement onTheFirstDay = createWithCompetence(from);
+        final FinancialMovement inside = createWithCompetence(LocalDate.of(2061, 1, 9));
+        final FinancialMovement onTheEndDay = createWithCompetence(toExclusive);
+        final FinancialMovement deleted = createWithCompetence(LocalDate.of(2061, 1, 7));
+        service.delete(deleted.code());
+
+        final List<UUID> found = service.findByCompetenceInterval(from, toExclusive).stream()
+                .map(FinancialMovement::code)
+                .toList();
+
+        assertEquals(List.of(onTheFirstDay.code(), inside.code()), found);
+        assertFalse(found.contains(before.code()));
+        assertFalse(found.contains(onTheEndDay.code()));
+        assertFalse(found.contains(deleted.code()));
+    }
+
+    @Test
+    void shouldFindTheMovementsOfAnIntervalOldestCompetenceFirst() {
+        final FinancialMovement later = createWithCompetence(LocalDate.of(2062, 3, 9));
+        final FinancialMovement earlier = createWithCompetence(LocalDate.of(2062, 3, 6));
+
+        final List<UUID> found = service.findByCompetenceInterval(LocalDate.of(2062, 3, 5), LocalDate.of(2062, 3, 10))
+                .stream()
+                .map(FinancialMovement::code)
+                .toList();
+
+        assertEquals(List.of(earlier.code(), later.code()), found);
+    }
+
+    @Test
+    void shouldFindNothingInAnIntervalWithNoMovements() {
+        assertTrue(service.findByCompetenceInterval(LocalDate.of(2063, 1, 1), LocalDate.of(2063, 2, 1)).isEmpty());
+    }
+
+    private FinancialMovement createWithCompetence(final LocalDate competenceDate) {
+        final LocalDateTime date = competenceDate.atTime(10, 0);
+        return service.create(movement(date, date, competenceDate, null));
+    }
+
     private List<UUID> codesIn(final LocalDate start, final LocalDate end) {
         return service.findMovementsForBalanceCalculation(start, end).stream().map(FinancialMovement::code).toList();
     }

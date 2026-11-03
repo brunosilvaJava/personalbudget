@@ -612,6 +612,30 @@ class FinancialMovementServiceTest {
                 () -> patch(UUID.randomUUID(), null, null, null, MANUAL_COMPETENCE, true));
     }
 
+    @Test
+    void shouldFindTheActiveMovementsByCompetenceInterval() {
+        final LocalDate from = LocalDate.of(2026, 11, 5);
+        final LocalDate toExclusive = LocalDate.of(2026, 11, 10);
+        final FinancialMovementEntity entity = entityWithCompetence(LocalDate.of(2026, 11, 7), false);
+        when(repository.findActiveByCompetenceDateInterval(from, toExclusive)).thenReturn(List.of(entity));
+
+        final List<FinancialMovement> found = financialMovementService.findByCompetenceInterval(from, toExclusive);
+
+        assertEquals(1, found.size());
+        assertEquals(entity.getCode(), found.get(0).code());
+        assertEquals(LocalDate.of(2026, 11, 7), found.get(0).competenceDate());
+        verify(repository).findActiveByCompetenceDateInterval(from, toExclusive);
+    }
+
+    @Test
+    void shouldFindNoMovementWhenNoneHasCompetenceInTheInterval() {
+        final LocalDate from = LocalDate.of(2026, 11, 5);
+        final LocalDate toExclusive = LocalDate.of(2026, 11, 10);
+        when(repository.findActiveByCompetenceDateInterval(from, toExclusive)).thenReturn(List.of());
+
+        assertTrue(financialMovementService.findByCompetenceInterval(from, toExclusive).isEmpty());
+    }
+
     private static FinancialMovement standalone(final LocalDateTime movementDate, final LocalDate competenceDate) {
         return new FinancialMovement(UUID.randomUUID(), OperationType.DEBIT, "Padaria", new BigDecimal("12.50"),
                 null, movementDate, movementDate, null, FinancialMovementStatus.PENDING, Boolean.TRUE, null, null,

@@ -1,5 +1,6 @@
 package com.bts.personalbudget.core.domain.service.income;
 
+import static com.bts.personalbudget.core.domain.factory.HolidayCalendarFactory.buildCalendar;
 import static com.bts.personalbudget.core.domain.factory.HolidayCalendarFactory.buildHoliday;
 import static com.bts.personalbudget.core.domain.factory.HolidayCalendarFactory.buildReviewedCalendar;
 import static com.bts.personalbudget.core.domain.factory.IncomeScheduleFactory.AMOUNT;
@@ -37,6 +38,7 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.enumerator.RecurrenceType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.core.domain.service.calendar.Holiday;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarService;
 import com.bts.personalbudget.core.domain.service.calendar.IncomeDateRule;
 import com.bts.personalbudget.core.domain.service.category.CategoryService;
@@ -50,10 +52,12 @@ import com.bts.personalbudget.repository.IncomeScheduleRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -580,6 +584,146 @@ class IncomeScheduleServiceTest {
 
         assertThat(service.findProjectedOccurrencesUntil(LocalDate.of(2026, 8, 31))).isEmpty();
         verify(holidayCalendarService, never()).findCalendar();
+    }
+
+    // ---- occurrences planned in an interval (what a pay cycle boundary hands from one cycle to the other)
+
+    @Test
+    void shouldFindTheOccurrencesPlannedInAnIntervalWithTheEndExcluded() {
+        final IncomeSchedule schedule = buildSchedule(JUNE);
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE)).thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2026));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE))).thenReturn(List.of());
+
+        final List<IncomeOccurrenceImpact> impacts = service.findOccurrencesPlannedBetween(JULY_6, AUGUST_5);
+
+        // July 6 is the first day of the interval; August 5 is the day after its last one.
+        assertEquals(1, impacts.size());
+        assertEquals(SCHEDULE_CODE, impacts.get(0).scheduleCode());
+        assertEquals(schedule.description(), impacts.get(0).scheduleDescription());
+        assertEquals(JULY, impacts.get(0).occurrence().nominalMonth());
+        assertEquals(JULY_6, impacts.get(0).occurrence().plannedDate());
+        assertEquals(IncomeOccurrenceView.State.PROJECTED, impacts.get(0).occurrence().state());
+    }
+
+    @Test
+    void shouldFindAMaterializedOccurrenceByItsFrozenDate() {
+        final YearMonth january = YearMonth.of(2026, 1);
+        final IncomeSchedule schedule = buildSchedule(january);
+        final LocalDate frozen = LocalDate.of(2027, 3, 2);
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE)).thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2027));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE)))
+                .thenReturn(List.of(buildOccurrenceEntity(schedule, january, frozen)));
+
+        final List<IncomeOccurrenceImpact> impacts =
+                service.findOccurrencesPlannedBetween(LocalDate.of(2027, 3, 1), LocalDate.of(2027, 3, 3));
+
+        assertEquals(1, impacts.size());
+        assertEquals(IncomeOccurrenceView.State.MATERIALIZED, impacts.get(0).occurrence().state());
+        assertEquals(frozen, impacts.get(0).occurrence().plannedDate());
+        assertEquals(MOVEMENT_CODE, impacts.get(0).occurrence().movementCode());
+    }
+
+    @Test
+    void shouldFindAnOccurrencePostponedAcrossSeveralMonths() {
+        final YearMonth january = YearMonth.of(2026, 1);
+        final IncomeSchedule schedule = buildSchedule(
+                IncomeDateRule.fixedDay(1, NonBusinessDayPolicy.POSTPONE, BusinessWeek.MONDAY_TO_FRIDAY),
+                january, january);
+        final Set<Holiday> holidays = new HashSet<>();
+        for (int month = 1; month <= 2; month++) {
+            for (int day = 1; day <= YearMonth.of(2026, month).lengthOfMonth(); day++) {
+                final LocalDate date = LocalDate.of(2026, month, day);
+                if (date.getDayOfWeek() != DayOfWeek.SATURDAY && date.getDayOfWeek() != DayOfWeek.SUNDAY) {
+                    holidays.add(buildHoliday(2026, month, day));
+                }
+            }
+        }
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE))
+                .thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar())
+                .thenReturn(buildCalendar(Set.of(2026), holidays.toArray(Holiday[]::new)));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE))).thenReturn(List.of());
+
+        final List<IncomeOccurrenceImpact> impacts =
+                service.findOccurrencesPlannedBetween(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 3));
+
+        assertThat(impacts).singleElement().satisfies(impact -> {
+            assertEquals(january, impact.occurrence().nominalMonth());
+            assertEquals(LocalDate.of(2026, 3, 2), impact.occurrence().plannedDate());
+            assertEquals(IncomeOccurrenceView.State.PROJECTED, impact.occurrence().state());
+        });
+    }
+
+    @Test
+    void shouldFindAnOccurrenceWhoseDateWasCarriedIntoTheMonthBeforeItsNominalMonth() {
+        // August 1 is a Saturday: anticipated to Friday July 31, an August occurrence inside a July interval.
+        final IncomeSchedule schedule = buildSchedule(
+                IncomeDateRule.fixedDay(1, NonBusinessDayPolicy.ANTICIPATE, BusinessWeek.MONDAY_TO_FRIDAY), JUNE, null);
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE)).thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2026));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE))).thenReturn(List.of());
+
+        final List<IncomeOccurrenceImpact> impacts =
+                service.findOccurrencesPlannedBetween(LocalDate.of(2026, 7, 30), LocalDate.of(2026, 8, 1));
+
+        assertEquals(1, impacts.size());
+        assertEquals(AUGUST, impacts.get(0).occurrence().nominalMonth());
+        assertEquals(LocalDate.of(2026, 7, 31), impacts.get(0).occurrence().plannedDate());
+    }
+
+    @Test
+    void shouldFindNothingPlannedInAnIntervalWithNoOccurrence() {
+        final IncomeSchedule schedule = buildSchedule(JUNE);
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE)).thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2026));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE))).thenReturn(List.of());
+
+        assertThat(service.findOccurrencesPlannedBetween(LocalDate.of(2026, 7, 7), LocalDate.of(2026, 8, 5))).isEmpty();
+    }
+
+    @Test
+    void shouldLeaveOutTheOccurrencesWhoseCalendarYearWasNotReviewed() {
+        final IncomeSchedule schedule = buildSchedule(JUNE);
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE)).thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2025));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE))).thenReturn(List.of());
+
+        assertThat(service.findOccurrencesPlannedBetween(JULY_6, AUGUST_5)).isEmpty();
+    }
+
+    @Test
+    void shouldFindNoOccurrenceWhenThereIsNoActiveSchedule() {
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE)).thenReturn(List.of());
+
+        assertThat(service.findOccurrencesPlannedBetween(JULY_6, AUGUST_5)).isEmpty();
+        verify(holidayCalendarService, never()).findCalendar();
+    }
+
+    @Test
+    void shouldFindNoOccurrenceInAnEmptyInterval() {
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE))
+                .thenReturn(List.of(buildEntity(buildSchedule(JUNE))));
+
+        assertThat(service.findOccurrencesPlannedBetween(JULY_6, JULY_6)).isEmpty();
+        verify(holidayCalendarService, never()).findCalendar();
+    }
+
+    @Test
+    void shouldOrderTheOccurrencesPlannedInAnIntervalByDateAndThenByDescription() {
+        final IncomeSchedule salary = buildSchedule(JUNE);
+        final IncomeSchedule bonus = new IncomeSchedule(UUID.randomUUID(), "Bônus", salary.amount(),
+                salary.categoryCode(), salary.rule(), salary.startMonth(), salary.endMonth(), false, salary.status(),
+                salary.replacesFixedBillCode());
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE))
+                .thenReturn(List.of(buildEntity(salary), buildEntity(bonus)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2026));
+        when(occurrenceRepository.findByScheduleCodeIn(any())).thenReturn(List.of());
+
+        final List<IncomeOccurrenceImpact> impacts = service.findOccurrencesPlannedBetween(JULY_6, AUGUST_5);
+
+        assertEquals(List.of("Bônus", "Salário"), impacts.stream().map(IncomeOccurrenceImpact::scheduleDescription).toList());
     }
 
     // ---- listing

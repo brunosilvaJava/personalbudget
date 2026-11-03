@@ -108,6 +108,8 @@ public class PayCycleRepositoryTest {
     @BeforeEach
     @AfterEach
     void cleanTables() {
+        // The history points to cycles: it goes first (its rows are never deleted by the application).
+        jdbcTemplate.update("DELETE FROM pay_cycle_adjustment");
         cycleRepository.deleteAll();
         jdbcTemplate.update("UPDATE pay_cycle_config SET mode = 'CALENDAR_MONTH', anchor_schedule_id = NULL, "
                 + "activation_date = NULL, version = 0");

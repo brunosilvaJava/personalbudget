@@ -2,15 +2,21 @@ package com.bts.personalbudget.controller.paycycle;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
+import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.enumerator.PayCycleAdjustmentType;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleKind;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleMode;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleStatus;
+import com.bts.personalbudget.core.domain.service.income.IncomeOccurrenceView.State;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCyclePending.Type;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -159,10 +165,173 @@ class PayCycleSerializationTest {
     @Test
     void shouldReadTheDeactivationRequestFromSnakeCase() throws Exception {
         final PayCycleDeactivationRequest request = objectMapper.readValue(
-                "{\"expected_version\": 7}", PayCycleDeactivationRequest.class);
+                "{\"expected_version\": 7, \"justification\": \"Mudei de emprego\"}", PayCycleDeactivationRequest.class);
 
         assertThat(request.expectedVersion()).isEqualTo(7L);
+        assertThat(request.justification()).isEqualTo("Mudei de emprego");
         assertThat(validator.validate(request)).isEmpty();
+    }
+
+    @Test
+    void shouldReadTheEndAdjustmentPreviewRequestFromSnakeCase() throws Exception {
+        final PayCycleEndAdjustmentPreviewRequest request = objectMapper.readValue(
+                "{\"new_end_date\": \"2026-12-04\"}", PayCycleEndAdjustmentPreviewRequest.class);
+
+        assertThat(request.newEndDate()).isEqualTo(LocalDate.of(2026, 12, 4));
+        assertThat(validator.validate(request)).isEmpty();
+    }
+
+    @Test
+    void shouldReadTheEndAdjustmentRequestFromSnakeCase() throws Exception {
+        final PayCycleEndAdjustmentRequest request = objectMapper.readValue(
+                "{\"new_end_date\": \"2026-12-04\", \"justification\": \"Salário caiu antes do feriado\","
+                        + " \"expected_version\": 2, \"expected_next_version\": 5}",
+                PayCycleEndAdjustmentRequest.class);
+
+        assertThat(request.newEndDate()).isEqualTo(LocalDate.of(2026, 12, 4));
+        assertThat(request.justification()).isEqualTo("Salário caiu antes do feriado");
+        assertThat(request.expectedVersion()).isEqualTo(2L);
+        assertThat(request.expectedNextVersion()).isEqualTo(5L);
+        assertThat(validator.validate(request)).isEmpty();
+    }
+
+    @Test
+    void shouldRejectAnEndAdjustmentPreviewRequestWithoutTheDate() {
+        assertThat(violatedFields(new PayCycleEndAdjustmentPreviewRequest(null))).containsExactly("newEndDate");
+    }
+
+    @Test
+    void shouldRejectAnEndAdjustmentRequestWithNothingFilled() {
+        assertThat(violatedFields(new PayCycleEndAdjustmentRequest(null, null, null, null)))
+                .containsExactlyInAnyOrder("newEndDate", "justification", "expectedVersion", "expectedNextVersion");
+    }
+
+    @Test
+    void shouldRejectAnEndAdjustmentRequestWithoutTheNextVersion() {
+        assertThat(violatedFields(new PayCycleEndAdjustmentRequest(LocalDate.of(2026, 12, 4), "Motivo", 2L, null)))
+                .containsExactly("expectedNextVersion");
+    }
+
+    @Test
+    void shouldRejectABlankJustification() {
+        assertThat(violatedFields(new PayCycleEndAdjustmentRequest(LocalDate.of(2026, 12, 4), "   ", 2L, 5L)))
+                .containsExactly("justification");
+        assertThat(violatedFields(new PayCycleDeactivationRequest(7L, "")))
+                .containsExactly("justification");
+    }
+
+    @Test
+    void shouldRejectAJustificationLongerThanTheHistoryStores() {
+        final String tooLong = "x".repeat(501);
+
+        assertThat(violatedFields(new PayCycleEndAdjustmentRequest(LocalDate.of(2026, 12, 4), tooLong, 2L, 5L)))
+                .containsExactly("justification");
+        assertThat(violatedFields(new PayCycleDeactivationRequest(7L, tooLong))).containsExactly("justification");
+        assertThat(violatedFields(new PayCycleDeactivationRequest(7L, "x".repeat(500)))).isEmpty();
+    }
+
+    @Test
+    void shouldSerializeAnAdjustmentOfTheHistoryInSnakeCase() {
+        final PayCycleAdjustmentResponse response = new PayCycleAdjustmentResponse(
+                CODE, PayCycleAdjustmentType.MANUAL_BOUNDARY, CODE, SCHEDULE_CODE, LocalDate.of(2026, 12, 7),
+                LocalDate.of(2026, 12, 4), "Salário caiu antes do feriado", 2L, 5L, null,
+                Instant.parse("2026-11-02T21:35:00Z"));
+
+        assertThat(fieldNames(response)).containsExactlyInAnyOrder(
+                "code", "type", "previous_cycle_code", "next_cycle_code", "old_boundary", "new_boundary",
+                "justification", "expected_previous_version", "expected_next_version", "expected_config_version",
+                "created_date");
+        final JsonNode json = objectMapper.valueToTree(response);
+        assertThat(json.get("type").asText()).isEqualTo("MANUAL_BOUNDARY");
+        assertThat(json.get("previous_cycle_code").asText()).isEqualTo(CODE.toString());
+        assertThat(json.get("next_cycle_code").asText()).isEqualTo(SCHEDULE_CODE.toString());
+        assertThat(json.get("old_boundary").asText()).isEqualTo("2026-12-07");
+        assertThat(json.get("new_boundary").asText()).isEqualTo("2026-12-04");
+        assertThat(json.get("expected_previous_version").asLong()).isEqualTo(2L);
+        assertThat(json.get("expected_next_version").asLong()).isEqualTo(5L);
+        assertThat(json.get("expected_config_version").isNull()).isTrue();
+        assertThat(json.get("created_date").asText()).isEqualTo("2026-11-02T21:35:00Z");
+    }
+
+    @Test
+    void shouldSerializeADeactivationWithoutTheBoundaryItDidNotMove() {
+        final PayCycleAdjustmentResponse response = new PayCycleAdjustmentResponse(
+                CODE, PayCycleAdjustmentType.DEACTIVATION, CODE, null, LocalDate.of(2026, 12, 7), null,
+                "Mudei de emprego", null, null, 3L, Instant.parse("2026-11-02T21:35:00Z"));
+
+        final JsonNode json = objectMapper.valueToTree(response);
+
+        assertThat(json.get("type").asText()).isEqualTo("DEACTIVATION");
+        assertThat(json.get("next_cycle_code").isNull()).isTrue();
+        assertThat(json.get("new_boundary").isNull()).isTrue();
+        assertThat(json.get("expected_config_version").asLong()).isEqualTo(3L);
+    }
+
+    @Test
+    void shouldSerializeTheMovementThatChangesCycleInSnakeCase() {
+        final PayCycleMovementImpactResponse response = new PayCycleMovementImpactResponse(
+                CODE, "Aluguel", OperationType.DEBIT, new BigDecimal("1500.00"), FinancialMovementStatus.PENDING,
+                LocalDate.of(2026, 12, 5), SCHEDULE_CODE);
+
+        assertThat(fieldNames(response)).containsExactlyInAnyOrder(
+                "code", "description", "operation_type", "amount", "status", "competence_date", "category_code");
+        final JsonNode json = objectMapper.valueToTree(response);
+        assertThat(json.get("operation_type").asText()).isEqualTo("DEBIT");
+        assertThat(json.get("amount").decimalValue()).isEqualByComparingTo("1500.00");
+        assertThat(json.get("status").asText()).isEqualTo("PENDING");
+        assertThat(json.get("competence_date").asText()).isEqualTo("2026-12-05");
+    }
+
+    @Test
+    void shouldSerializeTheIncomeOccurrenceThatChangesCycleInSnakeCase() {
+        final PayCycleIncomeImpactResponse response = new PayCycleIncomeImpactResponse(
+                SCHEDULE_CODE, "Salário", YearMonth.of(2026, 12), State.PROJECTED, LocalDate.of(2026, 12, 7),
+                new BigDecimal("5000.00"), null);
+
+        assertThat(fieldNames(response)).containsExactlyInAnyOrder(
+                "schedule_code", "schedule_description", "nominal_month", "state", "planned_date", "amount",
+                "movement_code");
+        final JsonNode json = objectMapper.valueToTree(response);
+        assertThat(json.get("nominal_month").asText()).isEqualTo("2026-12");
+        assertThat(json.get("state").asText()).isEqualTo("PROJECTED");
+        assertThat(json.get("planned_date").asText()).isEqualTo("2026-12-07");
+        assertThat(json.get("movement_code").isNull()).isTrue();
+    }
+
+    @Test
+    void shouldSerializeTheEndAdjustmentPreviewWithTheVersionsToSendBack() {
+        final PayCycleEndAdjustmentPreviewResponse response = new PayCycleEndAdjustmentPreviewResponse(
+                LocalDate.of(2026, 12, 7), LocalDate.of(2026, 12, 4), 2L, 5L,
+                List.of(cycle(YearMonth.of(2026, 11), SCHEDULE_CODE, List.of())),
+                List.of(cycle(YearMonth.of(2026, 11), SCHEDULE_CODE, List.of())),
+                SCHEDULE_CODE, CODE, List.of(), List.of());
+
+        assertThat(fieldNames(response)).containsExactlyInAnyOrder(
+                "old_end_date", "new_end_date", "expected_version", "expected_next_version", "cycles_before",
+                "cycles_after", "leaving_cycle_code", "receiving_cycle_code", "movements", "income_occurrences");
+        final JsonNode json = objectMapper.valueToTree(response);
+        assertThat(json.get("old_end_date").asText()).isEqualTo("2026-12-07");
+        assertThat(json.get("new_end_date").asText()).isEqualTo("2026-12-04");
+        assertThat(json.get("expected_version").asLong()).isEqualTo(2L);
+        assertThat(json.get("expected_next_version").asLong()).isEqualTo(5L);
+        assertThat(json.get("cycles_before").size()).isEqualTo(1);
+        assertThat(json.get("movements").isArray()).isTrue();
+        assertThat(json.get("income_occurrences").isArray()).isTrue();
+    }
+
+    @Test
+    void shouldSerializeTheEndAdjustmentAnswerWithBothCycles() {
+        final PayCycleAdjustmentResponse adjustment = new PayCycleAdjustmentResponse(
+                CODE, PayCycleAdjustmentType.MANUAL_BOUNDARY, CODE, SCHEDULE_CODE, LocalDate.of(2026, 12, 7),
+                LocalDate.of(2026, 12, 4), "Motivo", 2L, 5L, null, null);
+        final PayCycleEndAdjustmentResponse response = new PayCycleEndAdjustmentResponse(
+                adjustment, cycle(YearMonth.of(2026, 11), SCHEDULE_CODE, List.of()),
+                cycle(YearMonth.of(2026, 12), SCHEDULE_CODE, List.of()));
+
+        assertThat(fieldNames(response)).containsExactlyInAnyOrder("adjustment", "cycle", "next_cycle");
+        final JsonNode json = objectMapper.valueToTree(response);
+        assertThat(json.get("adjustment").get("type").asText()).isEqualTo("MANUAL_BOUNDARY");
+        assertThat(json.get("next_cycle").get("reference_month").asText()).isEqualTo("2026-12");
     }
 
     @Test
@@ -184,7 +353,14 @@ class PayCycleSerializationTest {
 
     @Test
     void shouldRejectADeactivationRequestWithoutTheVersion() {
-        assertThat(violatedFields(new PayCycleDeactivationRequest(null))).containsExactly("expectedVersion");
+        assertThat(violatedFields(new PayCycleDeactivationRequest(null, "Motivo"))).containsExactly("expectedVersion");
+    }
+
+    @Test
+    void shouldRejectADeactivationRequestWithoutAJustification() {
+        assertThat(violatedFields(new PayCycleDeactivationRequest(7L, null))).containsExactly("justification");
+        assertThat(violatedFields(new PayCycleDeactivationRequest(null, null)))
+                .containsExactlyInAnyOrder("expectedVersion", "justification");
     }
 
     @Test
