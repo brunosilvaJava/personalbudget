@@ -7,6 +7,7 @@ import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData.Paymen
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
 import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -20,6 +21,8 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -30,7 +33,9 @@ public class BalanceService {
     private final InstallmentBillService installmentBillService;
     private final FixedBillService fixedBillService;
     private final IncomeScheduleService incomeScheduleService;
+    private final MovementSettlementService movementSettlementService;
 
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Set<DailyBalance> findDailyBalanceBetween(final LocalDate initialDate,
                                                      final LocalDate endDate) {
         log.info("m=findDailyBalanceBetween initialDate={} endDate={}", initialDate, endDate);
@@ -70,10 +75,11 @@ public class BalanceService {
     }
 
     /**
-     * What findDailyBalanceBetween adds up for the period: the movements that count in it (PAID_OUT
-     * by pay date, PENDING/LATE by due date) and the bills' occurrences not posted yet. Exposed so
-     * other reports total the period the same way and match the balance and the dashboard.
+     * What findDailyBalanceBetween adds up for the period: settlements by effective date, unpaid
+     * movement residuals by due date, and bill occurrences not posted yet. Exposed so other reports
+     * total the period the same way and match the balance and the dashboard.
      */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<BalanceCalcData> findBalanceCalcDataBetween(final LocalDate initialDate,
                                                             final LocalDate endDate) {
         log.info("m=findBalanceCalcDataBetween initialDate={} endDate={}", initialDate, endDate);
@@ -84,6 +90,7 @@ public class BalanceService {
      * The not-yet-posted fixed and installment bill occurrences in {@code [startDate, endDateExclusive)}.
      * Unlike the balance reports, the caller applies the cycle's competence interval.
      */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<ProjectedOccurrence> findProjectedBillOccurrencesBetween(final LocalDate startDate,
                                                                          final LocalDate endDateExclusive) {
         log.info("m=findProjectedBillOccurrencesBetween, startDate={}, endDateExclusive={}",
@@ -120,9 +127,10 @@ public class BalanceService {
     private List<BalanceCalcData> findBalanceCalcDataList(final LocalDate initialDate,
                                                           final LocalDate endDate,
                                                           final List<ProjectedOccurrence> projectedOccurrences) {
-        final List<FinancialMovement> financialMovementList = financialMovementService.findMovementsForBalanceCalculation(initialDate, endDate);
-
+        final List<FinancialMovement> financialMovementList =
+                financialMovementService.findMovementsForBalanceCalculation(initialDate, endDate);
         final List<BalanceCalcData> balanceCalcDataList = new ArrayList<>(financialMovementList);
+        balanceCalcDataList.addAll(movementSettlementService.findForCashDateBetween(initialDate, endDate));
         projectedOccurrences.stream()
                 .filter(occurrence -> !occurrence.occurrenceDate().isBefore(initialDate))
                 .forEach(balanceCalcDataList::add);

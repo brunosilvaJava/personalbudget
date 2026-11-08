@@ -11,6 +11,7 @@ import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.core.domain.service.income.IncomeProjectionPending;
 import com.bts.personalbudget.core.domain.service.income.IncomeProjectionWindow;
 import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import static com.bts.personalbudget.core.domain.service.paycycle.PayCycleSummary.Pending.Source.INCOME_SCHEDULE;
@@ -45,8 +47,9 @@ public class PayCycleSummaryService {
     private final BalanceService balanceService;
     private final IncomeScheduleService incomeScheduleService;
     private final CategoryService categoryService;
+    private final MovementSettlementService movementSettlementService;
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public PayCycleSummary summarize(final UUID code) {
         log.info("m=summarize, code={}", code);
         final PayCycleView cycle = payCycleService.findByCode(code);
@@ -64,9 +67,14 @@ public class PayCycleSummaryService {
             totals.put(operationType, new Amounts());
         }
         final Map<CategoryKey, Amounts> amountsByCategory = new HashMap<>();
-        movements.forEach(movement -> add(
-                amountsByCategory, totals, movement.getOperationType(), movement.getCategoryCode(),
-                movement.getBalanceCalcValue(), movement.findStatus() == BalanceCalcData.PaymentStatus.DONE));
+        movements.stream()
+                .filter(movement -> movement.findStatus() != BalanceCalcData.PaymentStatus.DONE)
+                .forEach(movement -> add(
+                        amountsByCategory, totals, movement.getOperationType(), movement.getCategoryCode(),
+                        movement.getBalanceCalcValue(), false));
+        movementSettlementService.findByMovementCompetenceInterval(from, toExclusive).forEach(settlement -> add(
+                amountsByCategory, totals, settlement.operationType(), settlement.categoryCode(),
+                settlement.getBalanceCalcValue(), true));
         projectedBills.forEach(occurrence -> add(
                 amountsByCategory, totals, occurrence.getOperationType(), occurrence.getCategoryCode(),
                 occurrence.getBalanceCalcValue(), false));

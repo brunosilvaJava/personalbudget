@@ -6,6 +6,8 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlement;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +35,9 @@ class FinancialMovementCompetenceTest {
 
     @Autowired
     private FinancialMovementService service;
+
+    @Autowired
+    private MovementSettlementService settlementService;
 
     @Autowired
     private FinancialMovementRepository repository;
@@ -85,21 +90,24 @@ class FinancialMovementCompetenceTest {
     void shouldKeepCashQueriesIndependentOfCompetence() {
         final LocalDateTime movementDate = LocalDateTime.of(2054, 1, 5, 10, 0);
         final LocalDateTime dueDate = LocalDateTime.of(2054, 1, 20, 0, 0);
-        final LocalDateTime payDate = LocalDateTime.of(2054, 2, 3, 0, 0);
         final FinancialMovement pending = service.create(movement(movementDate, dueDate, LocalDate.of(2040, 1, 1), null));
         final FinancialMovement paid = service.create(new FinancialMovement(
-                UUID.randomUUID(), OperationType.DEBIT, "Pago", new BigDecimal("100.00"), new BigDecimal("80.00"),
-                movementDate, dueDate, payDate, FinancialMovementStatus.PAID_OUT, Boolean.TRUE, null, null, null,
+                UUID.randomUUID(), OperationType.DEBIT, "Pago", new BigDecimal("100.00"), null,
+                movementDate, dueDate, null, FinancialMovementStatus.PENDING, Boolean.TRUE, null, null, null,
                 LocalDate.of(2040, 1, 1), false));
+        settlementService.create(paid.code(), new MovementSettlement(
+                null, null, new BigDecimal("80.00"), LocalDate.of(2054, 2, 3),
+                null, null, null, null, null));
 
-        // Cash windows follow due date (pending) and pay date (paid), never the 2040 competence.
+        // The outstanding residual follows due date; each settled amount follows its effective date.
         final List<UUID> janWindow = codesIn(LocalDate.of(2054, 1, 1), LocalDate.of(2054, 1, 31));
-        final List<UUID> febWindow = codesIn(LocalDate.of(2054, 2, 1), LocalDate.of(2054, 2, 28));
+        final List<MovementSettlement> febSettlements = settlementService.findForCashDateBetween(
+                LocalDate.of(2054, 2, 1), LocalDate.of(2054, 2, 28));
         final List<UUID> competenceWindow = codesIn(LocalDate.of(2040, 1, 1), LocalDate.of(2040, 1, 31));
 
         assertTrue(janWindow.contains(pending.code()));
-        assertFalse(janWindow.contains(paid.code()));
-        assertTrue(febWindow.contains(paid.code()));
+        assertTrue(janWindow.contains(paid.code()));
+        assertEquals(List.of(paid.code()), febSettlements.stream().map(MovementSettlement::movementCode).toList());
         assertTrue(competenceWindow.isEmpty());
         assertEquals(new BigDecimal("-80.00"), service.findBalance(LocalDate.of(2054, 2, 28))
                 .subtract(service.findBalance(LocalDate.of(2054, 1, 31))));

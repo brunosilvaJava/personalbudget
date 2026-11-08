@@ -5,6 +5,8 @@ import com.bts.personalbudget.core.domain.service.balance.DailyBalance;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -25,6 +27,7 @@ public class DashboardService {
     /**
      * Busca dados do dashboard para o mês atual
      */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Dashboard getDashboard() {
         log.info("m=getDashboard");
 
@@ -37,6 +40,7 @@ public class DashboardService {
     /**
      * Busca dados do dashboard para um mês específico
      */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Dashboard getDashboardForMonth(final YearMonth yearMonth) {
         log.info("m=getDashboardForMonth, yearMonth={}", yearMonth);
 

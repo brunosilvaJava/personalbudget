@@ -5,6 +5,7 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -24,7 +25,7 @@ class FinancialMovementCompetenceSerializationTest {
         final LocalDateTime now = LocalDateTime.of(2026, 11, 5, 10, 0);
         final FinancialMovementResponse response = new FinancialMovementResponse(
                 UUID.randomUUID(), OperationType.DEBIT, "Padaria", new BigDecimal("12.50"), null,
-                now, now, null, FinancialMovementStatus.PENDING, null, null, null,
+                now, now, FinancialMovementStatus.PENDING, null, null, null,
                 LocalDate.of(2026, 11, 1), true);
 
         final JsonNode json = objectMapper.valueToTree(response);
@@ -33,6 +34,7 @@ class FinancialMovementCompetenceSerializationTest {
         assertThat(json.get("competence_overridden").asBoolean()).isTrue();
         assertThat(json.has("competenceDate")).isFalse();
         assertThat(json.has("competenceOverridden")).isFalse();
+        assertThat(json.has("pay_date")).isFalse();
     }
 
     @Test
@@ -40,7 +42,7 @@ class FinancialMovementCompetenceSerializationTest {
         final String body = """
                 {"operation_type":"DEBIT","description":"Padaria","amount":12.50,
                  "movement_date":"2026-11-05T10:00:00","due_date":"2026-11-05T10:00:00",
-                 "status":"PENDING","competence_date":"2026-10-01"}""";
+                 "competence_date":"2026-10-01"}""";
 
         final FinancialMovementRequest request = objectMapper.readValue(body, FinancialMovementRequest.class);
 
@@ -60,5 +62,26 @@ class FinancialMovementCompetenceSerializationTest {
         assertThat(restore.restoreAutomaticCompetence()).isTrue();
         assertThat(omitted.competenceDate()).isNull();
         assertThat(omitted.restoreAutomaticCompetence()).isNull();
+    }
+
+    @Test
+    void shouldRejectLegacyPaymentFieldsInMovementWriteRequests() throws Exception {
+        final FinancialMovementRequest request = objectMapper.readValue("""
+                {"operation_type":"DEBIT","description":"Padaria","amount":12.50,
+                 "movement_date":"2026-11-05T10:00:00","due_date":"2026-11-05T10:00:00",
+                 "amount_paid":5.00,"status":"PAID_OUT"}""", FinancialMovementRequest.class);
+
+        assertThat(request.legacyAmountPaid()).isEqualByComparingTo("5.00");
+        assertThat(request.legacyStatus()).isEqualTo(FinancialMovementStatus.PAID_OUT);
+        try (var validatorFactory = Validation.buildDefaultValidatorFactory()) {
+            assertThat(validatorFactory.getValidator().validate(request))
+                    .extracting(violation -> violation.getMessage())
+                    .anyMatch(message -> message.contains("settlements"));
+            final FinancialMovementUpdateRequest update = objectMapper.readValue(
+                    "{\"pay_date\":\"2026-11-05T10:00:00\"}", FinancialMovementUpdateRequest.class);
+            assertThat(validatorFactory.getValidator().validate(update))
+                    .extracting(violation -> violation.getMessage())
+                    .anyMatch(message -> message.contains("settlements"));
+        }
     }
 }

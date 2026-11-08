@@ -42,6 +42,12 @@ class CompetenceMigrationTest {
             // 3: standalone paid with an amount_paid different from amount.
             insert(statement, "PAID_DIFFERENT", "DEBIT", "-100.00", "-80.00", "2025-03-07 10:00:00",
                     "2025-03-10 00:00:00", "PAID_OUT", 1, null);
+            insert(statement, "PARTIAL_CREDIT", "CREDIT", "100.00", "40.00", "2025-03-08 10:00:00",
+                    "2025-03-11 00:00:00", "PAID_OUT", 1, null);
+            insert(statement, "FULL_DEBIT", "DEBIT", "-25.00", "-25.00", "2025-03-09 10:00:00",
+                    "2025-03-12 00:00:00", "PAID_OUT", 1, null);
+            insert(statement, "FULL_CREDIT", "CREDIT", "30.00", "30.00", "2025-03-10 10:00:00",
+                    "2025-03-13 00:00:00", "PAID_OUT", 1, null);
             // 4 and 5: duplicate occurrence of the same recurrence bill (V5 keeps the lowest id).
             insert(statement, "DUPLICATE_KEPT", "DEBIT", "50.00", null, "2025-05-12 00:00:00", "2025-05-12 00:00:00",
                     "PENDING", 1, "0x11111111111111111111111111111111");
@@ -104,10 +110,25 @@ class CompetenceMigrationTest {
             assertEquals("PAID_OUT", rs.getString("status"));
             assertEquals(LocalDate.of(2025, 3, 7), competence("PAID_DIFFERENT"));
         }
+        assertEquals(0, new BigDecimal("80.00").compareTo(settlementAmount("PAID_DIFFERENT")));
+        assertEquals(LocalDate.of(2025, 3, 10), settlementDate("PAID_DIFFERENT"));
     }
 
     @Test
-    void shouldMarkUnpaidOverdueLegacyMovementLate() throws SQLException {
+    void shouldBackfillFullAndPartialSettlementsForBothOperationTypes() throws SQLException {
+        assertEquals(0, new BigDecimal("40.00").compareTo(settlementAmount("PARTIAL_CREDIT")));
+        assertEquals(0, new BigDecimal("25.00").compareTo(settlementAmount("FULL_DEBIT")));
+        assertEquals(0, new BigDecimal("30.00").compareTo(settlementAmount("FULL_CREDIT")));
+        assertEquals("PAID_OUT", status("PARTIAL_CREDIT"));
+        assertEquals("PAID_OUT", status("FULL_DEBIT"));
+        assertEquals("PAID_OUT", status("FULL_CREDIT"));
+        assertEquals(0, new BigDecimal("40.00").compareTo(amountPaid("PARTIAL_CREDIT")));
+        assertEquals(0, new BigDecimal("-25.00").compareTo(amountPaid("FULL_DEBIT")));
+    }
+
+    @Test
+    void shouldInitializeZeroAggregateAndDeriveLateStatusForUnpaidOverdueMovement() throws SQLException {
+        assertEquals(0, BigDecimal.ZERO.compareTo(amountPaid("STANDALONE")));
         assertEquals("LATE", status("STANDALONE"));
     }
 
@@ -174,12 +195,43 @@ class CompetenceMigrationTest {
         }
     }
 
+    private static BigDecimal settlementAmount(final String description) throws SQLException {
+        try (Connection connection = connection(); Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("""
+                     SELECT s.amount FROM movement_settlement s
+                     JOIN financial_movement fm ON fm.id = s.financial_movement_id
+                     WHERE fm.description = '%s' AND s.reversed_at IS NULL""".formatted(description))) {
+            assertTrue(rs.next());
+            return rs.getBigDecimal(1);
+        }
+    }
+
+    private static LocalDate settlementDate(final String description) throws SQLException {
+        try (Connection connection = connection(); Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("""
+                     SELECT s.effective_date FROM movement_settlement s
+                     JOIN financial_movement fm ON fm.id = s.financial_movement_id
+                     WHERE fm.description = '%s' AND s.reversed_at IS NULL""".formatted(description))) {
+            assertTrue(rs.next());
+            return rs.getObject(1, LocalDate.class);
+        }
+    }
+
     private static String status(final String description) throws SQLException {
         try (Connection connection = connection(); Statement statement = connection.createStatement();
              ResultSet rs = statement.executeQuery(
-                     "SELECT status FROM financial_movement WHERE description = '" + description + "'")) {
+                     "SELECT status FROM financial_movement WHERE description = '%s'".formatted(description))) {
             assertTrue(rs.next());
             return rs.getString(1);
+        }
+    }
+
+    private static BigDecimal amountPaid(final String description) throws SQLException {
+        try (Connection connection = connection(); Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery(
+                     "SELECT amount_paid FROM financial_movement WHERE description = '%s'".formatted(description))) {
+            assertTrue(rs.next());
+            return rs.getBigDecimal(1);
         }
     }
 }

@@ -122,14 +122,24 @@ http://localhost:8080/swagger-ui/index.html
   - `operation_type`: Tipo de operação (CREDIT ou DEBIT).
   - `description`: Descrição da movimentação.
   - `amount`: Valor total da movimentação.
-  - `amount_paid`: Valor pago.
+  - `amount_paid`: Valor agregado das liquidações ativas (somente leitura).
   - `movement_date`: Data da movimentação.
   - `due_date`: Data de vencimento.
-  - `pay_date`: Data de pagamento.
   - `status`: Status da movimentação (PENDING, PAID_OUT, LATE).
   - **Campos de auditoria**:
     - `created_date`: Data de criação do registro.
     - `last_modified_date`: Data da última atualização do registro.
+
+Pagamentos são armazenados individualmente em `movement_settlement`, com valor positivo,
+data efetiva e estorno histórico. Use `POST /financial_movement/{code}/settlements` para
+registrar um pagamento, `GET` no mesmo caminho para listar o histórico e
+`POST /financial_movement/{code}/settlements/{settlement_code}/reversal` para estorná-lo.
+`amount_paid` na movimentação é apenas um agregado compatível; `pay_date` não faz parte do
+contrato atual, pois uma movimentação pode ter várias datas de pagamento.
+POST/PATCH de movimentação rejeitam `amount_paid`, `pay_date` e `status` com HTTP 400;
+o status é derivado do total liquidado e do vencimento. Pagamento excedente e estorno
+repetido retornam HTTP 409. Caixa usa a data efetiva de cada liquidação, e a projeção
+inclui somente o valor residual não liquidado.
 
 #### **2. Parcelas**
 - **Tabela**: `installment_bill`

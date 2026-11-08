@@ -101,10 +101,18 @@ public record FinancialMovement(
                 competenceDate, competenceOverridden);
     }
 
+    public FinancialMovement withPaymentSummary(final BigDecimal newAmountPaid,
+                                               final LocalDateTime newPayDate,
+                                               final FinancialMovementStatus newStatus) {
+        return new FinancialMovement(code, operationType, description, amount, newAmountPaid, movementDate,
+                dueDate, newPayDate, newStatus, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
+                competenceDate, competenceOverridden);
+    }
+
     @Override
     public BigDecimal getBalanceCalcValue() {
         final BigDecimal balanceCalcValue = switch (status) {
-            case PENDING, LATE -> amount;
+            case PENDING, LATE -> amount.subtract(amountPaid == null ? ZERO : amountPaid);
             case PAID_OUT -> amountPaid;
         };
         // Negates the value picked above, not amount: for a partially paid debit, amountPaid is
@@ -121,7 +129,7 @@ public record FinancialMovement(
     public LocalDate findBalanceCalcDate() {
         return switch (status) {
             case PENDING, LATE -> dueDate.toLocalDate();
-            case PAID_OUT -> payDate.toLocalDate();
+            case PAID_OUT -> payDate == null ? dueDate.toLocalDate() : payDate.toLocalDate();
         };
     }
 
@@ -151,14 +159,6 @@ public record FinancialMovement(
         final Map<String, String> errorsMsg = new HashMap<>();
 
         if (status == PAID_OUT) {
-            if (payDate == null) {
-                errorsMsg.put("payDate", MSG_FIELD_NULL_OR_EMPTY + PAID_OUT);
-            }
-            // No sign check: the API sends amount_paid as a positive value for both types, and
-            // FinancialMovementMapper.toEntity / FinancialMovementEntity.setAmountPaid store it
-            // negative for DEBIT. (The sign check that used to be here read the operationType
-            // field before the compact constructor assigns it, so it was always null and the
-            // check never ran; enabling it would reject every paid debit sent by the API.)
             if (amountPaid == null || amountPaid.compareTo(ZERO) == 0) {
                 errorsMsg.put("amountPaid", MSG_FIELD_NULL_OR_EMPTY + PAID_OUT);
             }

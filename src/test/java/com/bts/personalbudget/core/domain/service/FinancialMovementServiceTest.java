@@ -79,6 +79,9 @@ class FinancialMovementServiceTest {
     @Mock
     private PayCycleMovementGuard payCycleMovementGuard;
 
+    @Mock
+    private com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService movementSettlementService;
+
     @Spy
     private FinancialMovementMapper mapper = FinancialMovementMapper.INSTANCE;
 
@@ -164,12 +167,11 @@ class FinancialMovementServiceTest {
     }
 
     @Test
-    void shouldUpdateFinancialMovement() {
+    void shouldKeepPaymentSummaryServerManagedWhenUpdatingMovementDetails() {
         String description = "descricao alterada";
         OperationType operationType = OperationType.CREDIT;
         BigDecimal amount = BigDecimal.valueOf(100L);
         LocalDateTime now = LocalDateTime.now();
-        FinancialMovementStatus status = FinancialMovementStatus.PAID_OUT;
         Map<FinancialMovementProperty, String> data = new HashMap<>(FinancialMovementFactory.data());
 
         data.put(OPERATION_TYPE, operationType.name());
@@ -179,7 +181,7 @@ class FinancialMovementServiceTest {
         data.put(MOVEMENT_DATE, now.toString());
         data.put(DUE_DATE, now.toString());
         data.put(PAY_DATE, now.toString());
-        data.put(STATUS, status.name());
+        data.put(STATUS, FinancialMovementStatus.PAID_OUT.name());
 
         FinancialMovement financialMovementToUpdate = FinancialMovementFactory.buildModel(data);
 
@@ -190,15 +192,15 @@ class FinancialMovementServiceTest {
         assertEquals(operationType, updatedFinancialMovement.operationType());
         assertEquals(description, updatedFinancialMovement.description());
         assertEquals(amount, updatedFinancialMovement.amount());
-        assertEquals(amount, updatedFinancialMovement.amountPaid());
+        assertEquals(BigDecimal.ZERO, updatedFinancialMovement.amountPaid());
         assertEquals(now, updatedFinancialMovement.movementDate());
         assertEquals(now, updatedFinancialMovement.dueDate());
-        assertEquals(now, updatedFinancialMovement.payDate());
-        assertEquals(status, updatedFinancialMovement.status());
+        assertEquals(null, updatedFinancialMovement.payDate());
+        assertEquals(FinancialMovementStatus.PENDING, updatedFinancialMovement.status());
     }
 
     @Test
-    void shouldAllowRecordingPaymentOnAClosedCycleMovement() {
+    void shouldNotChangePaymentSummaryThroughMovementUpdate() {
         final FinancialMovementEntity entity = FinancialMovementFactory.buildEntity();
         when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
         final FinancialMovementUpdate payment = new FinancialMovementUpdate(
@@ -209,6 +211,8 @@ class FinancialMovementServiceTest {
 
         verify(payCycleMovementGuard).lock();
         verify(payCycleMovementGuard, never()).requireEditable(any());
+        assertEquals(BigDecimal.ZERO, entity.getAmountPaid());
+        assertEquals(FinancialMovementStatus.PENDING, entity.getStatus());
     }
 
     @Test
@@ -349,7 +353,7 @@ class FinancialMovementServiceTest {
     }
 
     @Test
-    void shouldNotOverrideExplicitPendingStatusWhenDueDateIsEditedToPast() {
+    void shouldDeriveLateStatusWhenDueDateIsEditedToPast() {
         final LocalDate today = LocalDate.now(clock);
         final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
         entity.setDueDate(today.plusDays(2).atStartOfDay());
@@ -360,7 +364,7 @@ class FinancialMovementServiceTest {
 
         financialMovementService.update(update);
 
-        assertEquals(FinancialMovementStatus.PENDING, entity.getStatus());
+        assertEquals(FinancialMovementStatus.LATE, entity.getStatus());
     }
 
     @Test
@@ -378,7 +382,7 @@ class FinancialMovementServiceTest {
 
 
     @Test
-    void shouldStoreNegativeAmountsWhenDebitIsCreatedAsPaidOut() {
+    void shouldCreateAnUnpaidDebitEvenWhenLegacyPaymentFieldsAreProvided() {
         final LocalDateTime now = LocalDateTime.now();
         final FinancialMovement financialMovement = new FinancialMovement(
                 UUID.randomUUID(), OperationType.DEBIT, "Padaria", new BigDecimal("12.50"), new BigDecimal("12.50"),
@@ -389,11 +393,12 @@ class FinancialMovementServiceTest {
         final ArgumentCaptor<FinancialMovementEntity> captor = ArgumentCaptor.forClass(FinancialMovementEntity.class);
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().getAmount()).isEqualByComparingTo("-12.50");
-        assertThat(captor.getValue().getAmountPaid()).isEqualByComparingTo("-12.50");
+        assertThat(captor.getValue().getAmountPaid()).isEqualByComparingTo("0.00");
+        assertEquals(FinancialMovementStatus.PENDING, captor.getValue().getStatus());
     }
 
     @Test
-    void shouldStoreNegativeAmountPaidWhenDebitIsPaidOutViaPatch() {
+    void shouldIgnoreLegacyPaymentFieldsWhenUpdatingAMovement() {
         final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
         final FinancialMovement payment = new FinancialMovement(
                 entity.getCode(), null, null, null, new BigDecimal("30.00"),
@@ -402,8 +407,8 @@ class FinancialMovementServiceTest {
 
         financialMovementService.update(toUpdate(payment));
 
-        assertEquals(FinancialMovementStatus.PAID_OUT, entity.getStatus());
-        assertThat(entity.getAmountPaid()).isEqualByComparingTo("-30.00");
+        assertEquals(FinancialMovementStatus.PENDING, entity.getStatus());
+        assertThat(entity.getAmountPaid()).isEqualByComparingTo("0.00");
         assertThat(entity.getAmount()).isEqualByComparingTo("-30.00");
     }
 
@@ -684,7 +689,7 @@ class FinancialMovementServiceTest {
         financialMovementService.update(patch(manual.getCode(), null, newDate, newDate, null, false));
 
         assertEquals(newDate, automatic.getDueDate());
-        assertEquals(newDate, automatic.getPayDate());
+        assertEquals(null, automatic.getPayDate());
         assertEquals(LocalDate.of(2026, 11, 5), automatic.getCompetenceDate());
         assertEquals(MANUAL_COMPETENCE, manual.getCompetenceDate());
     }

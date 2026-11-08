@@ -26,6 +26,8 @@ import com.bts.personalbudget.core.domain.service.paycycle.PayCycleSnapshot;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleSummary;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleSummaryService;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleView;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlement;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
 import com.bts.personalbudget.mapper.PayCycleMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import com.bts.personalbudget.repository.IncomeScheduleRepository;
@@ -82,6 +84,7 @@ class PayCycleClosureIntegrationTest {
     @Autowired private PayCycleClosureService closureService;
     @Autowired private PayCycleSnapshotService snapshotService;
     @Autowired private FinancialMovementService movementService;
+    @Autowired private MovementSettlementService settlementService;
     @Autowired private PayCycleMapper mapper;
     @MockBean private PayCycleSummaryService summaryService;
 
@@ -206,12 +209,13 @@ class PayCycleClosureIntegrationTest {
         stubSummary(List.of());
         closureService.close(CYCLE_CODE, 0L);
 
-        final FinancialMovementUpdate payment = new FinancialMovementUpdate(
-                MOVEMENT_CODE, null, null, null, new BigDecimal("100.00"), null, null,
-                TODAY.atStartOfDay(), PAID_OUT, null, null, false);
-        movementService.update(payment);
+        settlementService.create(MOVEMENT_CODE, new MovementSettlement(
+                null, null, new BigDecimal("100.00"), TODAY, null, null, null, null, null));
         assertThat(movements.findByCodeAndFlagActiveTrue(MOVEMENT_CODE).orElseThrow().getStatus())
                 .isEqualTo(PAID_OUT);
+        assertThat(snapshotService.findSnapshots(CYCLE_CODE)).hasSize(1);
+        assertThat(snapshotService.findSnapshots(CYCLE_CODE).getFirst().recognizedRevenue())
+                .isEqualByComparingTo("0.00");
 
         final FinancialMovementUpdate amountChange = new FinancialMovementUpdate(
                 MOVEMENT_CODE, null, null, new BigDecimal("200.00"), null, null, null,
@@ -272,6 +276,8 @@ class PayCycleClosureIntegrationTest {
     }
 
     private void cleanData() {
+        jdbc.update("DELETE FROM movement_settlement WHERE financial_movement_id IN "
+                + "(SELECT id FROM financial_movement WHERE code = UUID_TO_BIN(?))", MOVEMENT_CODE.toString());
         jdbc.update("DELETE FROM financial_movement WHERE code = UUID_TO_BIN(?)", MOVEMENT_CODE.toString());
         jdbc.update("DELETE FROM income_occurrence WHERE income_schedule_id IN "
                 + "(SELECT id FROM income_schedule WHERE code = UUID_TO_BIN(?))", SCHEDULE_CODE.toString());

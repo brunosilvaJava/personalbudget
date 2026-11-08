@@ -1,6 +1,5 @@
 package com.bts.personalbudget.controller.financialmovement;
 
-import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
@@ -45,8 +44,8 @@ class FinancialMovementControllerTest {
     void shouldReturnCreatedMovementInBody() {
         final LocalDateTime now = LocalDateTime.now();
         final FinancialMovementRequest request = new FinancialMovementRequest(
-                OperationType.DEBIT, null, "Padaria", new BigDecimal("12.50"), new BigDecimal("12.50"),
-                now, now, now, FinancialMovementStatus.PAID_OUT, null, null);
+                OperationType.DEBIT, null, "Padaria", new BigDecimal("12.50"), now, now,
+                null, null, null, null, null);
         final FinancialMovement created = FinancialMovementFactory.buildModel();
         when(service.create(any(FinancialMovement.class))).thenReturn(created);
 
@@ -62,8 +61,8 @@ class FinancialMovementControllerTest {
         final LocalDateTime now = LocalDateTime.now();
         final LocalDate competence = LocalDate.of(2026, 10, 1);
         final FinancialMovementRequest request = new FinancialMovementRequest(
-                OperationType.DEBIT, null, "Padaria", new BigDecimal("12.50"), null,
-                now, now, null, FinancialMovementStatus.PENDING, null, competence);
+                OperationType.DEBIT, null, "Padaria", new BigDecimal("12.50"), now, now,
+                null, null, null, null, competence);
         when(service.create(any(FinancialMovement.class))).thenReturn(FinancialMovementFactory.buildModel());
 
         controller.create(request);
