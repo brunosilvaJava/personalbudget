@@ -430,8 +430,16 @@ class PayCycleAdjustmentIntegrationTest {
         assertEquals(PayCycleLifecycle.ACTIVE, find(first).getLifecycle());
         assertEquals(PayCycleLifecycle.CANCELLED, find(second).getLifecycle());
         assertEquals(PayCycleLifecycle.CANCELLED, find(third).getLifecycle());
+        final PayCycleEntity transitionCycle = cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE))
+                .stream()
+                .filter(cycle -> cycle.getKind() == PayCycleKind.TRANSITION)
+                .findFirst()
+                .orElseThrow();
+        assertNull(transitionCycle.getAnchorSchedule());
+        assertNull(transitionCycle.getAnchorNominalMonth());
         final PayCycleEntity firstNew = cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)).stream()
-                .filter(cycle -> cycle.getStartDate().equals(NOV_5))
+                .filter(cycle -> cycle.getKind() == PayCycleKind.REGULAR
+                        && cycle.getStartDate().equals(LocalDate.of(2026, 11, 10)))
                 .findFirst()
                 .orElseThrow();
         assertEquals(nextAnchor.getCode(), firstNew.getAnchorSchedule().getCode());

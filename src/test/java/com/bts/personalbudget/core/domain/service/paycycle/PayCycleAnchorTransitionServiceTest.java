@@ -5,6 +5,7 @@ import static com.bts.personalbudget.core.domain.factory.IncomeScheduleFactory.S
 import static com.bts.personalbudget.core.domain.factory.IncomeScheduleFactory.buildSchedule;
 import static com.bts.personalbudget.core.domain.factory.PayCycleFactory.buildPayCycleConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -160,6 +161,26 @@ class PayCycleAnchorTransitionServiceTest {
                 change(NEXT_SCHEDULE_CODE, null, null, " ", 2L)));
 
         verifyNoInteractions(configService, incomeScheduleService, cycleRepository, adjustmentRepository);
+    }
+
+    @Test
+    void shouldMapATransitionCycleWithoutAnAnchorOccurrence() {
+        final PayCycle transition = new PayCycle(
+                null,
+                NOV_5,
+                LocalDate.of(2026, 11, 10),
+                PayCycleKind.TRANSITION,
+                null,
+                null,
+                PayCycleLifecycle.ACTIVE,
+                false,
+                false,
+                null);
+
+        final PayCycleEntity entity = mapper.toEntity(transition, nextEntity);
+
+        assertNull(entity.getAnchorSchedule());
+        assertNull(entity.getAnchorNominalMonth());
     }
 
     @Test

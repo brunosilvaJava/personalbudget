@@ -94,7 +94,7 @@ public interface PayCycleMapper {
                 .startDate(cycle.startDate())
                 .endDate(cycle.endDate())
                 .kind(cycle.kind())
-                .anchorSchedule(anchorSchedule)
+                .anchorSchedule(cycle.anchorScheduleCode() == null ? null : anchorSchedule)
                 .anchorNominalMonth(toDate(cycle.anchorNominalMonth()))
                 .lifecycle(cycle.lifecycle())
                 .startAdjusted(cycle.startAdjusted())
