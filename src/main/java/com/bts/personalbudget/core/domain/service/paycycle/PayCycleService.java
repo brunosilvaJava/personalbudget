@@ -9,7 +9,6 @@ import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.calendar.Holiday;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendar;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarService;
-import com.bts.personalbudget.core.domain.service.income.IncomeOccurrence;
 import com.bts.personalbudget.core.domain.service.income.IncomeSchedule;
 import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
 import com.bts.personalbudget.core.domain.service.income.IncomeScheduleUpdate;
@@ -122,13 +121,10 @@ public class PayCycleService {
         }
         final LocalDate today = LocalDate.now(clock);
         final IncomeSchedule anchor = incomeScheduleService.findByCode(config.anchorScheduleCode());
-        final List<IncomeOccurrence> materialized = incomeScheduleService.findMaterializedOccurrences(anchor.code());
         final List<PayCycle> chain = mapper.toModelList(currentChain(
                 cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)), config));
-        final PayCyclePlan before = PayCyclePlanner.plan(
-                new Request(anchor, materialized, current, config.activationDate(), chain, today));
-        final PayCyclePlan after = PayCyclePlanner.plan(
-                new Request(anchor, materialized, proposed, config.activationDate(), chain, today));
+        final PayCyclePlan before = plan(anchor, config.activationDate(), chain, today, current);
+        final PayCyclePlan after = plan(anchor, config.activationDate(), chain, today, proposed);
         final Map<UUID, PayCycle> beforeByCode = new HashMap<>();
         final Map<UUID, PayCycle> afterByCode = new HashMap<>();
         before.cycles().forEach(cycle -> beforeByCode.put(cycle.code(), cycle));

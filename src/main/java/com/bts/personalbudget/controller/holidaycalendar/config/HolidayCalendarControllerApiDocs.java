@@ -69,6 +69,8 @@ public interface HolidayCalendarControllerApiDocs {
                     + "boundaries whose dates differ between refresh simulations under the current and proposed "
                     + "calendar, once per shared boundary, including the stored chain's final end; "
                     + "cycle_divergences lists new or changed BOUNDARY_DIVERGES_FROM_ANCHOR pendencies. "
+                    + "Both simulations respect anchor-transition history: the preserved prefix belongs "
+                    + "to the previous anchor rule and is not recalculated or compared with the new rule. "
                     + "Frozen boundaries never move. Cycle lists are empty in CALENDAR_MONTH. "
                     + "New horizon cycles are not listed as moved boundaries.")
     @ApiResponses(value = {

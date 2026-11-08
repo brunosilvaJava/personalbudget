@@ -34,6 +34,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -84,6 +85,23 @@ class PayCycleCalendarPreviewTest {
         assertThat(impact.divergences()).isEmpty();
         assertThat(chain.get(1).getEndDate()).isEqualTo(DEC_7);
         assertThat(chain.get(2).getStartDate()).isEqualTo(DEC_7);
+        verifyNoWrites();
+    }
+
+    @Test
+    void shouldExcludePreservedPrefixFromCalendarPlanningAfterAnchorTransition() {
+        final List<PayCycleEntity> chain = givenChain(CALENDAR, List.of());
+        when(adjustmentRepository.findPreservedEnd(OCT_5)).thenReturn(Optional.of(NOV_5));
+
+        final PayCycleCalendarImpact impact = service.previewCalendarChange(2026,
+                List.of(new Holiday(OCT_5, "Preserved prefix holiday"), new Holiday(DEC_7, "Future holiday")));
+
+        assertThat(impact.boundaries()).containsExactly(new PayCycleBoundaryImpact(
+                chain.get(1).getCode(), chain.get(2).getCode(), DEC_7, DEC_7.plusDays(1)));
+        assertThat(impact.divergences()).isEmpty();
+        assertThat(chain.get(0).getStartDate()).isEqualTo(OCT_5);
+        assertThat(chain.get(0).getEndDate()).isEqualTo(NOV_5);
+        verify(adjustmentRepository, org.mockito.Mockito.times(2)).findPreservedEnd(OCT_5);
         verifyNoWrites();
     }
 
@@ -246,6 +264,8 @@ class PayCycleCalendarPreviewTest {
         verify(cycleRepository, never()).save(any());
         verify(cycleRepository, never()).saveAll(any());
         verify(cycleRepository, never()).flush();
-        verifyNoInteractions(adjustmentRepository, scheduleRepository, financialMovementService);
+        verify(adjustmentRepository, never()).save(any());
+        verify(adjustmentRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(scheduleRepository, financialMovementService);
     }
 }

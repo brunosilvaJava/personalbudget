@@ -20,6 +20,9 @@ import com.bts.personalbudget.core.domain.enumerator.PayCycleMode;
 import com.bts.personalbudget.core.domain.service.calendar.Holiday;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarReviewedEvent;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarService;
+import com.bts.personalbudget.core.domain.service.calendar.IncomeDateRule;
+import com.bts.personalbudget.core.domain.service.income.IncomeScheduleUpdate;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAnchorChange;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleService;
 import com.bts.personalbudget.mapper.IncomeScheduleMapper;
 import com.bts.personalbudget.mapper.PayCycleMapper;
@@ -138,6 +141,30 @@ class HolidayCalendarPayCycleIntegrationTest {
                 .andExpect(jsonPath("$.cycle_divergences[0].boundary_date").value("2026-11-05"))
                 .andExpect(jsonPath("$.cycle_divergences[0].anchor_date").value("2026-11-06"));
 
+        assertThat(snapshot()).usingRecursiveComparison().isEqualTo(before);
+        verify(cycleService, never()).refresh();
+    }
+
+    @Test
+    void shouldPreviewCalendarAfterRuleTransitionWithoutReplanningPreservedPrefix() {
+        givenChain();
+        final IncomeDateRule rule = IncomeDateRule.fixedDay(10,
+                com.bts.personalbudget.core.domain.enumerator.NonBusinessDayPolicy.POSTPONE,
+                com.bts.personalbudget.core.domain.enumerator.BusinessWeek.MONDAY_TO_FRIDAY);
+        cycleService.transitionAnchor(new PayCycleAnchorChange(null,
+                new IncomeScheduleUpdate(null, null, null, rule.ruleType(), rule.value(), rule.businessWeek(),
+                        rule.nonBusinessDayPolicy(), null, false, null),
+                null, "Calendar preview regression", configRepository.findSingle().orElseThrow().getVersion()));
+        final Map<String, List<Map<String, Object>>> before = snapshot();
+        final LocalDate dec10 = LocalDate.of(2026, 12, 10);
+
+        final var impact = cycleService.previewCalendarChange(2026,
+                List.of(new Holiday(OCT_5, "Preserved prefix holiday"), new Holiday(dec10, "Future holiday")));
+
+        assertThat(impact.boundaries()).hasSize(1);
+        assertThat(impact.boundaries().get(0).oldBoundary()).isEqualTo(dec10);
+        assertThat(impact.boundaries().get(0).newBoundary()).isEqualTo(dec10.plusDays(1));
+        assertThat(impact.divergences()).isEmpty();
         assertThat(snapshot()).usingRecursiveComparison().isEqualTo(before);
         verify(cycleService, never()).refresh();
     }
