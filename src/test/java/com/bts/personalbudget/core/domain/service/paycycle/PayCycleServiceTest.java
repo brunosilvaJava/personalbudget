@@ -550,7 +550,8 @@ class PayCycleServiceTest {
         verify(cycleRepository, never()).save(any());
         verify(cycleRepository, never()).flush();
         verify(configService, never()).lock();
-        verifyNoInteractions(adjustmentRepository);
+        verify(adjustmentRepository, never()).save(any());
+        verify(adjustmentRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -1278,7 +1279,8 @@ class PayCycleServiceTest {
         assertEquals(NOV_10, second.getStartDate());
         assertEquals(DEC_7, second.getEndDate());
         verify(cycleRepository, never()).save(any());
-        verifyNoInteractions(adjustmentRepository);
+        verify(adjustmentRepository, never()).save(any());
+        verify(adjustmentRepository, never()).saveAndFlush(any());
     }
 
     // ---- helpers

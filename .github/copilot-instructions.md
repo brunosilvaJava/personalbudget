@@ -110,6 +110,7 @@ Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{F
 - `installment_total` não pode ser reduzido abaixo de `installment_count`; o job atualiza `last_modified_date` junto com o status. DELETE repetido de conta fixa ainda responde 404; pode ser alinhado à idempotência em uma etapa posterior.
 - `amount` da parcelada é o valor de cada parcela.
 - A alteração da regra da âncora ativa em `PAY_CYCLE` só ocorre por `/pay_cycle_config/anchor_transition`; os endpoints diretos da agenda retornam 409 para mudanças protegidas. A transição preserva ciclos iniciados e registra `ANCHOR_TRANSITION`. Quando a primeira ocorrência da nova agenda coincide com a fronteira congelada, ela abre um ciclo regular sem transição.
+- O histórico de `ANCHOR_TRANSITION` delimita o prefixo preservado: o refresh e as pendências não reaplicam a regra atual aos ciclos anteriores à transição, inclusive quando a agenda mantém o mesmo código.
 - Fora do escopo por enquanto: multiusuário (`owner_user_id`), relatório por ciclo (E5), fechamento de ciclo (E6), pagamentos parciais (E7), contas (E8), cartões (E9). O Dashboard mensal não é adaptado para ciclos.
 
 ## O que não fazer

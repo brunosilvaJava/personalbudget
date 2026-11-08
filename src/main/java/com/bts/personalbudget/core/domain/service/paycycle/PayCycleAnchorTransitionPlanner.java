@@ -104,11 +104,11 @@ public final class PayCycleAnchorTransitionPlanner {
                     () -> PayCyclePending.anchorScheduleEnds(YearMonth.from(boundary))));
         }
 
-        final List<PayCycle> created = buildCycles(boundary, dates, shape, newAnchor);
         final PayCycle oldNext = existing.stream()
                 .filter(cycle -> cycle.startDate().equals(boundary))
                 .findFirst()
                 .orElse(null);
+        final List<PayCycle> created = buildCycles(boundary, dates, shape, newAnchor, oldNext);
         return new PayCycleAnchorTransitionPlan(
                 boundary,
                 oldNext == null ? null : oldNext.endDate(),
@@ -125,7 +125,8 @@ public final class PayCycleAnchorTransitionPlanner {
             final LocalDate boundary,
             final List<OccurrenceDate> dates,
             final PayCycleTransitionShape shape,
-            final IncomeSchedule anchor) {
+            final IncomeSchedule anchor,
+            final PayCycle oldNext) {
         final List<PayCycle> cycles = new ArrayList<>();
         int nextIndex;
         if (shape == PayCycleTransitionShape.SHORT) {
@@ -139,7 +140,8 @@ public final class PayCycleAnchorTransitionPlanner {
         } else {
             if (dates.get(0).date().isAfter(boundary)) {
                 cycles.add(new PayCycle(null, boundary, dates.get(0).date(), PayCycleKind.REGULAR,
-                        anchor.code(), dates.get(0).month(), PayCycleLifecycle.ACTIVE, false, false, null));
+                        oldNext.anchorScheduleCode(), oldNext.anchorNominalMonth(),
+                        PayCycleLifecycle.ACTIVE, oldNext.startAdjusted(), false, null));
             }
             nextIndex = 0;
         }
@@ -174,7 +176,8 @@ public final class PayCycleAnchorTransitionPlanner {
             final HolidayCalendar calendar,
             final LocalDate boundary,
             final boolean strictlyAfter) {
-        final YearMonth from = YearMonth.from(boundary).minusMonths(1);
+        final YearMonth from = IncomeOccurrenceResolver.firstRelevantNominalMonth(
+                schedule, materialized, YearMonth.from(boundary));
         final YearMonth to = YearMonth.from(boundary).plusMonths(SCAN_MONTHS_AFTER_BOUNDARY);
         return IncomeOccurrenceResolver.resolve(schedule, materialized, calendar, from, to).stream()
                 .filter(view -> view.state() == IncomeOccurrenceView.State.MATERIALIZED
@@ -193,7 +196,8 @@ public final class PayCycleAnchorTransitionPlanner {
             final Collection<IncomeOccurrence> materialized,
             final HolidayCalendar calendar,
             final LocalDate boundary) {
-        final YearMonth from = YearMonth.from(boundary).minusMonths(1);
+        final YearMonth from = IncomeOccurrenceResolver.firstRelevantNominalMonth(
+                schedule, materialized, YearMonth.from(boundary));
         final YearMonth to = YearMonth.from(boundary).plusMonths(SCAN_MONTHS_AFTER_BOUNDARY);
         return IncomeOccurrenceResolver.resolve(schedule, materialized, calendar, from, to).stream()
                 .filter(view -> view.state() == IncomeOccurrenceView.State.CALENDAR_NOT_REVIEWED

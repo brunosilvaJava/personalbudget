@@ -15,6 +15,7 @@ import com.bts.personalbudget.core.domain.enumerator.PayCycleTransitionShape;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendar;
 import com.bts.personalbudget.core.domain.service.calendar.IncomeDateRule;
 import com.bts.personalbudget.core.domain.service.income.IncomeSchedule;
+import com.bts.personalbudget.core.domain.service.income.IncomeOccurrence;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
@@ -78,7 +79,61 @@ class PayCycleAnchorTransitionPlannerTest {
         assertEquals(NOV_29, plan.created().get(0).startDate());
         assertEquals(PayCycleKind.REGULAR, plan.created().get(0).kind());
         assertEquals(DEC_7, plan.created().get(0).endDate());
+        assertEquals(YearMonth.of(2026, 11), plan.created().get(0).anchorNominalMonth());
+        assertEquals(YearMonth.of(2026, 12), plan.created().get(1).anchorNominalMonth());
         assertContiguous(plan.created());
+    }
+
+    @Test
+    void shouldIgnorePreviousUnreviewedYearWhenBusinessDayCannotReachJanuary() {
+        final IncomeSchedule previous = buildSchedule(YearMonth.of(2026, 10));
+        final IncomeSchedule next = withRule(previous, IncomeDateRule.nthBusinessDay(
+                5, BusinessWeek.MONDAY_TO_FRIDAY));
+        final LocalDate boundary = LocalDate.of(2027, 1, 5);
+        final var plan = PayCycleAnchorTransitionPlanner.plan(boundary, List.of(), previous, next, List.of(),
+                buildReviewedCalendar(2027, 2028), TODAY, false, PayCycleTransitionShape.SHORT);
+        assertTrue(plan.isCalculable());
+        assertTrue(plan.pending().isEmpty());
+    }
+
+    @Test
+    void shouldIgnorePreviousUnreviewedYearWhenAnticipationCannotReachJanuary() {
+        final IncomeSchedule previous = buildSchedule(YearMonth.of(2026, 10));
+        final IncomeSchedule next = withRule(previous, IncomeDateRule.fixedDay(
+                10, NonBusinessDayPolicy.ANTICIPATE, BusinessWeek.MONDAY_TO_FRIDAY));
+        final var plan = PayCycleAnchorTransitionPlanner.plan(LocalDate.of(2027, 1, 5), List.of(),
+                previous, next, List.of(), buildReviewedCalendar(2027, 2028), TODAY,
+                false, PayCycleTransitionShape.SHORT);
+        assertTrue(plan.isCalculable());
+    }
+
+    @Test
+    void shouldRetainAPreviousMaterializedOccurrenceThatReachesJanuary() {
+        final IncomeSchedule previous = buildSchedule(YearMonth.of(2026, 10));
+        final IncomeSchedule next = withRule(previous, IncomeDateRule.nthBusinessDay(
+                5, BusinessWeek.MONDAY_TO_FRIDAY));
+        final LocalDate january3 = LocalDate.of(2027, 1, 3);
+        final IncomeOccurrence december = new IncomeOccurrence(null, next.code(), YearMonth.of(2026, 12),
+                january3, next.amount(), UUID.randomUUID());
+        final var plan = PayCycleAnchorTransitionPlanner.plan(LocalDate.of(2027, 1, 1), List.of(),
+                previous, next, List.of(december), buildReviewedCalendar(2027, 2028), TODAY,
+                false, PayCycleTransitionShape.SHORT);
+        assertTrue(plan.isCalculable());
+        assertEquals(january3, plan.created().get(0).endDate());
+        assertEquals(YearMonth.of(2026, 12), plan.created().get(1).anchorNominalMonth());
+    }
+
+    @Test
+    void shouldKeepPreviousYearBlockerWhenPostponementCanReachJanuary() {
+        final IncomeSchedule previous = buildSchedule(YearMonth.of(2026, 10));
+        final IncomeSchedule next = withRule(previous, IncomeDateRule.fixedDay(
+                31, NonBusinessDayPolicy.POSTPONE, BusinessWeek.MONDAY_TO_FRIDAY));
+        final var plan = PayCycleAnchorTransitionPlanner.plan(LocalDate.of(2027, 1, 1), List.of(),
+                previous, next, List.of(), buildReviewedCalendar(2027, 2028), TODAY,
+                false, PayCycleTransitionShape.SHORT);
+        assertFalse(plan.isCalculable());
+        assertEquals(2026, plan.pending().get(0).year());
+        assertEquals(YearMonth.of(2026, 12), plan.pending().get(0).nominalMonth());
     }
 
     @Test

@@ -3,6 +3,8 @@ package com.bts.personalbudget.core.domain.service.income;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendar;
 import com.bts.personalbudget.core.domain.service.calendar.IncomeDateCalculator;
 import com.bts.personalbudget.core.domain.service.calendar.IncomeDateResult;
+import com.bts.personalbudget.core.domain.enumerator.DateRuleType;
+import com.bts.personalbudget.core.domain.enumerator.NonBusinessDayPolicy;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,6 +26,20 @@ import java.util.Objects;
 public final class IncomeOccurrenceResolver {
 
     private IncomeOccurrenceResolver() {
+    }
+
+    /** Includes the previous nominal month only when a projected or materialized date can reach this month. */
+    public static YearMonth firstRelevantNominalMonth(
+            final IncomeSchedule schedule,
+            final Collection<IncomeOccurrence> materialized,
+            final YearMonth month) {
+        final YearMonth previous = month.minusMonths(1);
+        final boolean previousHasRelevantOccurrence = materialized.stream().anyMatch(occurrence ->
+                occurrence.nominalMonth().equals(previous)
+                        && !occurrence.plannedDate().isBefore(month.atDay(1)));
+        final boolean projectionCannotReachMonth = schedule.rule().ruleType() == DateRuleType.NTH_BUSINESS_DAY
+                || schedule.rule().nonBusinessDayPolicy() == NonBusinessDayPolicy.ANTICIPATE;
+        return projectionCannotReachMonth && !previousHasRelevantOccurrence ? month : previous;
     }
 
     /**

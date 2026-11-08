@@ -143,6 +143,11 @@ class PayCycleAnchorTransitionServiceTest {
         assertEquals(JUSTIFICATION, history.getJustification());
         assertEquals(2L, history.getExpectedConfigVersion());
         verify(cycleRepository, org.mockito.Mockito.times(2)).flush();
+        final var order = org.mockito.Mockito.inOrder(configService, incomeScheduleService, cycleRepository);
+        order.verify(configService).lock();
+        order.verify(incomeScheduleService).findByCodeForUpdate(SCHEDULE_CODE);
+        order.verify(incomeScheduleService).findByCodeForUpdate(NEXT_SCHEDULE_CODE);
+        order.verify(cycleRepository).findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE);
     }
 
     @Test
@@ -207,7 +212,10 @@ class PayCycleAnchorTransitionServiceTest {
         when(configService.lock()).thenReturn(buildPayCycleConfig(OCT_5, version));
         when(incomeScheduleService.findByCodeForUpdate(SCHEDULE_CODE)).thenReturn(previous);
         when(incomeScheduleService.findByCode(NEXT_SCHEDULE_CODE)).thenReturn(target);
-        when(incomeScheduleService.findByCodeForUpdate(NEXT_SCHEDULE_CODE)).thenReturn(target);
+        when(incomeScheduleService.findByCodeForUpdate(NEXT_SCHEDULE_CODE)).thenAnswer(invocation -> {
+            verify(incomeScheduleService, never()).findByCode(NEXT_SCHEDULE_CODE);
+            return target;
+        });
         when(incomeScheduleService.findMaterializedOccurrences(NEXT_SCHEDULE_CODE)).thenReturn(List.of());
         when(incomeScheduleService.switchAnchorForTransition(SCHEDULE_CODE, NEXT_SCHEDULE_CODE)).thenReturn(target);
         when(cycleRepository.findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE)).thenReturn(storedChain);

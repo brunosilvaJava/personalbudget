@@ -255,10 +255,10 @@ public class PayCycleService {
         requirePayCycleMode(config);
 
         final IncomeSchedule previous = incomeScheduleService.findByCodeForUpdate(config.anchorScheduleCode());
-        final TransitionTarget target = resolveTransitionTarget(config, previous, change);
-        final IncomeSchedule lockedTarget = target.sameSchedule()
-                ? previous
-                : incomeScheduleService.findByCodeForUpdate(target.schedule().code());
+        final UUID targetCode = change.anchorScheduleCode() == null ? previous.code() : change.anchorScheduleCode();
+        final IncomeSchedule lockedTarget = previous.code().equals(targetCode)
+                ? previous : incomeScheduleService.findByCodeForUpdate(targetCode);
+        final TransitionTarget target = resolveTransitionTarget(config, previous, change, lockedTarget);
         if (!lockedTarget.isActive() || (!target.sameSchedule() && lockedTarget.anchor())) {
             throw new ConflictException("A nova agenda precisa estar ativa e ainda não pode ser a âncora");
         }
@@ -568,8 +568,23 @@ public class PayCycleService {
                               final List<PayCycle> existing,
                               final LocalDate today,
                               final com.bts.personalbudget.core.domain.service.calendar.HolidayCalendar calendar) {
-        return PayCyclePlanner.plan(new Request(anchor, incomeScheduleService.findMaterializedOccurrences(anchor.code()),
-                calendar, activationDate, existing, today));
+        final Optional<LocalDate> transitionEnd = adjustmentRepository.findPreservedEnd(activationDate);
+        final LocalDate preservedEnd = transitionEnd.orElse(activationDate);
+        // A transition's preserved prefix belongs to the previous rule, even when the schedule code is unchanged.
+        final List<PayCycle> preserved = existing.stream()
+                .filter(cycle -> !cycle.endDate().isAfter(preservedEnd)).toList();
+        final List<PayCycle> suffix = existing.stream()
+                .filter(cycle -> cycle.endDate().isAfter(preservedEnd)).toList();
+        final PayCyclePlan planned = PayCyclePlanner.plan(new Request(anchor,
+                incomeScheduleService.findMaterializedOccurrences(anchor.code()),
+                calendar, preservedEnd, suffix, today), transitionEnd.isPresent());
+        final List<PayCycle> combined = new ArrayList<>(preserved);
+        combined.addAll(planned.cycles());
+        final List<PayCyclePending> pending = planned.pending().stream()
+                .filter(item -> item.type() != PayCyclePending.Type.NO_CURRENT_CYCLE
+                        || combined.stream().noneMatch(cycle -> cycle.contains(today)))
+                .toList();
+        return new PayCyclePlan(combined, pending);
     }
 
     private PayCycleAnchorTransitionPlan planAnchorTransition(
@@ -589,6 +604,14 @@ public class PayCycleService {
             final PayCycleConfig config,
             final IncomeSchedule previous,
             final PayCycleAnchorChange change) {
+        return resolveTransitionTarget(config, previous, change, null);
+    }
+
+    private TransitionTarget resolveTransitionTarget(
+            final PayCycleConfig config,
+            final IncomeSchedule previous,
+            final PayCycleAnchorChange change,
+            final IncomeSchedule lockedTarget) {
         final UUID targetCode = change.anchorScheduleCode() == null
                 ? previous.code()
                 : change.anchorScheduleCode();
@@ -604,7 +627,8 @@ public class PayCycleService {
         if (update != null && !update.isEmpty()) {
             throw invalid("anchorScheduleCode", "não envie uma nova regra ao trocar de agenda âncora");
         }
-        final IncomeSchedule next = incomeScheduleService.findByCode(targetCode);
+        final IncomeSchedule next = lockedTarget == null
+                ? incomeScheduleService.findByCode(targetCode) : lockedTarget;
         if (!next.isActive()) {
             throw invalid("anchorScheduleCode", "a nova agenda âncora deve estar ativa");
         }
