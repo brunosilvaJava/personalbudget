@@ -7,12 +7,14 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +26,20 @@ public interface FinancialMovementRepository
     Optional<FinancialMovementEntity> findByCode(UUID code);
 
     Optional<FinancialMovementEntity> findByCodeAndFlagActiveTrue(UUID code);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE FinancialMovementEntity fm
+            SET fm.status = :late, fm.lastModifiedDate = :modifiedAt
+            WHERE fm.status = :pending
+              AND fm.dueDate < :overdueBefore
+              AND fm.flagActive = true
+            """)
+    int markOverduePendingAsLate(
+            @Param("pending") FinancialMovementStatus pending,
+            @Param("late") FinancialMovementStatus late,
+            @Param("overdueBefore") LocalDateTime overdueBefore,
+            @Param("modifiedAt") Instant modifiedAt);
 
     /**
      * Deliberately not scoped to flagActive = true: a movement the user soft-deleted still

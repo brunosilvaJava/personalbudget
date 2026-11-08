@@ -37,6 +37,15 @@ public record InstallmentBillResponse(
         @Schema(description = "Total number of installments for the bill", example = "12")
         Integer installmentTotal,
 
+        @JsonProperty("installment_count")
+        @Schema(description = "Number of installments already posted", example = "3")
+        Integer installmentCount,
+
+        @JsonProperty("next_installment_date")
+        @Schema(description = "Date of the next installment that has not been posted yet; null when the bill is complete",
+                example = "2024-05-15", type = "string", format = "date")
+        LocalDate nextInstallmentDate,
+
         @Schema(description = "Code of the category, if any", example = "123e4567-e89b-12d3-a456-426614174000")
         @JsonProperty("category_code")
         UUID categoryCode

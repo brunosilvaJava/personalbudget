@@ -89,7 +89,12 @@ public class InstallmentBill implements BalanceCalcData {
         this.operationType = operationType != null ? operationType : this.operationType;
         this.description = description != null ? description : this.description;
         this.amount = amount != null ? amount : this.amount;
-        this.purchaseDate = purchaseDate != null ? purchaseDate : this.purchaseDate;
+        if (purchaseDate != null && !purchaseDate.equals(this.purchaseDate)) {
+            this.purchaseDate = purchaseDate;
+            if (installmentCount == 0) {
+                this.nextInstallmentDate = calculateNextInstallmentDate().orElse(null);
+            }
+        }
         this.installmentTotal = installmentTotal != null ? installmentTotal : this.installmentTotal;
     }
 

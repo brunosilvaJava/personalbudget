@@ -1,5 +1,6 @@
 package com.bts.personalbudget.job;
 
+import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleService;
 import com.bts.personalbudget.core.domain.service.recurrencebill.RecurrenceBillService;
 
@@ -31,6 +32,9 @@ class RecurrenceBillJobTest {
     private RecurrenceBillService recurrenceBillService;
 
     @Mock
+    private FinancialMovementService financialMovementService;
+
+    @Mock
     private PayCycleService payCycleService;
 
     @Spy
@@ -54,8 +58,9 @@ class RecurrenceBillJobTest {
     void shouldRefreshThePayCyclesAfterPostingTheRecurringBills() {
         recurrenceBillJob.postRecurringBills();
 
-        final InOrder inOrder = inOrder(recurrenceBillService, payCycleService);
+        final InOrder inOrder = inOrder(recurrenceBillService, financialMovementService, payCycleService);
         inOrder.verify(recurrenceBillService).postRecurringBills(LocalDate.of(2026, 11, 1));
+        inOrder.verify(financialMovementService).markOverdueAsLate(LocalDate.of(2026, 11, 1));
         inOrder.verify(payCycleService).refresh();
     }
 
@@ -73,5 +78,15 @@ class RecurrenceBillJobTest {
         assertThatCode(() -> recurrenceBillJob.postRecurringBills()).doesNotThrowAnyException();
 
         verify(recurrenceBillService).postRecurringBills(LocalDate.of(2026, 11, 1));
+    }
+
+    @Test
+    void shouldNotLetFailureToMarkOverdueMovementsEscapeOrSkipCycleRefresh() {
+        doThrow(new IllegalStateException("database is unavailable"))
+                .when(financialMovementService).markOverdueAsLate(LocalDate.of(2026, 11, 1));
+
+        assertThatCode(() -> recurrenceBillJob.postRecurringBills()).doesNotThrowAnyException();
+
+        verify(payCycleService).refresh();
     }
 }

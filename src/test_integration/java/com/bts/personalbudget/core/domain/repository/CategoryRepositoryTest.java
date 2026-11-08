@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class CategoryRepositoryTest {
 
     private static final List<String> SEEDED_GROUPS =
-            List.of("Residência", "Pessoal", "Instrução", "Moto", "Investimento", "Outros");
+            List.of("Residência", "Pessoal", "Instrução", "Moto", "Investimento", "Outros", "Receitas");
 
     @Container
     public static MySQLContainer<MySQLContainerConfig> mySqlContainer = MySQLContainerConfig.getInstance();
@@ -50,6 +50,11 @@ public class CategoryRepositoryTest {
                 .toList();
 
         assertEquals(SEEDED_GROUPS, names.subList(0, SEEDED_GROUPS.size()));
+        final CategoryGroupEntity receitas = categoryGroupRepository.findAllByOrderByDisplayOrderAscNameAsc().stream()
+                .filter(group -> "Receitas".equals(group.getName()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(7, receitas.getDisplayOrder());
     }
 
     @Test
