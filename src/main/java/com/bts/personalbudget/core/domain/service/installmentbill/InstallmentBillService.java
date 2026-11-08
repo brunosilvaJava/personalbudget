@@ -54,6 +54,7 @@ public class InstallmentBillService {
         if (installmentBill.getCategoryCode() != null) {
             categoryService.validateForUse(installmentBill.getCategoryCode(), installmentBill.getOperationType());
         }
+        financialMovementService.lockPayCycleMovementMutation();
         repository.save(installmentBill);
         final LocalDate today = LocalDate.now(clock);
         final LocalDate nextInstallmentDate = installmentBill.getNextInstallmentDate();
@@ -107,6 +108,7 @@ public class InstallmentBillService {
                                   final UUID categoryCode) {
         log.info("m=update code={} operationType={} description={} amount={} purchaseDate={} installmentTotal={} categoryCode={}",
                 code, operationType, description, amount, purchaseDate, installmentTotal, categoryCode);
+        financialMovementService.lockPayCycleMovementMutation();
         final InstallmentBill updateInstallmentBill = repository.findForUpdateByCode(code);
         if (installmentTotal != null && installmentTotal < updateInstallmentBill.getInstallmentCount()) {
             throw new InvalidFieldsException("Campos inválidos", InstallmentBillService.class,
@@ -183,6 +185,7 @@ public class InstallmentBillService {
     @Transactional
     public void postDueInstallments(final UUID code, final LocalDate today) {
         log.info("m=postDueInstallments, code={}, today={}", code, today);
+        financialMovementService.lockPayCycleMovementMutation();
         InstallmentBill installmentBill = repository.findForUpdateByCode(code);
 
         int iterations = 0;

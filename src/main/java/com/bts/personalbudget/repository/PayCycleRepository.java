@@ -4,6 +4,7 @@ import com.bts.personalbudget.core.domain.entity.PayCycleEntity;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
 import jakarta.persistence.LockModeType;
 import java.util.Collection;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,6 +40,16 @@ public interface PayCycleRepository extends JpaRepository<PayCycleEntity, Long> 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM PayCycleEntity c WHERE c.code = :code")
     Optional<PayCycleEntity> findForUpdateByCode(@Param("code") UUID code);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT c FROM PayCycleEntity c
+            WHERE c.lifecycle = com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle.CLOSED
+              AND c.startDate <= :competenceDate
+              AND c.endDate > :competenceDate
+            """)
+    Optional<PayCycleEntity> findClosedForUpdateByCompetenceDate(
+            @Param("competenceDate") LocalDate competenceDate);
 
     /**
      * The cycles of a lifecycle, locked. A query for ACTIVE also includes CLOSED cycles because both

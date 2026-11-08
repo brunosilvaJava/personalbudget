@@ -2,7 +2,9 @@ package com.bts.personalbudget.controller.paycycle;
 
 import com.bts.personalbudget.controller.paycycle.config.PayCycleControllerApiDocs;
 import com.bts.personalbudget.core.domain.service.paycycle.CurrentPayCycle;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleClosureService;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleService;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleSnapshotService;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleSummaryService;
 import com.bts.personalbudget.mapper.PayCycleMapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,6 +32,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class PayCycleController implements PayCycleControllerApiDocs {
 
     private final PayCycleService payCycleService;
+    private final PayCycleClosureService payCycleClosureService;
+    private final PayCycleSnapshotService payCycleSnapshotService;
     private final PayCycleSummaryService payCycleSummaryService;
     private final PayCycleMapper payCycleMapper;
 
@@ -68,6 +72,39 @@ public class PayCycleController implements PayCycleControllerApiDocs {
     public ResponseEntity<PayCycleSummaryResponse> summary(@PathVariable UUID code) {
         log.info("m=summary, code={}", code);
         return ResponseEntity.ok(payCycleMapper.toSummaryResponse(payCycleSummaryService.summarize(code)));
+    }
+
+    @Override
+    @PostMapping("/{code}/closure/preview")
+    public ResponseEntity<PayCycleClosurePreviewResponse> previewClosure(@PathVariable UUID code) {
+        log.info("m=previewClosure, code={}", code);
+        return ResponseEntity.ok(payCycleMapper.toResponse(payCycleClosureService.preview(code)));
+    }
+
+    @Override
+    @PostMapping("/{code}/closure")
+    public ResponseEntity<PayCycleClosureResponse> close(
+            @PathVariable UUID code,
+            @Valid @RequestBody PayCycleClosureRequest request) {
+        log.info("m=close, code={}, request={}", code, request);
+        return ResponseEntity.ok(payCycleMapper.toResponse(payCycleClosureService.close(code, request.expectedVersion())));
+    }
+
+    @Override
+    @PostMapping("/{code}/reopen")
+    public ResponseEntity<PayCycleResponse> reopen(
+            @PathVariable UUID code,
+            @Valid @RequestBody PayCycleReopenRequest request) {
+        log.info("m=reopen, code={}, request={}", code, request);
+        return ResponseEntity.ok(payCycleMapper.toResponse(
+                payCycleClosureService.reopen(code, request.expectedVersion())));
+    }
+
+    @Override
+    @GetMapping("/{code}/snapshots")
+    public ResponseEntity<List<PayCycleSnapshotResponse>> snapshots(@PathVariable UUID code) {
+        log.info("m=snapshots, code={}", code);
+        return ResponseEntity.ok(payCycleMapper.toSnapshotResponseList(payCycleSnapshotService.findSnapshots(code)));
     }
 
     @Override

@@ -64,6 +64,7 @@ public class FixedBillService {
             categoryService.validateForUse(fixedBill.getCategoryCode(), fixedBill.getOperationType());
         }
         fixedBill.setStatus(FixedBillStatus.ACTIVE);
+        financialMovementService.lockPayCycleMovementMutation();
         final FixedBillEntity fixedBillEntity = buildFixedBillEntity(fixedBill);
         final Set<CalendarFixedBillEntity> calendarFixedBillEntityList = buildCalendarFixedBillEntityList(fixedBill, fixedBillEntity);
         fixedBillEntity.setCalendarFixedBillEntityList(calendarFixedBillEntityList);
@@ -176,6 +177,7 @@ public class FixedBillService {
                 final LocalDate nextDueDate = defineNextDueDate(updateFixedBill, defineScheduleBaseDate(updateFixedBill)).orElse(null);
                 log.info("m=update, message=ScheduleChanged, code={}, nextDueDate={}", code, nextDueDate);
                 updateFixedBill.setNextDueDate(nextDueDate);
+                financialMovementService.lockPayCycleMovementMutation();
             }
             final FixedBillEntity updateEntity = fixedBillMapper.toEntity(updateFixedBill);
             updateEntity.setCalendarFixedBillEntityList(buildCalendarFixedBillEntityList(updateFixedBill, fixedBillEntity));
@@ -195,6 +197,9 @@ public class FixedBillService {
     public FixedBill changeStatus(final UUID code, final FixedBillStatus newStatus) {
         log.info("m=changeStatus, code={}, newStatus={}", code, newStatus);
 
+        if (newStatus == ACTIVE) {
+            financialMovementService.lockPayCycleMovementMutation();
+        }
         final FixedBillEntity fixedBillEntity = findEntity(code);
 
         if (fixedBillEntity.getStatus() == newStatus) {
@@ -362,6 +367,7 @@ public class FixedBillService {
     @Transactional
     public void postDueOccurrences(final UUID code, final LocalDate today) {
         log.info("m=postDueOccurrences, code={}, today={}", code, today);
+        financialMovementService.lockPayCycleMovementMutation();
         lockAndPostDueOccurrences(code, today);
     }
 

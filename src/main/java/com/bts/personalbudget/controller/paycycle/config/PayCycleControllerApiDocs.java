@@ -2,12 +2,17 @@ package com.bts.personalbudget.controller.paycycle.config;
 
 import com.bts.personalbudget.controller.paycycle.PayCycleAdjustmentResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleCurrentNotFoundResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleClosurePreviewResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleClosureRequest;
+import com.bts.personalbudget.controller.paycycle.PayCycleClosureResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentPreviewRequest;
 import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentPreviewResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentRequest;
 import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleSummaryResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleReopenRequest;
+import com.bts.personalbudget.controller.paycycle.PayCycleSnapshotResponse;
 import com.bts.personalbudget.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -85,6 +90,66 @@ public interface PayCycleControllerApiDocs {
             @ApiResponse(responseCode = "404", description = "Cycle not found")
     })
     ResponseEntity<PayCycleSummaryResponse> summary(@PathVariable UUID code);
+
+    @Operation(
+            summary = "Preview closing a pay cycle",
+            description = "Returns the competence summary and expected_version. Closure is refused when the cycle "
+                    + "has projection pendencies, any LATE movement in its competence interval, or has not ended. "
+                    + "PENDING movements whose due date is before today also block closure; PENDING movements that "
+                    + "are not overdue do not.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Closure preview",
+                    content = @Content(schema = @Schema(implementation = PayCycleClosurePreviewResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Cycle not found"),
+            @ApiResponse(responseCode = "409", description = "The cycle is not active")
+    })
+    ResponseEntity<PayCycleClosurePreviewResponse> previewClosure(@PathVariable UUID code);
+
+    @Operation(
+            summary = "Close a pay cycle",
+            description = "Uses the preview's expected_version. In one transaction it locks configuration and "
+                    + "anchor, recovers due fixed-bill, installment and income-schedule occurrences, then locks the "
+                    + "cycle, marks it CLOSED, recalculates its summary and records the immutable snapshot. The operation is "
+                    + "rolled back if a projection pendency, LATE movement or overdue PENDING movement prevents closure.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Cycle closed and snapshot created",
+                    content = @Content(schema = @Schema(implementation = PayCycleClosureResponse.class))),
+            @ApiResponse(responseCode = "400", description = "expected_version is required"),
+            @ApiResponse(responseCode = "404", description = "Cycle not found"),
+            @ApiResponse(responseCode = "409", description = "Stale version or closure blocker",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<PayCycleClosureResponse> close(
+            @PathVariable UUID code,
+            @Valid @RequestBody PayCycleClosureRequest request);
+
+    @Operation(
+            summary = "Reopen a closed pay cycle",
+            description = "Reopens the cycle using its current expected_version. Existing snapshots remain immutable "
+                    + "and are retained as history; changes that affect the closed budget are permitted only after "
+                    + "this operation.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Cycle reopened",
+                    content = @Content(schema = @Schema(implementation = PayCycleResponse.class))),
+            @ApiResponse(responseCode = "400", description = "expected_version is required"),
+            @ApiResponse(responseCode = "404", description = "Cycle not found"),
+            @ApiResponse(responseCode = "409", description = "Cycle is not closed or version is stale",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<PayCycleResponse> reopen(
+            @PathVariable UUID code,
+            @Valid @RequestBody PayCycleReopenRequest request);
+
+    @Operation(
+            summary = "List immutable snapshots of a pay cycle",
+            description = "Returns the closure snapshots newest first, preserving the category names as they were "
+                    + "when each snapshot was created.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Snapshots, possibly empty",
+                    content = @Content(schema = @Schema(implementation = PayCycleSnapshotResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Cycle not found")
+    })
+    ResponseEntity<List<PayCycleSnapshotResponse>> snapshots(@PathVariable UUID code);
 
     @Operation(
             summary = "Preview moving the end of a pay cycle",

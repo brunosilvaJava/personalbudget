@@ -196,6 +196,52 @@ class PayCycleSerializationTest {
     }
 
     @Test
+    void shouldSerializeClosurePreviewAndSnapshotInSnakeCase() {
+        final PayCycleSummaryResponse summary = new PayCycleSummaryResponse(
+                cycle(YearMonth.of(2026, 11), SCHEDULE_CODE, List.of()),
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                false, List.of(), List.of());
+        final PayCycleClosurePreviewResponse preview = new PayCycleClosurePreviewResponse(
+                summary, 4L, true, List.of(), List.of(CODE));
+        final PayCycleSnapshotResponse snapshot = new PayCycleSnapshotResponse(
+                CODE, SCHEDULE_CODE, 2, 5L, Instant.parse("2026-11-02T21:35:00Z"),
+                new BigDecimal("500.00"), new BigDecimal("100.00"),
+                new BigDecimal("600.00"), new BigDecimal("200.00"),
+                List.of(new PayCycleSnapshotResponse.Category(
+                        null, "Sem categoria", OperationType.DEBIT, new BigDecimal("100.00"),
+                        new BigDecimal("200.00"))));
+
+        assertThat(fieldNames(preview)).containsExactlyInAnyOrder(
+                "summary", "expected_version", "can_close", "blockers", "late_movement_codes");
+        assertThat(fieldNames(snapshot)).containsExactlyInAnyOrder(
+                "code", "cycle_code", "snapshot_version", "cycle_version", "closed_at",
+                "recognized_revenue", "recognized_expense", "projected_revenue", "projected_expense",
+                "categories");
+        final JsonNode previewJson = objectMapper.valueToTree(preview);
+        assertThat(previewJson.get("expected_version").asLong()).isEqualTo(4L);
+        assertThat(previewJson.get("can_close").asBoolean()).isTrue();
+        assertThat(previewJson.get("late_movement_codes").get(0).asText()).isEqualTo(CODE.toString());
+        final JsonNode snapshotJson = objectMapper.valueToTree(snapshot);
+        assertThat(snapshotJson.get("closed_at").asText()).isEqualTo("2026-11-02T21:35:00Z");
+        assertThat(snapshotJson.get("categories").get(0).get("category_name").asText()).isEqualTo("Sem categoria");
+    }
+
+    @Test
+    void shouldReadClosureAndReopenRequestsFromSnakeCaseAndRequireVersions() throws Exception {
+        final PayCycleClosureRequest close = objectMapper.readValue(
+                "{\"expected_version\": 4}", PayCycleClosureRequest.class);
+        final PayCycleReopenRequest reopen = objectMapper.readValue(
+                "{\"expected_version\": 5}", PayCycleReopenRequest.class);
+
+        assertThat(close.expectedVersion()).isEqualTo(4L);
+        assertThat(reopen.expectedVersion()).isEqualTo(5L);
+        assertThat(validator.validate(close)).isEmpty();
+        assertThat(validator.validate(reopen)).isEmpty();
+        assertThat(violatedFields(new PayCycleClosureRequest(null))).containsExactly("expectedVersion");
+        assertThat(violatedFields(new PayCycleReopenRequest(null))).containsExactly("expectedVersion");
+    }
+
+    @Test
     void shouldRejectAnEndAdjustmentPreviewRequestWithoutTheDate() {
         assertThat(violatedFields(new PayCycleEndAdjustmentPreviewRequest(null))).containsExactly("newEndDate");
     }

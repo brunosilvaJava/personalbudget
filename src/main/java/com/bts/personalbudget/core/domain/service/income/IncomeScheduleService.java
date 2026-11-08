@@ -285,6 +285,7 @@ public class IncomeScheduleService {
     @Transactional
     public MaterializationResult materialize(final UUID code, final YearMonth nominalMonth) {
         log.info("m=materialize, code={}, nominalMonth={}", code, nominalMonth);
+        payCycleConfigService.lock();
         final IncomeScheduleEntity entity = lockEntity(code);
         final Optional<IncomeOccurrenceEntity> existing =
                 occurrenceRepository.findByScheduleCodeAndNominalMonth(code, mapper.toDate(nominalMonth));
@@ -344,6 +345,7 @@ public class IncomeScheduleService {
     @Transactional
     public int postDueOccurrences(final UUID code, final LocalDate today) {
         log.info("m=postDueOccurrences, code={}, today={}", code, today);
+        payCycleConfigService.lock();
         final Optional<IncomeScheduleEntity> locked = scheduleRepository.findForUpdateByCode(code);
         if (locked.isEmpty()) {
             log.warn("m=postDueOccurrences, message=ScheduleNotFound, code={}", code);
