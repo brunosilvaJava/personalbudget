@@ -15,7 +15,6 @@ import java.sql.Statement;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MovementSettlementBackfillMigrationTest {
@@ -27,10 +26,13 @@ class MovementSettlementBackfillMigrationTest {
         MYSQL.start();
         flyway("17").migrate();
         try (Connection connection = connection(); Statement statement = connection.createStatement()) {
-            insert(statement, "UNPAID", "DEBIT", "-100.00", "NULL", "NULL");
-            insert(statement, "PARTIAL_DEBIT", "DEBIT", "-100.00", "-25.00", "'2088-04-02 12:00:00'");
-            insert(statement, "PARTIAL_CREDIT", "CREDIT", "100.00", "30.00", "'2088-04-03 12:00:00'");
-            insert(statement, "FULL_CREDIT", "CREDIT", "100.00", "100.00", "'2088-04-04 12:00:00'");
+            insert(statement, "UNPAID", "DEBIT", "-100.00", "NULL", "NULL", "PENDING");
+            insert(statement, "PARTIAL_DEBIT", "DEBIT", "-100.00", "-25.00",
+                    "'2088-04-02 12:00:00'", "PAID_OUT");
+            insert(statement, "PARTIAL_CREDIT", "CREDIT", "100.00", "30.00",
+                    "'2088-04-03 12:00:00'", "PAID_OUT");
+            insert(statement, "FULL_CREDIT", "CREDIT", "100.00", "100.00",
+                    "'2088-04-04 12:00:00'", "PAID_OUT");
         }
         flyway("18").migrate();
     }
@@ -50,14 +52,17 @@ class MovementSettlementBackfillMigrationTest {
         assertAmountPaid("PARTIAL_DEBIT", "-25.00");
         assertAmountPaid("PARTIAL_CREDIT", "30.00");
         assertAmountPaid("FULL_CREDIT", "100.00");
-        assertEquals("PENDING", status("PARTIAL_DEBIT"));
-        assertEquals("PENDING", status("PARTIAL_CREDIT"));
+        assertEquals("PAID_OUT", status("PARTIAL_DEBIT"));
+        assertEquals("PAID_OUT", status("PARTIAL_CREDIT"));
         assertEquals("PAID_OUT", status("FULL_CREDIT"));
-        assertNull(payDate("FULL_CREDIT"));
+        assertEquals(LocalDate.of(2088, 4, 2), payDate("PARTIAL_DEBIT"));
+        assertEquals(LocalDate.of(2088, 4, 3), payDate("PARTIAL_CREDIT"));
+        assertEquals(LocalDate.of(2088, 4, 4), payDate("FULL_CREDIT"));
     }
 
     private static void insert(final Statement statement, final String description, final String operationType,
-                               final String amount, final String amountPaid, final String payDate) throws SQLException {
+                               final String amount, final String amountPaid, final String payDate,
+                               final String status) throws SQLException {
         statement.executeUpdate("""
                 INSERT INTO financial_movement (
                     code, operation_type, description, amount, amount_paid, movement_date,
@@ -66,8 +71,8 @@ class MovementSettlementBackfillMigrationTest {
                 ) VALUES (
                     UNHEX(REPLACE(UUID(), '-', '')), '%s', '%s',
                     %s, %s, '2088-04-01 00:00:00', '2088-04-30 00:00:00',
-                    %s, 'PENDING', 1, NULL, '2088-04-01', 0
-                )""".formatted(operationType, description, amount, amountPaid, payDate));
+                    %s, '%s', 1, NULL, '2088-04-01', 0
+                )""".formatted(operationType, description, amount, amountPaid, payDate, status));
     }
 
     private static void assertSettlement(final String description,

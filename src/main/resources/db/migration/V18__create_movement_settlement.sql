@@ -57,11 +57,4 @@ SET fm.amount_paid = CASE
         WHEN fm.operation_type = 'DEBIT' THEN -COALESCE(settlements.paid_amount, 0)
         ELSE COALESCE(settlements.paid_amount, 0)
     END,
-    fm.pay_date = NULL,
-    fm.status = CASE
-        WHEN COALESCE(settlements.paid_amount, 0) > 0
-             AND COALESCE(settlements.paid_amount, 0) = ABS(fm.amount) THEN 'PAID_OUT'
-        WHEN fm.due_date < CURRENT_DATE() THEN 'LATE'
-        ELSE 'PENDING'
-    END,
     fm.last_modified_date = CURRENT_TIMESTAMP;

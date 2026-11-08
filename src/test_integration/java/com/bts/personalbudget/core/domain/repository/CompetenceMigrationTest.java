@@ -92,14 +92,16 @@ class CompetenceMigrationTest {
     }
 
     @Test
-    void shouldPreserveAmountPaidAndMarkLegacyPartialPaymentLate() throws SQLException {
+    void shouldPreserveLegacyPartialPaymentStatusAndPayDate() throws SQLException {
         try (Connection connection = connection(); Statement statement = connection.createStatement();
              ResultSet rs = statement.executeQuery(
-                     "SELECT amount, amount_paid, status FROM financial_movement WHERE description = 'PAID_DIFFERENT'")) {
+                     "SELECT amount, amount_paid, pay_date, status FROM financial_movement "
+                             + "WHERE description = 'PAID_DIFFERENT'")) {
             assertTrue(rs.next());
             assertEquals(0, new BigDecimal("-100.00").compareTo(rs.getBigDecimal("amount")));
             assertEquals(0, new BigDecimal("-80.00").compareTo(rs.getBigDecimal("amount_paid")));
-            assertEquals("LATE", rs.getString("status"));
+            assertEquals(LocalDate.of(2025, 3, 10), rs.getObject("pay_date", LocalDate.class));
+            assertEquals("PAID_OUT", rs.getString("status"));
             assertEquals(LocalDate.of(2025, 3, 7), competence("PAID_DIFFERENT"));
         }
     }
