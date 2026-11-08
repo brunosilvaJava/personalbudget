@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collection;
@@ -41,6 +43,7 @@ public class FinancialMovementService {
     private final FinancialMovementMapper mapper;
     private final CategoryService categoryService;
     private final IncomeOccurrenceRepository incomeOccurrenceRepository;
+    private final Clock clock;
 
     /**
      * The category is validated only for a movement the user creates. One generated from a
@@ -53,14 +56,25 @@ public class FinancialMovementService {
         if (financialMovement.recurrenceBillCode() == null && financialMovement.categoryCode() != null) {
             categoryService.validateForUse(financialMovement.categoryCode(), financialMovement.operationType());
         }
-        return mapper.toModel(repository.save(mapper.toEntity(withCompetence(financialMovement))));
+        final FinancialMovement movementWithStatus = markOverdueAsLateWhenPending(financialMovement);
+        return mapper.toModel(repository.save(mapper.toEntity(withCompetence(movementWithStatus))));
     }
 
     @Transactional
     public FinancialMovement createWithAutomaticCompetence(final FinancialMovement financialMovement) {
         log.info("m=createWithAutomaticCompetence, financialMovement={}", financialMovement);
         return mapper.toModel(repository.save(mapper.toEntity(
-                financialMovement.withCompetence(financialMovement.competenceDate(), false))));
+                markOverdueAsLateWhenPending(financialMovement)
+                        .withCompetence(financialMovement.competenceDate(), false))));
+    }
+
+    private FinancialMovement markOverdueAsLateWhenPending(final FinancialMovement financialMovement) {
+        if (financialMovement.status() == PENDING
+                && financialMovement.dueDate() != null
+                && financialMovement.dueDate().isBefore(LocalDate.now(clock).atStartOfDay())) {
+            return financialMovement.withStatus(LATE);
+        }
+        return financialMovement;
     }
 
     /**
@@ -227,6 +241,14 @@ public class FinancialMovementService {
         if (financialMovement.status() != null &&
                 !financialMovement.status().equals(financialMovementEntity.getStatus())) {
             financialMovementEntity.setStatus(financialMovement.status());
+        } else if (financialMovement.status() == null
+                && financialMovementEntity.getStatus() == LATE
+                && !financialMovementEntity.getDueDate().isBefore(LocalDate.now(clock).atStartOfDay())) {
+            financialMovementEntity.setStatus(PENDING);
+        } else if (financialMovement.status() == null
+                && financialMovementEntity.getStatus() == PENDING
+                && financialMovementEntity.getDueDate().isBefore(LocalDate.now(clock).atStartOfDay())) {
+            financialMovementEntity.setStatus(LATE);
         }
 
         if (financialMovement.categoryCode() != null &&
@@ -310,8 +332,22 @@ public class FinancialMovementService {
     @Transactional
     public void delete(final UUID code) {
         log.info("m=delete, code={}", code);
-        final FinancialMovementEntity financialMovementEntity = findEntity(code);
+        final FinancialMovementEntity financialMovementEntity = repository.findByCode(code)
+                .orElseThrow(() -> new EntityNotFoundException("FinancialMovementEntity not found for code " + code));
+        if (!Boolean.TRUE.equals(financialMovementEntity.getFlagActive())) {
+            log.info("m=delete, code={}, msg=already_deleted", code);
+            return;
+        }
         financialMovementEntity.delete();
+    }
+
+    @Transactional
+    public int markOverdueAsLate(final LocalDate today) {
+        log.info("m=markOverdueAsLate, today={}", today);
+        final int updated = repository.markOverduePendingAsLate(
+                PENDING, LATE, today.atStartOfDay(), Instant.now(clock));
+        log.info("m=markOverdueAsLate, today={}, updated={}", today, updated);
+        return updated;
     }
 
     public List<FinancialMovement> findMovementsForBalanceCalculation(final LocalDate initialDate,

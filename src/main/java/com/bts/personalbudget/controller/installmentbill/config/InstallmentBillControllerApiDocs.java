@@ -59,10 +59,14 @@ public interface InstallmentBillControllerApiDocs {
     ResponseEntity<InstallmentBillResponse> findByCode(@PathVariable final UUID code);
 
     @Operation(summary = "Update an existing installment bill",
-            description = "Updates the details of an existing installment bill identified by its UUID.")
+            description = "Updates the details of an existing installment bill identified by its UUID. "
+                    + "Changing purchase_date after an installment has been posted does not reschedule future installments; "
+                    + "before the first installment, the next date is recalculated from purchase_date. "
+                    + "If the updated installment_total equals installment_count, the bill is completed immediately. "
+                    + "When an update makes an installment due, overdue installments are posted in the same transaction.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Installment bill successfully updated"),
-            @ApiResponse(responseCode = "400", description = "Invalid request data"),
+            @ApiResponse(responseCode = "400", description = "Invalid request data, including installment_total below the number already posted"),
             @ApiResponse(responseCode = "404", description = "Installment bill not found")
     })
     @PatchMapping("/{code}")
@@ -72,7 +76,7 @@ public interface InstallmentBillControllerApiDocs {
     @Operation(summary = "Delete an installment bill by code",
             description = "Deletes an existing installment bill identified by its UUID.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "204", description = "Installment bill deleted (also when it was already deleted)"),
+            @ApiResponse(responseCode = "204", description = "Installment bill deleted, or it was already deleted"),
             @ApiResponse(responseCode = "404", description = "Installment bill not found")
     })
     @DeleteMapping("/{code}")

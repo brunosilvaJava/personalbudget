@@ -7,6 +7,7 @@ import com.bts.personalbudget.core.domain.exception.InstallmentBillAlreadyDelete
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.category.CategoryService;
+import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -95,6 +97,7 @@ public class InstallmentBillService {
         return repository.findAllByNextInstallmentDateLessThanEqualAndStatus(endDate, InstallmentBillStatus.PENDING);
     }
 
+    @Transactional
     public InstallmentBill update(final UUID code,
                                   final OperationType operationType,
                                   final String description,
@@ -104,13 +107,26 @@ public class InstallmentBillService {
                                   final UUID categoryCode) {
         log.info("m=update code={} operationType={} description={} amount={} purchaseDate={} installmentTotal={} categoryCode={}",
                 code, operationType, description, amount, purchaseDate, installmentTotal, categoryCode);
-        final InstallmentBill updateInstallmentBill = findByCode(code);
+        final InstallmentBill updateInstallmentBill = repository.findForUpdateByCode(code);
+        if (installmentTotal != null && installmentTotal < updateInstallmentBill.getInstallmentCount()) {
+            throw new InvalidFieldsException("Campos inválidos", InstallmentBillService.class,
+                    Map.of("installmentTotal", "não pode ser menor que o número de parcelas já lançadas"));
+        }
         validateCategoryOnUpdate(updateInstallmentBill, operationType, categoryCode);
         updateInstallmentBill.update(operationType, description, amount, purchaseDate, installmentTotal);
         if (categoryCode != null) {
             updateInstallmentBill.setCategoryCode(categoryCode);
         }
-        return repository.update(updateInstallmentBill);
+        final InstallmentBill updated = repository.update(updateInstallmentBill);
+        if (updated.getStatus() == InstallmentBillStatus.DONE) {
+            return updated;
+        }
+        final LocalDate today = LocalDate.now(clock);
+        if (updated.getNextInstallmentDate() != null && !updated.getNextInstallmentDate().isAfter(today)) {
+            postDueInstallments(code, today);
+            return repository.findByCode(code);
+        }
+        return updated;
     }
 
     /**

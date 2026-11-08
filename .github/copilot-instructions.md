@@ -69,7 +69,7 @@ Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{F
 
 ## Banco e migrations
 
-- Flyway: `V{n}__{descricao}.sql` em `src/main/resources/db/migration/`. A `master` tem V1 a V12; confira sempre o maior número antes de criar a próxima.
+- Flyway: `V{n}__{descricao}.sql` em `src/main/resources/db/migration/`. A `master` tem V1 a V13; confira sempre o maior número antes de criar a próxima (a próxima livre é V14).
 - Nunca edite uma migration já aplicada. Mudanças de esquema são expansivas: coluna anulável → backfill → conferência → `NOT NULL` em migration posterior.
 - Regras de unicidade condicional usam coluna gerada (nula fora do estado ativo) com `UNIQUE`, mais `CHECK` para invariantes.
 
@@ -102,12 +102,13 @@ Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{F
 
 ## Estado atual (atualizar a cada etapa)
 
-- `master` inclui o ciclo financeiro até a **E4b** (PR #76): competência, agenda de receita, calendário de feriados, ciclos com ativação e ajuste manual de fronteira com histórico. Migrations V1 a V12.
+- `master` inclui o ciclo financeiro até a **E4b** (PR #76): competência, agenda de receita, calendário de feriados, ciclos com ativação e ajuste manual de fronteira com histórico. Migrations V1 a V13.
 - **Fila de trabalho (nesta ordem):**
-  1. **Pacote de ajustes do back para o front** (um PR): `installment_count` e `next_installment_date` na resposta de parcelada; recálculo da próxima parcela no update; DELETE idempotente; job que marca `LATE`; grupo de categorias "Receitas" (V13).
-  2. **E4c** — guarda 409 nos endpoints da agenda âncora enquanto o modo é `PAY_CYCLE` (regra, `end_month`, `anchor`, inativação); transição de âncora (mesma agenda, ou troca de agenda com `SHORT`/`LONG`), gravando `ANCHOR_TRANSITION` no histórico; prévia do calendário de feriados com o impacto nos ciclos; recálculo por evento depois do commit.
-  3. **Seed das categorias** (a lista inicial ainda será ajustada pelo usuário).
-- **Decisões já tomadas, ainda não refletidas no código:** `LATE` é marcado por um job (e volta para `PENDING` se o vencimento for editado para hoje ou o futuro); DELETE de algo já excluído logicamente responde 204 (código inexistente continua 404); categorias de crédito usam o grupo "Receitas"; `amount` da parcelada é o valor de cada parcela (já é assim).
+  1. **E4c** — guarda 409 nos endpoints da agenda âncora enquanto o modo é `PAY_CYCLE` (regra, `end_month`, `anchor`, inativação); transição de âncora (mesma agenda, ou troca de agenda com `SHORT`/`LONG`), gravando `ANCHOR_TRANSITION` no histórico; prévia do calendário de feriados com o impacto nos ciclos; recálculo por evento depois do commit.
+  2. **Seed das categorias** (a lista inicial ainda será ajustada pelo usuário).
+- **Pacote de ajustes do back para o front entregue:** respostas da parcelada incluem `installment_count` e `next_installment_date`; alterar `purchase_date` recalcula a próxima data apenas antes da primeira parcela, total atualizado igual ao contador conclui a conta, e o PATCH lança parcelas vencidas na mesma transação; DELETE de movimentação e parcelada é idempotente; movimentações vencidas viram `LATE` ao criar/editar e no job, e o update volta para `PENDING` quando o vencimento passa para hoje ou depois; grupo de categorias "Receitas" adicionado na V13.
+- `installment_total` não pode ser reduzido abaixo de `installment_count`; o job atualiza `last_modified_date` junto com o status. DELETE repetido de conta fixa ainda responde 404; pode ser alinhado à idempotência em uma etapa posterior.
+- `amount` da parcelada é o valor de cada parcela.
 - Fora do escopo por enquanto: multiusuário (`owner_user_id`), relatório por ciclo (E5), fechamento de ciclo (E6), pagamentos parciais (E7), contas (E8), cartões (E9). O Dashboard mensal não é adaptado para ciclos.
 
 ## O que não fazer

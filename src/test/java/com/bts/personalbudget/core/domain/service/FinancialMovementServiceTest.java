@@ -23,8 +23,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import jakarta.persistence.EntityNotFoundException;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -74,12 +77,33 @@ class FinancialMovementServiceTest {
     @Spy
     private FinancialMovementMapper mapper = FinancialMovementMapper.INSTANCE;
 
+    @Spy
+    private Clock clock = Clock.fixed(Instant.parse("2026-11-08T12:00:00Z"), ZoneId.of("America/Sao_Paulo"));
+
     @Test
     void shouldCreateFinancialMovement() {
         Map<FinancialMovementProperty, String> data = new HashMap<>(FinancialMovementFactory.data());
         FinancialMovement financialMovement = FinancialMovementFactory.buildModel(data);
         financialMovementService.create(financialMovement);
         verify(repository).save(FinancialMovementFactory.buildEntity(data));
+    }
+
+    @Test
+    void shouldCreateOverduePendingMovementAsLate() {
+        final LocalDate today = LocalDate.now(clock);
+        final FinancialMovement movement = new FinancialMovement(
+                UUID.randomUUID(), OperationType.DEBIT, "Atrasada", new BigDecimal("25.00"), null,
+                today.minusDays(2).atStartOfDay(), today.minusDays(1).atStartOfDay(), null,
+                FinancialMovementStatus.PENDING, true, null, null, null, null, false);
+        when(repository.save(any(FinancialMovementEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        final FinancialMovement created = financialMovementService.create(movement);
+
+        final ArgumentCaptor<FinancialMovementEntity> saved = ArgumentCaptor.forClass(FinancialMovementEntity.class);
+        verify(repository).save(saved.capture());
+        assertEquals(FinancialMovementStatus.LATE, saved.getValue().getStatus());
+        assertEquals(FinancialMovementStatus.LATE, created.status());
     }
 
     @Test
@@ -171,9 +195,28 @@ class FinancialMovementServiceTest {
     @Test
     void shouldDeleteFinancialMovement() {
         FinancialMovementEntity financialMovementEntity = FinancialMovementFactory.buildEntity();
-        when(repository.findByCodeAndFlagActiveTrue(financialMovementEntity.getCode())).thenReturn(Optional.of(financialMovementEntity));
+        when(repository.findByCode(financialMovementEntity.getCode())).thenReturn(Optional.of(financialMovementEntity));
         financialMovementService.delete(financialMovementEntity.getCode());
         assertFalse(financialMovementEntity.getFlagActive());
+    }
+
+    @Test
+    void shouldKeepDeleteIdempotentWhenFinancialMovementWasAlreadyDeleted() {
+        final FinancialMovementEntity entity = FinancialMovementFactory.buildEntity();
+        entity.setFlagActive(false);
+        when(repository.findByCode(entity.getCode())).thenReturn(Optional.of(entity));
+
+        financialMovementService.delete(entity.getCode());
+
+        assertFalse(entity.getFlagActive());
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenDeletingUnknownFinancialMovement() {
+        final UUID code = UUID.randomUUID();
+        when(repository.findByCode(code)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> financialMovementService.delete(code));
     }
 
     @Test
@@ -196,6 +239,66 @@ class FinancialMovementServiceTest {
         assertEquals(newDueDate, financialMovementEntity.getDueDate());
         assertEquals(originalOccurrenceDate, financialMovementEntity.getOccurrenceDate());
     }
+
+    @Test
+    void shouldReturnLateMovementToPendingWhenDueDateMovesToTodayOrLaterWithoutStatus() {
+        final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
+        entity.setStatus(FinancialMovementStatus.LATE);
+        entity.setDueDate(LocalDate.of(2026, 11, 7).atStartOfDay());
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        final FinancialMovementUpdate update = new FinancialMovementUpdate(
+                entity.getCode(), null, null, null, null, null,
+                LocalDate.of(2026, 11, 8).atStartOfDay(), null, null, null, null, false);
+
+        financialMovementService.update(update);
+
+        assertEquals(FinancialMovementStatus.PENDING, entity.getStatus());
+    }
+
+    @Test
+    void shouldMarkPendingMovementLateWhenDueDateIsEditedToPast() {
+        final LocalDate today = LocalDate.now(clock);
+        final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
+        entity.setDueDate(today.plusDays(2).atStartOfDay());
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+        final FinancialMovementUpdate update = new FinancialMovementUpdate(
+                entity.getCode(), null, null, null, null, null,
+                today.minusDays(1).atStartOfDay(), null, null, null, null, false);
+
+        financialMovementService.update(update);
+
+        assertEquals(FinancialMovementStatus.LATE, entity.getStatus());
+    }
+
+    @Test
+    void shouldNotOverrideExplicitPendingStatusWhenDueDateIsEditedToPast() {
+        final LocalDate today = LocalDate.now(clock);
+        final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
+        entity.setDueDate(today.plusDays(2).atStartOfDay());
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+        final FinancialMovementUpdate update = new FinancialMovementUpdate(
+                entity.getCode(), null, null, null, null, null,
+                today.minusDays(1).atStartOfDay(), null, FinancialMovementStatus.PENDING, null, null, false);
+
+        financialMovementService.update(update);
+
+        assertEquals(FinancialMovementStatus.PENDING, entity.getStatus());
+    }
+
+    @Test
+    void shouldMarkOverduePendingMovementsAsLateWithAuditTimestamp() {
+        final LocalDate today = LocalDate.of(2026, 11, 8);
+
+        financialMovementService.markOverdueAsLate(today);
+
+        verify(repository).markOverduePendingAsLate(
+                FinancialMovementStatus.PENDING,
+                FinancialMovementStatus.LATE,
+                today.atStartOfDay(),
+                Instant.now(clock));
+    }
+
 
     @Test
     void shouldStoreNegativeAmountsWhenDebitIsCreatedAsPaidOut() {

@@ -9,6 +9,7 @@ import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -36,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -66,6 +68,12 @@ public class InstallmentBillServiceTest {
     @Spy
     private Clock clock = Clock.fixed(FIXED_INSTANT, ZONE_ID);
 
+    @BeforeEach
+    void returnUpdatedInstallmentBillFromRepository() {
+        lenient().when(repository.update(any(InstallmentBill.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
     @Test
     void shouldCreateInstallmentBill() {
         InstallmentBill installmentBill = InstallmentBillFactory.buildModel(
@@ -88,8 +96,9 @@ public class InstallmentBillServiceTest {
         when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
         when(repository.update(any(InstallmentBill.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(code, firstInstallment)).thenReturn(false);
+        when(repository.findByCode(code)).thenReturn(installmentBill);
 
-        service.create(installmentBill);
+        final InstallmentBill created = service.create(installmentBill);
 
         verify(repository).save(installmentBill);
         final ArgumentCaptor<FinancialMovement> captor = ArgumentCaptor.forClass(FinancialMovement.class);
@@ -99,6 +108,8 @@ public class InstallmentBillServiceTest {
         assertEquals(1, installmentBill.getInstallmentCount());
         assertEquals(firstInstallment.plusDays(30), installmentBill.getNextInstallmentDate());
         assertEquals(InstallmentBillStatus.PENDING, installmentBill.getStatus());
+        assertEquals(1, created.getInstallmentCount());
+        assertEquals(firstInstallment.plusDays(30), created.getNextInstallmentDate());
     }
 
 //    @Test
@@ -132,7 +143,7 @@ public class InstallmentBillServiceTest {
         LocalDate purchaseDate = LocalDate.now().minusDays(1);
         Integer installmentTotal = 10;
 
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
 
         service.update(code, operationType, description, amount, purchaseDate, installmentTotal, null);
 
@@ -150,6 +161,88 @@ public class InstallmentBillServiceTest {
     }
 
     @Test
+    void shouldNotRescheduleNextInstallmentDateFromPurchaseDateAfterInstallmentsWerePosted() {
+        final UUID code = UUID.randomUUID();
+        final InstallmentBill installmentBill = new InstallmentBill(
+                code, OperationType.DEBIT, "Test", BigDecimal.TEN, InstallmentBillStatus.PENDING,
+                TODAY.minusDays(120), 6, 2, TODAY.minusDays(5), TODAY.plusDays(25));
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
+
+        final LocalDate newPurchaseDate = TODAY.minusDays(100);
+        service.update(code, null, null, null, newPurchaseDate, null, null);
+
+        final ArgumentCaptor<InstallmentBill> captor = ArgumentCaptor.forClass(InstallmentBill.class);
+        verify(repository).update(captor.capture());
+        assertEquals(TODAY.plusDays(25), captor.getValue().getNextInstallmentDate());
+        assertEquals(newPurchaseDate, captor.getValue().getPurchaseDate());
+    }
+
+    @Test
+    void shouldRecalculateNextInstallmentDateFromPurchaseDateBeforeFirstInstallment() {
+        final UUID code = UUID.randomUUID();
+        final InstallmentBill installmentBill = new InstallmentBill(
+                code, OperationType.DEBIT, "Test", BigDecimal.TEN, InstallmentBillStatus.PENDING,
+                TODAY.minusDays(120), 6, 0, null, TODAY.minusDays(90));
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
+
+        final LocalDate newPurchaseDate = TODAY.minusDays(20);
+        service.update(code, null, null, null, newPurchaseDate, null, null);
+
+        final ArgumentCaptor<InstallmentBill> captor = ArgumentCaptor.forClass(InstallmentBill.class);
+        verify(repository).update(captor.capture());
+        assertEquals(newPurchaseDate.plusDays(30), captor.getValue().getNextInstallmentDate());
+    }
+
+    @Test
+    void shouldRejectInstallmentTotalBelowAlreadyPostedInstallments() {
+        final UUID code = UUID.randomUUID();
+        final InstallmentBill installmentBill = new InstallmentBill(
+                code, OperationType.DEBIT, "Test", BigDecimal.TEN, InstallmentBillStatus.PENDING,
+                TODAY.minusDays(120), 6, 2, TODAY.minusDays(60), TODAY.minusDays(30));
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
+
+        final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
+                () -> service.update(code, null, null, null, null, 1, null));
+
+        assertEquals(Map.of("installmentTotal", "não pode ser menor que o número de parcelas já lançadas"),
+                exception.getValidations());
+        verify(repository, never()).update(any());
+    }
+
+    @Test
+    void shouldConcludeInstallmentBillWhenUpdatedTotalEqualsInstallmentCount() {
+        final UUID code = UUID.randomUUID();
+        final InstallmentBill installmentBill = new InstallmentBill(
+                code, OperationType.DEBIT, "Test", BigDecimal.TEN, InstallmentBillStatus.PENDING,
+                TODAY.minusDays(120), 6, 2, TODAY.minusDays(60), TODAY.minusDays(30));
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
+
+        final InstallmentBill updated = service.update(code, null, null, null, null, 2, null);
+
+        assertEquals(InstallmentBillStatus.DONE, updated.getStatus());
+        assertNull(updated.getNextInstallmentDate());
+    }
+
+    @Test
+    void shouldPostInstallmentsMadeDueByPurchaseDateUpdate() {
+        final UUID code = UUID.randomUUID();
+        final InstallmentBill installmentBill = new InstallmentBill(
+                code, OperationType.DEBIT, "Test", BigDecimal.TEN, InstallmentBillStatus.PENDING,
+                TODAY.minusDays(45), 3, 0, null, TODAY.minusDays(15));
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
+        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.update(any(InstallmentBill.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(eq(code), any()))
+                .thenReturn(false);
+
+        service.update(code, null, null, null, TODAY.minusDays(70), null, null);
+
+        verify(financialMovementService, times(2)).create(any(FinancialMovement.class));
+        assertEquals(2, installmentBill.getInstallmentCount());
+        assertEquals(TODAY.plusDays(20), installmentBill.getNextInstallmentDate());
+    }
+
+    @Test
     void shouldDeleteInstallmentBill() {
         UUID code = UUID.randomUUID();
         service.delete(code);
@@ -157,7 +250,7 @@ public class InstallmentBillServiceTest {
     }
 
     @Test
-    void shouldNotDoAnythingIfAlreadyDeletedInstallmentBill() {
+    void shouldDeleteInstallmentBillIdempotentlyWhenAlreadyDeleted() {
         UUID code = UUID.randomUUID();
         doThrow(new InstallmentBillAlreadyDeletedException(code)).when(repository).delete(code);
         service.delete(code);
@@ -276,7 +369,7 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
         installmentBill.setCategoryCode(CATEGORY_CODE);
         final UUID code = installmentBill.getCode();
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
 
         service.update(code, null, null, null, null, null, OTHER_CATEGORY_CODE);
 
@@ -291,7 +384,7 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
         installmentBill.setCategoryCode(CATEGORY_CODE);
         final UUID code = installmentBill.getCode();
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
 
         service.update(code, null, "Nova descrição", null, null, null, null);
 
@@ -306,7 +399,7 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
         installmentBill.setCategoryCode(CATEGORY_CODE);
         final UUID code = installmentBill.getCode();
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
         doThrow(categoryRejection()).when(categoryService).validateForUse(CATEGORY_CODE, OperationType.CREDIT);
 
         assertThrows(InvalidFieldsException.class,

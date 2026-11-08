@@ -22,6 +22,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.GenericGenerator;
 
 import static java.math.BigDecimal.ZERO;
@@ -33,6 +34,7 @@ import static java.math.BigDecimal.ZERO;
 @AllArgsConstructor
 @Entity
 @Table(name = "financial_movement")
+@DynamicUpdate
 public class FinancialMovementEntity extends AuditingEntity implements Serializable {
 
     @Id

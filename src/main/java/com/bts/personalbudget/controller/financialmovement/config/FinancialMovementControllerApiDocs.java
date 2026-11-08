@@ -25,7 +25,8 @@ public interface FinancialMovementControllerApiDocs {
     @Operation(
             summary = "Create a new financial movement",
             description = "This endpoint creates a new entry for a financial movement. competence_date is optional: when omitted it is "
-                    + "derived automatically (movement_date, or occurrence date for recurring bills); when sent it is manual.")
+                    + "derived automatically (movement_date, or occurrence date for recurring bills); when sent it is manual. "
+                    + "A PENDING movement with a due date before today is stored as LATE immediately.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Financial movement successfully created; returns it, with its code"),
             @ApiResponse(responseCode = "400", description = "Invalid request data")
@@ -36,7 +37,8 @@ public interface FinancialMovementControllerApiDocs {
             summary = "Retrieve financial movements",
             description = "Returns a list of financial movements based on search parameters. "
                     + "category_code (repeatable) keeps the movements of those categories and without_category=true "
-                    + "keeps the ones with no category; sent together they match either.")
+                    + "keeps the ones with no category; sent together they match either. The status filter accepts LATE, "
+                    + "which is assigned automatically to overdue pending movements by the server.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "List of financial movements"),
             @ApiResponse(responseCode = "400", description = "Invalid parameters, including a sort_by outside: description, amount, operation_type, status, movement_date, due_date, pay_date")
@@ -66,7 +68,9 @@ public interface FinancialMovementControllerApiDocs {
     @Operation(summary = "Update an existing financial movement",
             description = "Updates an existing financial movement identified by its UUID. Sending competence_date sets a manual "
                     + "competence; restore_automatic_competence=true recalculates it (not allowed together with competence_date); "
-                    + "omitting both keeps the current choice. Due and pay dates never change the competence.")
+                    + "omitting both keeps the current choice. Due and pay dates never change the competence. When status is omitted, "
+                    + "a PENDING movement with a due date before today becomes LATE, and moving a LATE movement's due date to today "
+                    + "or later returns its status to PENDING.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Financial movement successfully updated"),
             @ApiResponse(responseCode = "404", description = "Financial movement not found"),
@@ -75,9 +79,9 @@ public interface FinancialMovementControllerApiDocs {
     ResponseEntity<?> update(UUID code, FinancialMovementUpdateRequest updateRequest);
 
     @Operation(summary = "Delete a financial movement by code",
-            description = "Deletes an existing financial movement identified by its UUID.")
+            description = "Deletes a financial movement identified by its UUID. Repeating the request for a previously deleted movement succeeds.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "204", description = "Financial movement successfully deleted"),
+            @ApiResponse(responseCode = "204", description = "Financial movement deleted, or it was already deleted"),
             @ApiResponse(responseCode = "404", description = "Financial movement not found")
     })
     ResponseEntity<Void> delete(@PathVariable UUID code);
