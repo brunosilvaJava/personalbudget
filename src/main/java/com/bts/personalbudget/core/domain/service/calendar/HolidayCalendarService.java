@@ -16,6 +16,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +36,7 @@ public class HolidayCalendarService {
     private final HolidayRepository holidayRepository;
     private final HolidayCalendarReviewRepository reviewRepository;
     private final HolidayCalendarMapper holidayCalendarMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * The whole calendar. Small by nature (about a dozen rows per year), so callers that need
@@ -119,7 +121,9 @@ public class HolidayCalendarService {
             }
         });
 
-        return findYear(year);
+        final HolidayYear result = findYear(year);
+        eventPublisher.publishEvent(new HolidayCalendarReviewedEvent(year));
+        return result;
     }
 
     /**

@@ -1,11 +1,15 @@
 package com.bts.personalbudget.controller.holidaycalendar;
 
 import com.bts.personalbudget.controller.holidaycalendar.config.HolidayCalendarControllerApiDocs;
+import com.bts.personalbudget.core.domain.service.calendar.Holiday;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarService;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayYear;
 import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleCalendarImpact;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleService;
 import com.bts.personalbudget.mapper.HolidayCalendarMapper;
 import com.bts.personalbudget.mapper.IncomeScheduleMapper;
+import com.bts.personalbudget.mapper.PayCycleMapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -31,6 +35,8 @@ public class HolidayCalendarController implements HolidayCalendarControllerApiDo
     private final HolidayCalendarMapper holidayCalendarMapper;
     private final IncomeScheduleService incomeScheduleService;
     private final IncomeScheduleMapper incomeScheduleMapper;
+    private final PayCycleService payCycleService;
+    private final PayCycleMapper payCycleMapper;
 
     @Override
     @GetMapping
@@ -58,13 +64,16 @@ public class HolidayCalendarController implements HolidayCalendarControllerApiDo
 
     @Override
     @PostMapping("/{year}/preview")
-    public ResponseEntity<List<HolidayChangeImpactResponse>> previewReview(
+    public ResponseEntity<HolidayCalendarPreviewResponse> previewReview(
             @PathVariable int year,
             @RequestBody @Valid HolidayYearRequest request) {
         log.info("m=previewReview, year={}, holidays={}", year, request.holidays().size());
-        return ResponseEntity.ok(incomeScheduleMapper.toImpactResponseList(
-                incomeScheduleService.previewCalendarChange(
-                        year, holidayCalendarMapper.toModelListFromRequests(request.holidays()))));
+        final List<Holiday> holidays = holidayCalendarMapper.toModelListFromRequests(request.holidays());
+        final PayCycleCalendarImpact cycles = payCycleService.previewCalendarChange(year, holidays);
+        return ResponseEntity.ok(new HolidayCalendarPreviewResponse(
+                incomeScheduleMapper.toImpactResponseList(incomeScheduleService.previewCalendarChange(year, holidays)),
+                payCycleMapper.toBoundaryImpactResponseList(cycles.boundaries()),
+                payCycleMapper.toPendingResponseList(cycles.divergences())));
     }
 
 }

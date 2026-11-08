@@ -26,6 +26,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class HolidayCalendarServiceTest {
@@ -45,6 +46,9 @@ class HolidayCalendarServiceTest {
 
     @Mock
     private HolidayCalendarReviewRepository reviewRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @Spy
     private HolidayCalendarMapper holidayCalendarMapper = HolidayCalendarMapper.INSTANCE;
@@ -140,6 +144,7 @@ class HolidayCalendarServiceTest {
         verify(reviewRepository, never()).save(any(HolidayCalendarReviewEntity.class));
         assertThat(year.reviewed()).isTrue();
         assertThat(year.holidays()).hasSize(2);
+        verify(eventPublisher).publishEvent(new HolidayCalendarReviewedEvent(2026));
     }
 
     @Test
@@ -193,7 +198,7 @@ class HolidayCalendarServiceTest {
                 .isInstanceOfSatisfying(InvalidFieldsException.class,
                         exception -> assertThat(exception.getValidations()).containsKey("holidays"));
 
-        verifyNoInteractions(holidayRepository, reviewRepository);
+        verifyNoInteractions(holidayRepository, reviewRepository, eventPublisher);
     }
 
     @Test
@@ -203,7 +208,7 @@ class HolidayCalendarServiceTest {
                 .isInstanceOfSatisfying(InvalidFieldsException.class,
                         exception -> assertThat(exception.getValidations()).containsKey("holidays"));
 
-        verifyNoInteractions(holidayRepository, reviewRepository);
+        verifyNoInteractions(holidayRepository, reviewRepository, eventPublisher);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.bts.personalbudget.mapper;
 
+import com.bts.personalbudget.controller.holidaycalendar.HolidayCycleBoundaryImpactResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleActivationPreviewResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleAdjustmentResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleAnchorTransitionPreviewRequest;
@@ -27,6 +28,7 @@ import com.bts.personalbudget.core.domain.service.paycycle.CurrentPayCycle;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAnchorChange;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAnchorTransitionPreview;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAnchorTransitionResult;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleBoundaryImpact;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycle;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleActivationPreview;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAdjustment;
@@ -54,6 +56,10 @@ import org.mapstruct.factory.Mappers;
 public interface PayCycleMapper {
 
     PayCycleMapper INSTANCE = Mappers.getMapper(PayCycleMapper.class);
+
+    HolidayCycleBoundaryImpactResponse toResponse(PayCycleBoundaryImpact impact);
+
+    List<HolidayCycleBoundaryImpactResponse> toBoundaryImpactResponseList(List<PayCycleBoundaryImpact> impacts);
 
     default PayCycleConfig toModel(final PayCycleConfigEntity entity) {
         return new PayCycleConfig(
