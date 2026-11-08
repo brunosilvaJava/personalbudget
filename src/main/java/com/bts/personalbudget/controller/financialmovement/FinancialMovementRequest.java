@@ -8,7 +8,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Null;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -48,14 +48,17 @@ public record FinancialMovementRequest(
         @Schema(description = "Due date for the financial movement", example = "2024-11-30T23:59:59", type = "string", format = "date-time")
         LocalDateTime dueDate,
 
+        @Null(message = "Use the settlements endpoints to record payments; payment fields and status are not accepted here")
         @JsonProperty("amount_paid")
         @Schema(hidden = true)
         BigDecimal legacyAmountPaid,
 
+        @Null(message = "Use the settlements endpoints to record payments; payment fields and status are not accepted here")
         @JsonProperty("pay_date")
         @Schema(hidden = true)
         LocalDateTime legacyPayDate,
 
+        @Null(message = "Use the settlements endpoints to record payments; payment fields and status are not accepted here")
         @JsonProperty("status")
         @Schema(hidden = true)
         FinancialMovementStatus legacyStatus,
@@ -68,9 +71,4 @@ public record FinancialMovementRequest(
         @JsonProperty("competence_date")
         LocalDate competenceDate
 ) {
-    @AssertTrue(message = "Use the settlements endpoints to record payments; payment fields and status are not accepted here")
-    @Schema(hidden = true)
-    public boolean isPaymentFieldsAreNotProvided() {
-        return legacyAmountPaid == null && legacyPayDate == null && legacyStatus == null;
-    }
 }

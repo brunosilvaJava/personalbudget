@@ -21,6 +21,8 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -33,6 +35,7 @@ public class BalanceService {
     private final IncomeScheduleService incomeScheduleService;
     private final MovementSettlementService movementSettlementService;
 
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Set<DailyBalance> findDailyBalanceBetween(final LocalDate initialDate,
                                                      final LocalDate endDate) {
         log.info("m=findDailyBalanceBetween initialDate={} endDate={}", initialDate, endDate);
@@ -76,6 +79,7 @@ public class BalanceService {
      * movement residuals by due date, and bill occurrences not posted yet. Exposed so other reports
      * total the period the same way and match the balance and the dashboard.
      */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<BalanceCalcData> findBalanceCalcDataBetween(final LocalDate initialDate,
                                                             final LocalDate endDate) {
         log.info("m=findBalanceCalcDataBetween initialDate={} endDate={}", initialDate, endDate);
@@ -86,6 +90,7 @@ public class BalanceService {
      * The not-yet-posted fixed and installment bill occurrences in {@code [startDate, endDateExclusive)}.
      * Unlike the balance reports, the caller applies the cycle's competence interval.
      */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<ProjectedOccurrence> findProjectedBillOccurrencesBetween(final LocalDate startDate,
                                                                          final LocalDate endDateExclusive) {
         log.info("m=findProjectedBillOccurrencesBetween, startDate={}, endDateExclusive={}",

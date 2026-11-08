@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Totals a period by category. It adds up the same data as the daily balance
@@ -49,6 +51,7 @@ public class CategorySummaryService {
      * @throws InvalidFieldsException (400) when end_date is before start_date or the period is
      *                                longer than {@value MAX_PERIOD_DAYS} days
      */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public CategorySummary summarize(final LocalDate startDate,
                                      final LocalDate endDate,
                                      final OperationType operationType) {

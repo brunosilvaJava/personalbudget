@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import static com.bts.personalbudget.core.domain.service.paycycle.PayCycleSummary.Pending.Source.INCOME_SCHEDULE;
@@ -48,7 +49,7 @@ public class PayCycleSummaryService {
     private final CategoryService categoryService;
     private final MovementSettlementService movementSettlementService;
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public PayCycleSummary summarize(final UUID code) {
         log.info("m=summarize, code={}", code);
         final PayCycleView cycle = payCycleService.findByCode(code);
