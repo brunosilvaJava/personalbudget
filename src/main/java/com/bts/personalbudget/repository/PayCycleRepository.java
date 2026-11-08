@@ -36,6 +36,10 @@ public interface PayCycleRepository extends JpaRepository<PayCycleEntity, Long> 
             """)
     Optional<PayCycleEntity> findByCode(@Param("code") UUID code);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM PayCycleEntity c WHERE c.code = :code")
+    Optional<PayCycleEntity> findForUpdateByCode(@Param("code") UUID code);
+
     /**
      * The cycles of a lifecycle, locked. A query for ACTIVE also includes CLOSED cycles because both
      * remain in the non-cancelled chain. Not fetch-joined: the schedule is locked before cycles.
