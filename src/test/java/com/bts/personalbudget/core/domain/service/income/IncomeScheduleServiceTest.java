@@ -549,6 +549,56 @@ class IncomeScheduleServiceTest {
     }
 
     @Test
+    void shouldProjectIncomeOccurrencesInsideTheCompetenceIntervalOnly() {
+        final IncomeSchedule schedule = buildSchedule(JUNE);
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE)).thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2026));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE))).thenReturn(List.of());
+
+        final IncomeProjectionWindow window = service.findProjectionBetween(
+                LocalDate.of(2026, 7, 1), LocalDate.of(2026, 8, 1));
+
+        assertThat(window.occurrences()).containsExactly(
+                new IncomeProjection(SCHEDULE_CODE, JULY, JULY_6, AMOUNT, CATEGORY_CODE));
+        assertThat(window.pending()).isEmpty();
+    }
+
+    @Test
+    void shouldReportIncomeMonthsWhoseCalendarIsNotReviewed() {
+        final YearMonth january2027 = YearMonth.of(2027, 1);
+        final IncomeSchedule schedule = buildSchedule(
+                IncomeDateRule.fixedDay(1, NonBusinessDayPolicy.ANTICIPATE, BusinessWeek.MONDAY_TO_FRIDAY),
+                january2027, null);
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE))
+                .thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2026));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE))).thenReturn(List.of());
+
+        final IncomeProjectionWindow window = service.findProjectionBetween(
+                LocalDate.of(2027, 1, 1), LocalDate.of(2027, 2, 1));
+
+        assertThat(window.occurrences()).isEmpty();
+        assertThat(window.pending()).extracting(IncomeProjectionPending::type)
+                .contains(IncomeProjectionPending.Type.CALENDAR_NOT_REVIEWED);
+        assertThat(window.pending()).allMatch(pending -> pending.year() == 2027);
+    }
+
+    @Test
+    void shouldNotProjectAnIncomeOccurrenceAlreadyMaterializedInTheCompetenceInterval() {
+        final IncomeSchedule schedule = buildSchedule(JUNE);
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE)).thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2026));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE)))
+                .thenReturn(List.of(buildOccurrenceEntity(schedule, JULY, JULY_6)));
+
+        final IncomeProjectionWindow window = service.findProjectionBetween(
+                LocalDate.of(2026, 7, 1), LocalDate.of(2026, 8, 1));
+
+        assertThat(window.occurrences()).isEmpty();
+        assertThat(window.pending()).isEmpty();
+    }
+
+    @Test
     void shouldKeepAProjectedMonthWhosePlannedDateMatchesThePreviousMonthsMaterializedDate() {
         final YearMonth february = YearMonth.of(2026, 2);
         final YearMonth march = YearMonth.of(2026, 3);

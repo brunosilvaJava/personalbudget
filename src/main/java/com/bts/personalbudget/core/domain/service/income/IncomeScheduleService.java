@@ -429,6 +429,71 @@ public class IncomeScheduleService {
     }
 
     /**
+     * The virtual income occurrences that can belong to {@code [from, toExclusive)}, together with
+     * calculation pendings for nominal months whose date could fall in that interval.
+     */
+    @Transactional(readOnly = true)
+    public IncomeProjectionWindow findProjectionBetween(final LocalDate from, final LocalDate toExclusive) {
+        log.info("m=findProjectionBetween, from={}, toExclusive={}", from, toExclusive);
+        if (!from.isBefore(toExclusive)) {
+            return new IncomeProjectionWindow(List.of(), List.of());
+        }
+
+        final List<IncomeSchedule> schedules =
+                mapper.toModelList(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE));
+        if (schedules.isEmpty()) {
+            return new IncomeProjectionWindow(List.of(), List.of());
+        }
+
+        final HolidayCalendar calendar = holidayCalendarService.findCalendar();
+        final Map<UUID, List<IncomeOccurrence>> occurrencesBySchedule = findOccurrencesBySchedule(schedules);
+        final YearMonth firstRelevantMonth = YearMonth.from(from).minusMonths(1);
+        final YearMonth lastRelevantMonth = YearMonth.from(toExclusive.minusDays(1)).plusMonths(1);
+        final List<IncomeProjection> projections = new ArrayList<>();
+        final List<IncomeProjectionPending> pending = new ArrayList<>();
+
+        for (final IncomeSchedule schedule : schedules) {
+            final YearMonth firstMonth = firstRelevantMonth.isBefore(schedule.startMonth())
+                    ? schedule.startMonth() : firstRelevantMonth;
+            final YearMonth lastMonth = schedule.endMonth() != null && schedule.endMonth().isBefore(lastRelevantMonth)
+                    ? schedule.endMonth() : lastRelevantMonth;
+            if (firstMonth.isAfter(lastMonth)) {
+                continue;
+            }
+
+            IncomeOccurrenceResolver.resolve(schedule,
+                            occurrencesBySchedule.getOrDefault(schedule.code(), List.of()),
+                            calendar, firstMonth, lastMonth)
+                    .forEach(view -> {
+                        switch (view.state()) {
+                            case PROJECTED -> {
+                                if (!view.plannedDate().isBefore(from) && view.plannedDate().isBefore(toExclusive)) {
+                                    projections.add(new IncomeProjection(
+                                            schedule.code(), view.nominalMonth(), view.plannedDate(), view.amount(),
+                                            schedule.categoryCode()));
+                                }
+                            }
+                            case CALENDAR_NOT_REVIEWED -> pending.add(new IncomeProjectionPending(
+                                    IncomeProjectionPending.Type.CALENDAR_NOT_REVIEWED,
+                                    schedule.code(), view.nominalMonth(), view.pendingYear()));
+                            case BUSINESS_DAY_NOT_FOUND -> pending.add(new IncomeProjectionPending(
+                                    IncomeProjectionPending.Type.BUSINESS_DAY_NOT_FOUND,
+                                    schedule.code(), view.nominalMonth(), null));
+                            case MATERIALIZED -> {
+                                // The movement is included by its competence date, never projected again.
+                            }
+                        }
+                    });
+        }
+
+        projections.sort(Comparator.comparing(IncomeProjection::date).thenComparing(IncomeProjection::scheduleCode));
+        pending.sort(Comparator.comparing(IncomeProjectionPending::nominalMonth)
+                .thenComparing(IncomeProjectionPending::scheduleCode)
+                .thenComparing(IncomeProjectionPending::type));
+        return new IncomeProjectionWindow(List.copyOf(projections), List.copyOf(pending));
+    }
+
+    /**
      * The occurrences of the active schedules planned for {@code [from, toExclusive)}, materialized
      * (their frozen date) or only projected (the rule and the current calendar), oldest first: what a
      * pay cycle boundary inside that range would hand from one cycle to the other. Months that cannot

@@ -80,6 +80,23 @@ public class BalanceService {
         return findBalanceCalcDataList(initialDate, endDate, findProjectedOccurrencesUntil(endDate));
     }
 
+    /**
+     * The not-yet-posted fixed and installment bill occurrences in {@code [startDate, endDateExclusive)}.
+     * Unlike the balance reports, the caller applies the cycle's competence interval.
+     */
+    public List<ProjectedOccurrence> findProjectedBillOccurrencesBetween(final LocalDate startDate,
+                                                                         final LocalDate endDateExclusive) {
+        log.info("m=findProjectedBillOccurrencesBetween, startDate={}, endDateExclusive={}",
+                startDate, endDateExclusive);
+        if (!startDate.isBefore(endDateExclusive)) {
+            return List.of();
+        }
+        return excludeAlreadyPosted(findProjectedBillOccurrencesUntil(endDateExclusive.minusDays(1))).stream()
+                .filter(occurrence -> !occurrence.occurrenceDate().isBefore(startDate)
+                        && occurrence.occurrenceDate().isBefore(endDateExclusive))
+                .toList();
+    }
+
     private void addCalcValue(BalanceCalcData balanceCalcData, DailyBalance dailyBalance) {
         final BigDecimal balanceCalcValue = balanceCalcData.getBalanceCalcValue();
         switch (balanceCalcData.getOperationType()) {
@@ -118,6 +135,19 @@ public class BalanceService {
      * only each bill's next one.
      */
     private List<ProjectedOccurrence> findProjectedOccurrencesUntil(final LocalDate endDate) {
+        final List<ProjectedOccurrence> projectedOccurrences = findProjectedBillOccurrencesUntil(endDate);
+
+        // An income occurrence stops being projected as soon as it is materialized (its movement
+        // counts instead), so the same receipt is never in the balance twice.
+        incomeScheduleService.findProjectedOccurrencesUntil(endDate).forEach(income ->
+                projectedOccurrences.add(new ProjectedOccurrence(income.scheduleCode(), income.date(),
+                        income.nominalMonth().atDay(1),
+                        income.amount(), OperationType.CREDIT, income.categoryCode())));
+
+        return excludeAlreadyPosted(projectedOccurrences);
+    }
+
+    private List<ProjectedOccurrence> findProjectedBillOccurrencesUntil(final LocalDate endDate) {
         final List<ProjectedOccurrence> projectedOccurrences = new ArrayList<>();
 
         fixedBillService.findAllByNextDueDateLessThanEqual(endDate).forEach(fixedBill ->
@@ -128,14 +158,7 @@ public class BalanceService {
                 installmentBill.findRemainingInstallmentDatesUntil(endDate).forEach(occurrenceDate ->
                         projectedOccurrences.add(ProjectedOccurrence.of(installmentBill.getCode(), installmentBill, occurrenceDate))));
 
-        // An income occurrence stops being projected as soon as it is materialized (its movement
-        // counts instead), so the same receipt is never in the balance twice.
-        incomeScheduleService.findProjectedOccurrencesUntil(endDate).forEach(income ->
-                projectedOccurrences.add(new ProjectedOccurrence(income.scheduleCode(), income.date(),
-                        income.nominalMonth().atDay(1),
-                        income.amount(), OperationType.CREDIT, income.categoryCode())));
-
-        return excludeAlreadyPosted(projectedOccurrences);
+        return projectedOccurrences;
     }
 
     /**

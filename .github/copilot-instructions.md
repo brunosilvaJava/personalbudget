@@ -69,7 +69,7 @@ Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{F
 
 ## Banco e migrations
 
-- Flyway: `V{n}__{descricao}.sql` em `src/main/resources/db/migration/`. A `master` tem V1 a V13; confira sempre o maior número antes de criar a próxima (a próxima livre é V14).
+- Flyway: `V{n}__{descricao}.sql` em `src/main/resources/db/migration/`. A `master` tem V1 a V15; confira sempre o maior número antes de criar a próxima (a próxima livre é V16).
 - Nunca edite uma migration já aplicada. Mudanças de esquema são expansivas: coluna anulável → backfill → conferência → `NOT NULL` em migration posterior.
 - Regras de unicidade condicional usam coluna gerada (nula fora do estado ativo) com `UNIQUE`, mais `CHECK` para invariantes.
 
@@ -102,14 +102,15 @@ Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{F
 
 ## Estado atual (atualizar a cada etapa)
 
-- `master` inclui o pacote de ajustes do backend (PR #79), migrations V1 a V14 e o ciclo financeiro até a **E4c** (PR #81). A camada 1 da E4c foi entregue no PR #80: guarda da agenda âncora, transição com histórico e V14. A camada 2 foi entregue no PR #81: prévia de fronteiras/divergências do calendário e refresh em `REQUIRES_NEW` após commit. A prévia retorna um objeto com `income_occurrences`, `cycle_boundaries` e `cycle_divergences`, em vez do array na raiz (quebra de contrato autorizada).
-- **Seed inicial de categorias:** esta etapa adiciona a V15 com defaults ativos e editáveis para despesas em Residência, Pessoal, Instrução, Moto, Investimento e Outros, além de receitas em Receitas. A migration só insere uma combinação de nome e tipo de operação que ainda não exista, preservando categorias já cadastradas.
+- `master` inclui o pacote de ajustes do backend (PR #79), migrations V1 a V15 e o ciclo financeiro até a **E4c** (PR #81). A camada 1 da E4c foi entregue no PR #80: guarda da agenda âncora, transição com histórico e V14. A camada 2 foi entregue no PR #81: prévia de fronteiras/divergências do calendário e refresh em `REQUIRES_NEW` após commit. A prévia retorna um objeto com `income_occurrences`, `cycle_boundaries` e `cycle_divergences`, em vez do array na raiz (quebra de contrato autorizada).
+- **Seed inicial de categorias (PR #83):** a V15 adiciona defaults ativos e editáveis para despesas em Residência, Pessoal, Instrução, Moto, Investimento e Outros, além de receitas em Receitas. A migration só insere uma combinação de nome e tipo de operação que ainda não exista, preservando categorias já cadastradas.
+- **Relatório por ciclo financeiro (E5, esta etapa):** `GET /pay_cycle/{code}/summary` resume receitas e despesas por `competence_date`, com valores reconhecidos (`PAID_OUT`), projetados (reconhecidos, `PENDING`/`LATE` e ocorrências virtuais conhecidas), detalhe por categoria e `projection_incomplete`/`pending`. Débitos são positivos nesta resposta; sem categoria usa `Sem categoria`. O intervalo é `[start_date, end_date_exclusive)`. A projeção não declara como completos saldos, transferências, cartões ou envelopes que ainda não fazem parte do domínio. `/balance/daily`, `/dashboard` e `/category_summary` continuam sendo relatórios de caixa e não mudam.
 - **Pacote de ajustes do back para o front entregue:** respostas da parcelada incluem `installment_count` e `next_installment_date`; alterar `purchase_date` recalcula a próxima data apenas antes da primeira parcela, total atualizado igual ao contador conclui a conta, e o PATCH lança parcelas vencidas na mesma transação; DELETE de movimentação e parcelada é idempotente; movimentações vencidas viram `LATE` ao criar/editar e no job, e o update volta para `PENDING` quando o vencimento passa para hoje ou depois; grupo de categorias "Receitas" adicionado na V13.
 - `installment_total` não pode ser reduzido abaixo de `installment_count`; o job atualiza `last_modified_date` junto com o status. DELETE repetido de conta fixa ainda responde 404; pode ser alinhado à idempotência em uma etapa posterior.
 - `amount` da parcelada é o valor de cada parcela.
 - A alteração da regra da âncora ativa em `PAY_CYCLE` só ocorre por `/pay_cycle_config/anchor_transition`; os endpoints diretos da agenda retornam 409 para mudanças protegidas. A transição preserva ciclos iniciados e registra `ANCHOR_TRANSITION`. Quando a primeira ocorrência da nova agenda coincide com a fronteira congelada, ela abre um ciclo regular sem transição.
 - O histórico de `ANCHOR_TRANSITION` delimita o prefixo preservado: o refresh e as pendências não reaplicam a regra atual aos ciclos anteriores à transição, inclusive quando a agenda mantém o mesmo código.
-- Fora do escopo por enquanto: multiusuário (`owner_user_id`), relatório por ciclo (E5), fechamento de ciclo (E6), pagamentos parciais (E7), contas (E8), cartões (E9). O Dashboard mensal não é adaptado para ciclos.
+- Fora do escopo por enquanto: multiusuário (`owner_user_id`), fechamento de ciclo (E6), pagamentos parciais (E7), contas (E8), cartões (E9) e envelopes (E10). O Dashboard mensal não é adaptado para ciclos.
 
 ## O que não fazer
 
