@@ -42,4 +42,9 @@ tasks.register('integrationTest', Test) {
 
 tasks.named('integrationTest') {
     useJUnitPlatform()
+
+    // Docker Engine 29+ rejects client API versions below 1.44, while the docker-java client bundled with
+    // Testcontainers 1.19.x negotiates 1.32 by default. Run with -PdockerApiVersion=<version> to override
+    // this value against an older engine.
+    systemProperty 'api.version', providers.gradleProperty('dockerApiVersion').orElse('1.44').get()
 }
