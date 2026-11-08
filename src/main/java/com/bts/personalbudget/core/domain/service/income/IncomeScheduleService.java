@@ -11,6 +11,8 @@ import com.bts.personalbudget.core.domain.service.calendar.Holiday;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendar;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarService;
 import com.bts.personalbudget.core.domain.service.calendar.IncomeDateRule;
+import com.bts.personalbudget.core.domain.enumerator.DateRuleType;
+import com.bts.personalbudget.core.domain.enumerator.NonBusinessDayPolicy;
 import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
@@ -447,16 +449,15 @@ public class IncomeScheduleService {
 
         final HolidayCalendar calendar = holidayCalendarService.findCalendar();
         final Map<UUID, List<IncomeOccurrence>> occurrencesBySchedule = findOccurrencesBySchedule(schedules);
-        final YearMonth firstRelevantMonth = YearMonth.from(from).minusMonths(1);
-        final YearMonth lastRelevantMonth = YearMonth.from(toExclusive.minusDays(1)).plusMonths(1);
         final List<IncomeProjection> projections = new ArrayList<>();
         final List<IncomeProjectionPending> pending = new ArrayList<>();
 
         for (final IncomeSchedule schedule : schedules) {
-            final YearMonth firstMonth = firstRelevantMonth.isBefore(schedule.startMonth())
-                    ? schedule.startMonth() : firstRelevantMonth;
-            final YearMonth lastMonth = schedule.endMonth() != null && schedule.endMonth().isBefore(lastRelevantMonth)
-                    ? schedule.endMonth() : lastRelevantMonth;
+            final ProjectionMonths projectionMonths = projectionMonths(from, toExclusive, schedule.rule(), calendar);
+            final YearMonth firstMonth = projectionMonths.first().isBefore(schedule.startMonth())
+                    ? schedule.startMonth() : projectionMonths.first();
+            final YearMonth lastMonth = schedule.endMonth() != null && schedule.endMonth().isBefore(projectionMonths.last())
+                    ? schedule.endMonth() : projectionMonths.last();
             if (firstMonth.isAfter(lastMonth)) {
                 continue;
             }
@@ -491,6 +492,35 @@ public class IncomeScheduleService {
                 .thenComparing(IncomeProjectionPending::scheduleCode)
                 .thenComparing(IncomeProjectionPending::type));
         return new IncomeProjectionWindow(List.copyOf(projections), List.copyOf(pending));
+    }
+
+    private static ProjectionMonths projectionMonths(final LocalDate from,
+                                                    final LocalDate toExclusive,
+                                                    final IncomeDateRule rule,
+                                                    final HolidayCalendar calendar) {
+        YearMonth first = YearMonth.from(from);
+        YearMonth last = YearMonth.from(toExclusive.minusDays(1));
+        if (rule.ruleType() != DateRuleType.FIXED_DAY
+                || rule.nonBusinessDayPolicy() == NonBusinessDayPolicy.KEEP) {
+            return new ProjectionMonths(first, last);
+        }
+
+        // A date can only move away from its nominal month in the policy's direction. Bound the
+        // search by the reviewed calendar span, as the calendar-impact preview does.
+        final int firstReviewedYear = calendar.reviewedYears().stream().mapToInt(Integer::intValue).min().orElse(0);
+        final int lastReviewedYear = calendar.reviewedYears().stream().mapToInt(Integer::intValue).max().orElse(-1);
+        final long displacementMonths = lastReviewedYear < firstReviewedYear
+                ? 0
+                : ((long) lastReviewedYear - firstReviewedYear + 1) * 12;
+        if (rule.nonBusinessDayPolicy() == NonBusinessDayPolicy.POSTPONE) {
+            first = first.minusMonths(displacementMonths);
+        } else if (rule.nonBusinessDayPolicy() == NonBusinessDayPolicy.ANTICIPATE) {
+            last = last.plusMonths(displacementMonths);
+        }
+        return new ProjectionMonths(first, last);
+    }
+
+    private record ProjectionMonths(YearMonth first, YearMonth last) {
     }
 
     /**

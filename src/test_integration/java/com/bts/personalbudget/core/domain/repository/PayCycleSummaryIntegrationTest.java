@@ -160,11 +160,24 @@ class PayCycleSummaryIntegrationTest {
     }
 
     private void cleanData() {
-        jdbcTemplate.update("DELETE FROM financial_movement WHERE code IN (?, ?, ?)",
-                INSTALLMENT_MOVEMENT_CODE, PAID_MOVEMENT_CODE, OUTSIDE_MOVEMENT_CODE);
-        jdbcTemplate.update("DELETE FROM pay_cycle WHERE code = ?", CYCLE_CODE);
-        jdbcTemplate.update("DELETE FROM installment_bill WHERE code = ?", INSTALLMENT_CODE);
+        jdbcTemplate.update("DELETE FROM financial_movement WHERE code IN "
+                        + "(UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?))",
+                INSTALLMENT_MOVEMENT_CODE.toString(), PAID_MOVEMENT_CODE.toString(), OUTSIDE_MOVEMENT_CODE.toString());
+        jdbcTemplate.update("DELETE FROM pay_cycle WHERE code = UUID_TO_BIN(?)", CYCLE_CODE.toString());
+        jdbcTemplate.update("DELETE FROM installment_bill WHERE code = UUID_TO_BIN(?)", INSTALLMENT_CODE.toString());
         jdbcTemplate.update("UPDATE pay_cycle_config SET mode = 'CALENDAR_MONTH', anchor_schedule_id = NULL, "
                 + "activation_date = NULL, version = 0");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM financial_movement WHERE code IN "
+                        + "(UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?))",
+                Integer.class,
+                INSTALLMENT_MOVEMENT_CODE.toString(), PAID_MOVEMENT_CODE.toString(), OUTSIDE_MOVEMENT_CODE.toString()))
+                .isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pay_cycle WHERE code = UUID_TO_BIN(?)",
+                Integer.class, CYCLE_CODE.toString())).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM installment_bill WHERE code = UUID_TO_BIN(?)",
+                Integer.class, INSTALLMENT_CODE.toString())).isZero();
     }
 }

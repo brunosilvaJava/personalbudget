@@ -564,6 +564,35 @@ class IncomeScheduleServiceTest {
     }
 
     @Test
+    void shouldProjectAnOccurrencePostponedAcrossSeveralMonthsIntoTheCompetenceInterval() {
+        final YearMonth january = YearMonth.of(2026, 1);
+        final IncomeSchedule schedule = buildSchedule(
+                IncomeDateRule.fixedDay(1, NonBusinessDayPolicy.POSTPONE, BusinessWeek.MONDAY_TO_FRIDAY),
+                january, january);
+        final Set<Holiday> holidays = new HashSet<>();
+        for (int month = 1; month <= 2; month++) {
+            for (int day = 1; day <= YearMonth.of(2026, month).lengthOfMonth(); day++) {
+                final LocalDate date = LocalDate.of(2026, month, day);
+                if (date.getDayOfWeek() != DayOfWeek.SATURDAY && date.getDayOfWeek() != DayOfWeek.SUNDAY) {
+                    holidays.add(buildHoliday(2026, month, day));
+                }
+            }
+        }
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE))
+                .thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar())
+                .thenReturn(buildCalendar(Set.of(2026), holidays.toArray(Holiday[]::new)));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE))).thenReturn(List.of());
+
+        final IncomeProjectionWindow window = service.findProjectionBetween(
+                LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 3));
+
+        assertThat(window.occurrences()).containsExactly(new IncomeProjection(
+                SCHEDULE_CODE, january, LocalDate.of(2026, 3, 2), AMOUNT, CATEGORY_CODE));
+        assertThat(window.pending()).isEmpty();
+    }
+
+    @Test
     void shouldReportIncomeMonthsWhoseCalendarIsNotReviewed() {
         final YearMonth january2027 = YearMonth.of(2027, 1);
         final IncomeSchedule schedule = buildSchedule(
@@ -581,6 +610,49 @@ class IncomeScheduleServiceTest {
         assertThat(window.pending()).extracting(IncomeProjectionPending::type)
                 .contains(IncomeProjectionPending.Type.CALENDAR_NOT_REVIEWED);
         assertThat(window.pending()).allMatch(pending -> pending.year() == 2027);
+    }
+
+    @Test
+    void shouldNotReportNextMonthCalendarPendingForANthBusinessDayInDecember() {
+        final IncomeSchedule schedule = buildSchedule(
+                IncomeDateRule.nthBusinessDay(1, BusinessWeek.MONDAY_TO_FRIDAY),
+                YearMonth.of(2026, 12), null);
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE))
+                .thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildReviewedCalendar(2026));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE))).thenReturn(List.of());
+
+        final IncomeProjectionWindow window = service.findProjectionBetween(
+                LocalDate.of(2026, 12, 1), LocalDate.of(2027, 1, 1));
+
+        assertThat(window.occurrences()).hasSize(1);
+        assertThat(window.occurrences().get(0).date()).isEqualTo(LocalDate.of(2026, 12, 1));
+        assertThat(window.pending()).isEmpty();
+    }
+
+    @Test
+    void shouldNotReportNextMonthBusinessDayNotFoundForANthBusinessDayInDecember() {
+        final IncomeSchedule schedule = buildSchedule(
+                IncomeDateRule.nthBusinessDay(15, BusinessWeek.MONDAY_TO_FRIDAY),
+                YearMonth.of(2026, 12), null);
+        final Set<Holiday> holidays = new HashSet<>();
+        for (int day = 1; day <= 31; day++) {
+            final LocalDate date = LocalDate.of(2027, 1, day);
+            if (date.getDayOfWeek() != DayOfWeek.SATURDAY && date.getDayOfWeek() != DayOfWeek.SUNDAY) {
+                holidays.add(buildHoliday(2027, 1, day));
+            }
+        }
+        when(scheduleRepository.findAllByStatus(IncomeScheduleStatus.ACTIVE))
+                .thenReturn(List.of(buildEntity(schedule)));
+        when(holidayCalendarService.findCalendar()).thenReturn(buildCalendar(Set.of(2026, 2027),
+                holidays.toArray(Holiday[]::new)));
+        when(occurrenceRepository.findByScheduleCodeIn(List.of(SCHEDULE_CODE))).thenReturn(List.of());
+
+        final IncomeProjectionWindow window = service.findProjectionBetween(
+                LocalDate.of(2026, 12, 1), LocalDate.of(2027, 1, 1));
+
+        assertThat(window.occurrences()).hasSize(1);
+        assertThat(window.pending()).isEmpty();
     }
 
     @Test
