@@ -119,7 +119,7 @@ class CompetenceMigrationTest {
         assertEquals(0, new BigDecimal("40.00").compareTo(settlementAmount("PARTIAL_CREDIT")));
         assertEquals(0, new BigDecimal("25.00").compareTo(settlementAmount("FULL_DEBIT")));
         assertEquals(0, new BigDecimal("30.00").compareTo(settlementAmount("FULL_CREDIT")));
-        assertEquals("LATE", status("PARTIAL_CREDIT"));
+        assertEquals("PAID_OUT", status("PARTIAL_CREDIT"));
         assertEquals("PAID_OUT", status("FULL_DEBIT"));
         assertEquals("PAID_OUT", status("FULL_CREDIT"));
         assertEquals(0, new BigDecimal("40.00").compareTo(amountPaid("PARTIAL_CREDIT")));
@@ -127,9 +127,9 @@ class CompetenceMigrationTest {
     }
 
     @Test
-    void shouldInitializeUnpaidLegacyMovementWithZeroAggregateAndDerivedLateStatus() throws SQLException {
+    void shouldPreserveUnpaidLegacyMovementStatusAndInitializeZeroAggregate() throws SQLException {
         assertEquals(0, BigDecimal.ZERO.compareTo(amountPaid("STANDALONE")));
-        assertEquals("LATE", status("STANDALONE"));
+        assertEquals("PENDING", status("STANDALONE"));
     }
 
     @Test
