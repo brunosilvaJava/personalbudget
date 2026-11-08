@@ -24,6 +24,7 @@ public interface PayCycleRepository extends JpaRepository<PayCycleEntity, Long> 
             SELECT c FROM PayCycleEntity c
             LEFT JOIN FETCH c.anchorSchedule
             WHERE c.lifecycle IN :lifecycles
+               OR c.lifecycle = com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle.CLOSED
             ORDER BY c.startDate ASC, c.id ASC
             """)
     List<PayCycleEntity> findByLifecycleIn(@Param("lifecycles") Collection<PayCycleLifecycle> lifecycles);
@@ -36,13 +37,15 @@ public interface PayCycleRepository extends JpaRepository<PayCycleEntity, Long> 
     Optional<PayCycleEntity> findByCode(@Param("code") UUID code);
 
     /**
-     * The cycles of a lifecycle, locked. Not fetch-joined on purpose: that would lock the schedule row
-     * too, and the schedule is locked before the cycles by whoever needs it.
+     * The cycles of a lifecycle, locked. A query for ACTIVE also includes CLOSED cycles because both
+     * remain in the non-cancelled chain. Not fetch-joined: the schedule is locked before cycles.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT c FROM PayCycleEntity c
             WHERE c.lifecycle = :lifecycle
+               OR ( :lifecycle = com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle.ACTIVE
+                    AND c.lifecycle = com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle.CLOSED)
             ORDER BY c.startDate ASC, c.id ASC
             """)
     List<PayCycleEntity> findForUpdateByLifecycle(@Param("lifecycle") PayCycleLifecycle lifecycle);

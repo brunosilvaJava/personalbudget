@@ -8,8 +8,10 @@ public enum PayCycleStatus {
     PLANNED,
     /** Today is inside the cycle. */
     OPEN,
-    /** Already ended; closing it arrives with E6. */
+    /** Already ended and awaiting manual closure. */
     PENDING_CLOSE,
+    /** Closed manually and backed by an immutable snapshot. */
+    CLOSED,
     /** Discarded before it started. */
     CANCELLED
 }

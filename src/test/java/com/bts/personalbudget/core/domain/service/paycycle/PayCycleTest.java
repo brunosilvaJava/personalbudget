@@ -62,6 +62,16 @@ class PayCycleTest {
     }
 
     @Test
+    void shouldBeClosedWhateverTheDate() {
+        final PayCycle closed = new PayCycle(cycle.code(), START, END, cycle.kind(),
+                cycle.anchorScheduleCode(), cycle.anchorNominalMonth(), PayCycleLifecycle.CLOSED,
+                false, false, 1L);
+
+        assertEquals(PayCycleStatus.CLOSED, closed.status(START.minusDays(10)));
+        assertEquals(PayCycleStatus.CLOSED, closed.status(START));
+    }
+
+    @Test
     void shouldBeCancelledWhateverTheDate() {
         final PayCycle cancelled = cycle.cancelled();
 
