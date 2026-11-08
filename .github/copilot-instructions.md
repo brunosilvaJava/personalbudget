@@ -14,7 +14,7 @@ O PersonalBudget controla o orçamento pessoal: receitas, despesas, contas fixas
 |---|---|
 | `FinancialMovement` | Entidade central. `CREDIT`/`DEBIT`; status `PENDING`, `LATE`, `PAID_OUT`. As outras fontes geram movimentações. |
 | `FixedBill` | Conta recorrente `WEEKLY`, `MONTHLY` ou `YEARLY`. O mensal usa `calendar_fixed_bill` para os dias; `next_due_date` controla o próximo lançamento. |
-| `InstallmentBill` | Compra parcelada (`installment_total`, `installment_count`); encerra quando todas as parcelas são lançadas. |
+| `InstallmentBill` | Compra parcelada (`installment_total`, `installment_count`); `amount` é o valor de **cada** parcela; encerra quando todas as parcelas são lançadas. |
 | `Balance` e `Dashboard` | Saldo diário real (pagos) e projetado (pendentes, atrasados e ocorrências ainda não lançadas); visão do mês. |
 | `Category` | Grupos e categorias opcionais nos lançamentos; resumo por categoria (de caixa). |
 | `IncomeSchedule` e `HolidayCalendar` | Receita principal por dia fixo ou N-ésimo dia útil, com feriados locais revisados por ano. |
@@ -65,7 +65,7 @@ Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{F
 - Erros de validação: 400 `{message, validations}` com chaves em snake_case.
 - Listas: `page` (a partir de 0), `size`, `sort_by`, `sort_direction`. Campo de ordenação desconhecido é 400 (use `SortFieldResolver`). Resposta paginada: `content, page, size, total_elements, total_pages, first, last`.
 - Datas: `LocalDate` e `LocalDateTime` sem fuso; mês como `yyyy-MM`. Valores chegam positivos na API; DEBIT é gravado negativo.
-- **Mudança de contrato** (campo novo, campo obrigatório, status novo, endpoint novo) deve estar descrita no PR: o front consome o contrato.
+- **Mudança de contrato** (campo novo, campo obrigatório, status novo, endpoint novo, comportamento novo) deve estar descrita no PR: o front consome o contrato.
 
 ## Banco e migrations
 
@@ -98,11 +98,16 @@ Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{F
 - Um passo por PR, a partir da `master`. Branches `feature/...`, `fix/...` ou `chore/...`. Commits em inglês, no imperativo. Não faça merge.
 - Descrição do PR segue `.github/PULL_REQUEST_TEMPLATE.md`: resumo, mudanças de contrato, testes (o que rodou e o que não rodou) e o que ficou fora do escopo.
 - Todo PR de uma etapa atualiza a seção "Estado atual" abaixo.
+- Cada PR da fila tem um brief autocontido (arquivo `.md` fornecido na tarefa). Se o brief conflitar com o código, pare e pergunte.
 
 ## Estado atual (atualizar a cada etapa)
 
 - `master` inclui o ciclo financeiro até a **E4b** (PR #76): competência, agenda de receita, calendário de feriados, ciclos com ativação e ajuste manual de fronteira com histórico. Migrations V1 a V12.
-- **Próxima etapa: E4c** — guarda 409 nos endpoints da agenda âncora enquanto o modo é `PAY_CYCLE` (regra, `end_month`, `anchor`, inativação); transição de âncora (mesma agenda, ou troca de agenda com `SHORT`/`LONG`), gravando `ANCHOR_TRANSITION` no histórico; prévia do calendário de feriados com o impacto nos ciclos; recálculo por evento depois do commit.
+- **Fila de trabalho (nesta ordem):**
+  1. **Pacote de ajustes do back para o front** (um PR): `installment_count` e `next_installment_date` na resposta de parcelada; recálculo da próxima parcela no update; DELETE idempotente; job que marca `LATE`; grupo de categorias "Receitas" (V13).
+  2. **E4c** — guarda 409 nos endpoints da agenda âncora enquanto o modo é `PAY_CYCLE` (regra, `end_month`, `anchor`, inativação); transição de âncora (mesma agenda, ou troca de agenda com `SHORT`/`LONG`), gravando `ANCHOR_TRANSITION` no histórico; prévia do calendário de feriados com o impacto nos ciclos; recálculo por evento depois do commit.
+  3. **Seed das categorias** (a lista inicial ainda será ajustada pelo usuário).
+- **Decisões já tomadas, ainda não refletidas no código:** `LATE` é marcado por um job (e volta para `PENDING` se o vencimento for editado para hoje ou o futuro); DELETE de algo já excluído logicamente responde 204 (código inexistente continua 404); categorias de crédito usam o grupo "Receitas"; `amount` da parcelada é o valor de cada parcela (já é assim).
 - Fora do escopo por enquanto: multiusuário (`owner_user_id`), relatório por ciclo (E5), fechamento de ciclo (E6), pagamentos parciais (E7), contas (E8), cartões (E9). O Dashboard mensal não é adaptado para ciclos.
 
 ## O que não fazer
