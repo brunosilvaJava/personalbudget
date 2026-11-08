@@ -95,7 +95,8 @@ public interface PayCycleControllerApiDocs {
             summary = "Preview closing a pay cycle",
             description = "Returns the competence summary and expected_version. Closure is refused when the cycle "
                     + "has projection pendencies, any LATE movement in its competence interval, or has not ended. "
-                    + "Known PENDING movements alone do not prevent closure.")
+                    + "PENDING movements whose due date is before today also block closure; PENDING movements that "
+                    + "are not overdue do not.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Closure preview",
                     content = @Content(schema = @Schema(implementation = PayCycleClosurePreviewResponse.class))),
@@ -106,9 +107,10 @@ public interface PayCycleControllerApiDocs {
 
     @Operation(
             summary = "Close a pay cycle",
-            description = "Uses the preview's expected_version. In one transaction it locks configuration, anchor "
-                    + "and cycle, marks the cycle CLOSED, calculates its summary and records the immutable snapshot. "
-                    + "The operation is rolled back if a projection pendency or LATE movement prevents closure.")
+            description = "Uses the preview's expected_version. In one transaction it locks configuration and "
+                    + "anchor, recovers due fixed-bill, installment and income-schedule occurrences, then locks the "
+                    + "cycle, marks it CLOSED, recalculates its summary and records the immutable snapshot. The operation is "
+                    + "rolled back if a projection pendency, LATE movement or overdue PENDING movement prevents closure.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Cycle closed and snapshot created",
                     content = @Content(schema = @Schema(implementation = PayCycleClosureResponse.class))),

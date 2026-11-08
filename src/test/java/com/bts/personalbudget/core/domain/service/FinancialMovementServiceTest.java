@@ -227,6 +227,49 @@ class FinancialMovementServiceTest {
     }
 
     @Test
+    void shouldValidateNewMovementDateWhenRestoringAutomaticCompetence() {
+        final LocalDate originalDate = LocalDate.of(2026, 10, 15);
+        final LocalDate closedCycleDate = LocalDate.of(2026, 11, 5);
+        final FinancialMovementEntity entity = pendingEntity(OperationType.CREDIT, new BigDecimal("100.00"));
+        entity.setMovementDate(originalDate.atStartOfDay());
+        entity.setCompetenceDate(originalDate);
+        entity.setCompetenceOverridden(true);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+        org.mockito.Mockito.doAnswer(invocation -> {
+            final LocalDate competenceDate = invocation.getArgument(0);
+            if (closedCycleDate.equals(competenceDate)) {
+                throw new ConflictException("Ciclo fechado");
+            }
+            return null;
+        }).when(payCycleMovementGuard).requireEditable(any());
+        final FinancialMovementUpdate update = new FinancialMovementUpdate(
+                entity.getCode(), null, null, null, null, closedCycleDate.atStartOfDay(),
+                null, null, null, null, null, true);
+
+        assertThrows(ConflictException.class, () -> financialMovementService.update(update));
+
+        verify(payCycleMovementGuard).requireEditable(originalDate);
+        verify(payCycleMovementGuard).requireEditable(closedCycleDate);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void shouldNotRequireReopeningWhenAmountIsNumericallyUnchangedForDebit() {
+        final LocalDate competenceDate = LocalDate.of(2026, 10, 15);
+        final FinancialMovementEntity entity = pendingEntity(OperationType.DEBIT, new BigDecimal("-100.00"));
+        entity.setCompetenceDate(competenceDate);
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+        final FinancialMovementUpdate update = new FinancialMovementUpdate(
+                entity.getCode(), null, null, new BigDecimal("100.000"), null, null,
+                null, null, null, null, null, false);
+
+        financialMovementService.update(update);
+
+        verify(payCycleMovementGuard, never()).requireEditable(any());
+        assertThat(entity.getAmount()).isEqualByComparingTo("-100.00");
+    }
+
+    @Test
     void shouldDeleteFinancialMovement() {
         FinancialMovementEntity financialMovementEntity = FinancialMovementFactory.buildEntity();
         when(repository.findByCode(financialMovementEntity.getCode())).thenReturn(Optional.of(financialMovementEntity));

@@ -76,6 +76,11 @@ public class FinancialMovementService {
                         .withCompetence(financialMovement.competenceDate(), false))));
     }
 
+    public void lockPayCycleMovementMutation() {
+        log.info("m=lockPayCycleMovementMutation");
+        payCycleMovementGuard.lock();
+    }
+
     private FinancialMovement markOverdueAsLateWhenPending(final FinancialMovement financialMovement) {
         if (financialMovement.status() == PENDING
                 && financialMovement.dueDate() != null
@@ -277,8 +282,11 @@ public class FinancialMovementService {
                                         final FinancialMovementEntity current) {
         final boolean operationTypeChanged = changes.operationType() != null
                 && changes.operationType() != current.getOperationType();
+        final OperationType finalOperationType = changes.operationType() != null
+                ? changes.operationType() : current.getOperationType();
+        final BigDecimal proposedAmount = mapper.normalizeValue(changes.amount(), finalOperationType);
         final boolean amountChanged = changes.amount() != null
-                && !changes.amount().equals(current.getAmount());
+                && (current.getAmount() == null || proposedAmount.compareTo(current.getAmount()) != 0);
         final boolean categoryChanged = changes.categoryCode() != null
                 && !changes.categoryCode().equals(current.getCategoryCode());
         final boolean competenceChanged = changes.competenceDate() != null
@@ -293,6 +301,9 @@ public class FinancialMovementService {
             return changes.competenceDate();
         }
         if (changes.restoreAutomaticCompetence()) {
+            if (current.getRecurrenceBillCode() == null && changes.movementDate() != null) {
+                return changes.movementDate().toLocalDate();
+            }
             return automaticCompetence(current);
         }
         if (!Boolean.TRUE.equals(current.getCompetenceOverridden())

@@ -18,6 +18,9 @@ import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleStatus;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
+import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
+import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
 import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.mapper.PayCycleMapper;
 import com.bts.personalbudget.repository.IncomeScheduleRepository;
@@ -56,6 +59,9 @@ class PayCycleClosureServiceTest {
     @Mock private PayCycleService payCycleService;
     @Mock private PayCycleSummaryService summaryService;
     @Mock private FinancialMovementService movementService;
+    @Mock private FixedBillService fixedBillService;
+    @Mock private InstallmentBillService installmentBillService;
+    @Mock private IncomeScheduleService incomeScheduleService;
     @Mock private PayCycleSnapshotService snapshotService;
     @Spy private PayCycleMapper mapper = PayCycleMapper.INSTANCE;
     @Spy private Clock clock = Clock.fixed(Instant.parse("2026-11-08T12:00:00Z"),
@@ -74,14 +80,45 @@ class PayCycleClosureServiceTest {
         assertThat(result.cycle().cycle().lifecycle()).isEqualTo(PayCycleLifecycle.CLOSED);
         assertThat(result.snapshot()).isEqualTo(snapshot);
         final InOrder order = inOrder(configService, scheduleRepository, cycleRepository,
+                fixedBillService, installmentBillService, incomeScheduleService,
                 summaryService, movementService, snapshotService);
         order.verify(configService).lock();
         order.verify(scheduleRepository).findForUpdateByCode(ANCHOR_CODE);
+        order.verify(cycleRepository).findByCode(CODE);
+        order.verify(fixedBillService).findCodesByNextDueDateLessThanEqual(END.minusDays(1));
+        order.verify(installmentBillService).findCodesByNextInstallmentDateLessThanEqual(END.minusDays(1));
+        order.verify(incomeScheduleService).findCodesToPost(END.minusDays(1));
         order.verify(cycleRepository).findForUpdateByCode(CODE);
+        order.verify(summaryService).summarize(CODE);
+        order.verify(movementService).findByCompetenceInterval(START, END);
         order.verify(cycleRepository).flush();
         order.verify(summaryService).summarize(CODE);
         order.verify(movementService).findByCompetenceInterval(START, END);
         order.verify(snapshotService).recordClosure(summary);
+    }
+
+    @Test
+    void shouldRecoverDueOccurrencesBeforeLockingCycle() {
+        final PayCycleEntity entity = activeCycle();
+        final PayCycleSummary summary = summary(PayCycleStatus.CLOSED, List.of());
+        stubClosure(entity, summary);
+        final UUID fixedBillCode = UUID.randomUUID();
+        final UUID installmentBillCode = UUID.randomUUID();
+        final UUID incomeScheduleCode = UUID.randomUUID();
+        when(fixedBillService.findCodesByNextDueDateLessThanEqual(END.minusDays(1)))
+                .thenReturn(List.of(fixedBillCode));
+        when(installmentBillService.findCodesByNextInstallmentDateLessThanEqual(END.minusDays(1)))
+                .thenReturn(List.of(installmentBillCode));
+        when(incomeScheduleService.findCodesToPost(END.minusDays(1))).thenReturn(List.of(incomeScheduleCode));
+
+        service.close(CODE, 4L);
+
+        final InOrder order = inOrder(fixedBillService, installmentBillService,
+                incomeScheduleService, cycleRepository);
+        order.verify(fixedBillService).postDueOccurrences(fixedBillCode, END.minusDays(1));
+        order.verify(installmentBillService).postDueInstallments(installmentBillCode, END.minusDays(1));
+        order.verify(incomeScheduleService).postDueOccurrences(incomeScheduleCode, END.minusDays(1));
+        order.verify(cycleRepository).findForUpdateByCode(CODE);
     }
 
     @Test
@@ -91,7 +128,7 @@ class PayCycleClosureServiceTest {
         when(configService.lock()).thenReturn(config());
         when(scheduleRepository.findForUpdateByCode(ANCHOR_CODE))
                 .thenReturn(Optional.of(IncomeScheduleEntity.builder().code(ANCHOR_CODE).build()));
-        when(cycleRepository.findForUpdateByCode(CODE)).thenReturn(Optional.of(entity));
+        when(cycleRepository.findByCode(CODE)).thenReturn(Optional.of(entity));
 
         assertThrows(ConflictException.class, () -> service.close(CODE, 4L));
 
@@ -131,6 +168,35 @@ class PayCycleClosureServiceTest {
     }
 
     @Test
+    void shouldRefuseOverduePendingMovementsInPreviewButAllowNotYetDueOnes() {
+        final PayCycleSummary summary = summary(PENDING_CLOSE, List.of());
+        when(summaryService.summarize(CODE)).thenReturn(summary);
+        when(configService.find()).thenReturn(config());
+        when(movementService.findByCompetenceInterval(START, END)).thenReturn(List.of(
+                movement(FinancialMovementStatus.PENDING, TODAY.minusDays(1)),
+                movement(FinancialMovementStatus.PENDING, TODAY)));
+
+        final PayCycleClosurePreview preview = service.preview(CODE);
+
+        assertThat(preview.canClose()).isFalse();
+        assertThat(preview.blockers()).containsExactly("OVERDUE_PENDING_MOVEMENTS");
+        assertThat(preview.lateMovements()).isEmpty();
+    }
+
+    @Test
+    void shouldAllowPendingMovementsThatAreNotOverdueInPreview() {
+        when(summaryService.summarize(CODE)).thenReturn(summary(PENDING_CLOSE, List.of()));
+        when(configService.find()).thenReturn(config());
+        when(movementService.findByCompetenceInterval(START, END))
+                .thenReturn(List.of(movement(FinancialMovementStatus.PENDING, TODAY)));
+
+        final PayCycleClosurePreview preview = service.preview(CODE);
+
+        assertThat(preview.canClose()).isTrue();
+        assertThat(preview.blockers()).isEmpty();
+    }
+
+    @Test
     void shouldRefuseToCloseWhenALateMovementExists() {
         final PayCycleEntity entity = activeCycle();
         final PayCycleSummary summary = summary(PayCycleStatus.CLOSED, List.of());
@@ -143,6 +209,20 @@ class PayCycleClosureServiceTest {
 
         assertThrows(ConflictException.class, () -> service.close(CODE, 4L));
 
+        verify(snapshotService, never()).recordClosure(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldRefuseToCloseWhenAPendingMovementIsOverdue() {
+        final PayCycleEntity entity = activeCycle();
+        stubClosure(entity, summary(PayCycleStatus.CLOSED, List.of()));
+        when(movementService.findByCompetenceInterval(START, END))
+                .thenReturn(List.of(movement(FinancialMovementStatus.PENDING, TODAY.minusDays(1))));
+
+        assertThrows(ConflictException.class, () -> service.close(CODE, 4L));
+
+        assertThat(entity.getLifecycle()).isEqualTo(ACTIVE);
+        verify(cycleRepository, never()).flush();
         verify(snapshotService, never()).recordClosure(org.mockito.ArgumentMatchers.any());
     }
 
@@ -171,7 +251,12 @@ class PayCycleClosureServiceTest {
         when(configService.lock()).thenReturn(config());
         when(scheduleRepository.findForUpdateByCode(ANCHOR_CODE))
                 .thenReturn(Optional.of(IncomeScheduleEntity.builder().code(ANCHOR_CODE).build()));
+        when(cycleRepository.findByCode(CODE)).thenReturn(Optional.of(entity));
         when(cycleRepository.findForUpdateByCode(CODE)).thenReturn(Optional.of(entity));
+        when(fixedBillService.findCodesByNextDueDateLessThanEqual(END.minusDays(1))).thenReturn(List.of());
+        when(installmentBillService.findCodesByNextInstallmentDateLessThanEqual(END.minusDays(1)))
+                .thenReturn(List.of());
+        when(incomeScheduleService.findCodesToPost(END.minusDays(1))).thenReturn(List.of());
         when(summaryService.summarize(CODE)).thenReturn(summary);
         when(movementService.findByCompetenceInterval(START, END)).thenReturn(List.of());
     }
@@ -196,5 +281,12 @@ class PayCycleClosureServiceTest {
     private static PayCycleSnapshot snapshot() {
         return new PayCycleSnapshot(UUID.randomUUID(), CODE, 1, 4L, Instant.parse("2026-11-08T12:00:00Z"),
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, List.of());
+    }
+
+    private static FinancialMovement movement(final FinancialMovementStatus status, final LocalDate dueDate) {
+        return new FinancialMovement(
+                UUID.randomUUID(), com.bts.personalbudget.core.domain.enumerator.OperationType.DEBIT, "Conta",
+                new BigDecimal("-10.00"), null, dueDate.atStartOfDay(), dueDate.atStartOfDay(), null,
+                status, true, null, null, null, START, false);
     }
 }

@@ -98,7 +98,8 @@ class PayCycleClosureIntegrationTest {
                 .ruleValue(5)
                 .businessWeek(MONDAY_TO_FRIDAY)
                 .nonBusinessDayPolicy(POSTPONE)
-                .startMonth(LocalDate.of(2026, 1, 1))
+                .startMonth(LocalDate.of(2026, 11, 1))
+                .endMonth(LocalDate.of(2026, 11, 1))
                 .anchor(true)
                 .status(IncomeScheduleStatus.ACTIVE)
                 .build());
@@ -155,6 +156,28 @@ class PayCycleClosureIntegrationTest {
     }
 
     @Test
+    void shouldRecoverDueIncomeBeforeCloseAndRollbackWhenItCreatesALateMovement() {
+        anchor.setStartMonth(START);
+        anchor.setEndMonth(START);
+        schedules.saveAndFlush(anchor);
+        stubSummaryAfterMaterializingOccurrence();
+
+        assertThatThrownBy(() -> closureService.close(CYCLE_CODE, 0L))
+                .isInstanceOf(com.bts.personalbudget.exception.ConflictException.class);
+
+        assertThat(cycles.findByCode(CYCLE_CODE).orElseThrow().getLifecycle()).isEqualTo(PayCycleLifecycle.ACTIVE);
+        assertThat(cycles.findByCode(CYCLE_CODE).orElseThrow().getVersion()).isZero();
+        assertThat(snapshotService.findSnapshots(CYCLE_CODE)).isEmpty();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM income_occurrence WHERE income_schedule_id = "
+                        + "(SELECT id FROM income_schedule WHERE code = UUID_TO_BIN(?))",
+                Integer.class, SCHEDULE_CODE.toString())).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM financial_movement WHERE recurrence_bill_code = UUID_TO_BIN(?)",
+                Integer.class, SCHEDULE_CODE.toString())).isZero();
+    }
+
+    @Test
     void shouldRejectStaleVersionAndAllowReopenWithTheCurrentVersion() {
         stubSummary(List.of());
         assertThatThrownBy(() -> closureService.close(CYCLE_CODE, 7L))
@@ -199,12 +222,30 @@ class PayCycleClosureIntegrationTest {
 
     private void stubSummary(final List<PayCycleSummary.Pending> pending) {
         when(summaryService.summarize(CYCLE_CODE)).thenAnswer(invocation -> {
-            final PayCycleEntity cycleEntity = cycles.findByCode(CYCLE_CODE).orElseThrow();
-            final var cycle = mapper.toModel(cycleEntity);
-            return new PayCycleSummary(
-                    new PayCycleView(cycle, cycle.status(TODAY), List.of()),
-                    BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, List.of(), pending);
+            return summary(pending);
         });
+    }
+
+    private void stubSummaryAfterMaterializingOccurrence() {
+        when(summaryService.summarize(CYCLE_CODE)).thenAnswer(invocation -> {
+            assertThat(incomeOccurrenceCount()).isEqualTo(1);
+            return summary(List.of());
+        });
+    }
+
+    private PayCycleSummary summary(final List<PayCycleSummary.Pending> pending) {
+        final PayCycleEntity cycleEntity = cycles.findByCode(CYCLE_CODE).orElseThrow();
+        final var cycle = mapper.toModel(cycleEntity);
+        return new PayCycleSummary(
+                new PayCycleView(cycle, cycle.status(TODAY), List.of()),
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, List.of(), pending);
+    }
+
+    private int incomeOccurrenceCount() {
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) FROM income_occurrence WHERE income_schedule_id = "
+                        + "(SELECT id FROM income_schedule WHERE code = UUID_TO_BIN(?))",
+                Integer.class, SCHEDULE_CODE.toString());
     }
 
     private FinancialMovementEntity movement() {
@@ -225,6 +266,10 @@ class PayCycleClosureIntegrationTest {
 
     private void cleanData() {
         jdbc.update("DELETE FROM financial_movement WHERE code = UUID_TO_BIN(?)", MOVEMENT_CODE.toString());
+        jdbc.update("DELETE FROM income_occurrence WHERE income_schedule_id IN "
+                + "(SELECT id FROM income_schedule WHERE code = UUID_TO_BIN(?))", SCHEDULE_CODE.toString());
+        jdbc.update("DELETE FROM financial_movement WHERE recurrence_bill_code = UUID_TO_BIN(?)",
+                SCHEDULE_CODE.toString());
         jdbc.update("DELETE FROM pay_cycle_snapshot_category WHERE snapshot_id IN "
                 + "(SELECT id FROM pay_cycle_snapshot WHERE pay_cycle_id IN "
                 + "(SELECT id FROM pay_cycle WHERE code = UUID_TO_BIN(?)))", CYCLE_CODE.toString());
