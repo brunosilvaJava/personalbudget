@@ -65,29 +65,47 @@ class MovementSettlementIntegrationTest {
 
     @Test
     void shouldUseIndividualEffectiveDatesForCashAndProjectOnlyTheResidual() {
+        final LocalDate firstPaymentDate = LocalDate.of(2088, 1, 5);
+        final LocalDate beforeSecondPaymentDate = LocalDate.of(2088, 1, 19);
+        final LocalDate secondPaymentDate = LocalDate.of(2088, 1, 20);
+        final LocalDate dueDate = LocalDate.of(2088, 12, 31);
+        final BigDecimal firstCashBefore = settlementService.sumActiveSignedAmountsThrough(firstPaymentDate);
+        final BigDecimal secondCashBefore = settlementService.sumActiveSignedAmountsThrough(beforeSecondPaymentDate);
+        final BigDecimal firstProjectionBefore = movementService.findProjectedBalance(beforeSecondPaymentDate);
+        final BigDecimal secondProjectionBefore = movementService.findProjectedBalance(secondPaymentDate);
+        final BigDecimal dueProjectionBefore = movementService.findProjectedBalance(dueDate);
+        final long firstDateEntriesBefore = balanceService.findBalanceCalcDataBetween(
+                        LocalDate.of(2088, 1, 1), LocalDate.of(2088, 1, 31)).stream()
+                .filter(data -> data.findBalanceCalcDate().equals(firstPaymentDate)).count();
         final FinancialMovement movement = createMovement(OperationType.DEBIT, "100.00");
-        settlementService.create(movement.code(), settlement("30.00", LocalDate.of(2088, 1, 5)));
-        settlementService.create(movement.code(), settlement("20.00", LocalDate.of(2088, 1, 20)));
+        settlementService.create(movement.code(), settlement("30.00", firstPaymentDate));
+        settlementService.create(movement.code(), settlement("20.00", secondPaymentDate));
 
-        assertThat(settlementService.sumActiveSignedAmountsThrough(LocalDate.of(2088, 1, 5)))
+        assertThat(settlementService.sumActiveSignedAmountsThrough(firstPaymentDate).subtract(firstCashBefore))
                 .isEqualByComparingTo("-30.00");
-        assertThat(settlementService.sumActiveSignedAmountsThrough(LocalDate.of(2088, 1, 19)))
+        assertThat(settlementService.sumActiveSignedAmountsThrough(beforeSecondPaymentDate).subtract(secondCashBefore))
                 .isEqualByComparingTo("-30.00");
-        assertThat(movementService.findProjectedBalance(LocalDate.of(2088, 1, 19)))
+        assertThat(movementService.findProjectedBalance(beforeSecondPaymentDate).subtract(firstProjectionBefore))
                 .isEqualByComparingTo("-30.00");
-        assertThat(movementService.findProjectedBalance(LocalDate.of(2088, 1, 20)))
+        assertThat(movementService.findProjectedBalance(secondPaymentDate).subtract(secondProjectionBefore))
                 .isEqualByComparingTo("-50.00");
+        assertThat(movementService.findProjectedBalance(dueDate).subtract(dueProjectionBefore))
+                .isEqualByComparingTo("-100.00");
         assertThat(balanceService.findBalanceCalcDataBetween(
                         LocalDate.of(2088, 1, 1), LocalDate.of(2088, 1, 31)))
                 .filteredOn(data -> data.findBalanceCalcDate().equals(LocalDate.of(2088, 1, 5)))
-                .hasSize(1);
+                .hasSize(Math.toIntExact(firstDateEntriesBefore + 1));
     }
 
     @Test
     void shouldKeepReversedSettlementInHistoryAndExcludeItFromCash() {
+        final LocalDate effectiveDate = LocalDate.of(2088, 2, 1);
+        final BigDecimal cashBefore = settlementService.sumActiveSignedAmountsThrough(effectiveDate);
         final FinancialMovement movement = createMovement(OperationType.CREDIT, "75.00");
         final MovementSettlement created =
-                settlementService.create(movement.code(), settlement("25.00", LocalDate.of(2088, 2, 1)));
+                settlementService.create(movement.code(), settlement("25.00", effectiveDate));
+        assertThat(settlementService.sumActiveSignedAmountsThrough(effectiveDate).subtract(cashBefore))
+                .isEqualByComparingTo("25.00");
 
         final MovementSettlement reversed = settlementService.reverse(movement.code(), created.code());
         final List<MovementSettlement> history = settlementService.findAll(movement.code());
@@ -97,8 +115,8 @@ class MovementSettlementIntegrationTest {
         assertThat(reversed.version()).isEqualTo(history.getFirst().version());
         assertThat(history).hasSize(1);
         assertThat(history.getFirst().reversedAt()).isNotNull();
-        assertThat(settlementService.sumActiveSignedAmountsThrough(LocalDate.of(2088, 2, 1)))
-                .isEqualByComparingTo("0.00");
+        assertThat(settlementService.sumActiveSignedAmountsThrough(effectiveDate))
+                .isEqualByComparingTo(cashBefore);
         assertThat(movementService.find(movement.code()).amountPaid()).isEqualByComparingTo("0.00");
         assertThat(movementService.find(movement.code()).status()).isEqualTo(FinancialMovementStatus.PENDING);
     }
@@ -135,7 +153,7 @@ class MovementSettlementIntegrationTest {
 
         assertThrows(ConflictException.class, () -> settlementService.create(
                 movement.code(), settlement("30.00", LocalDate.of(2088, 3, 2))));
-        assertThat(movementService.find(movement.code()).amountPaid()).isEqualByComparingTo("75.00");
+        assertThat(movementService.find(movement.code()).amountPaid()).isEqualByComparingTo("-75.00");
     }
 
     private boolean tryConcurrentSettlement(final UUID movementCode,
