@@ -57,4 +57,8 @@ SET fm.amount_paid = CASE
         WHEN fm.operation_type = 'DEBIT' THEN -COALESCE(settlements.paid_amount, 0)
         ELSE COALESCE(settlements.paid_amount, 0)
     END,
+    fm.status = CASE
+        WHEN COALESCE(settlements.paid_amount, 0) = 0 AND fm.due_date < CURRENT_DATE() THEN 'LATE'
+        ELSE fm.status
+    END,
     fm.last_modified_date = CURRENT_TIMESTAMP;

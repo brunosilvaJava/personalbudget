@@ -107,6 +107,11 @@ class CompetenceMigrationTest {
     }
 
     @Test
+    void shouldMarkUnpaidOverdueLegacyMovementLate() throws SQLException {
+        assertEquals("LATE", status("STANDALONE"));
+    }
+
+    @Test
     void shouldKeepCompetenceNullableUntilLegacyRowsAreReconciled() throws SQLException {
         try (Connection connection = connection(); Statement statement = connection.createStatement();
              ResultSet rs = statement.executeQuery("""
@@ -166,6 +171,15 @@ class CompetenceMigrationTest {
                      "SELECT competence_overridden FROM financial_movement WHERE description = '" + description + "'")) {
             assertTrue(rs.next());
             return rs.getBoolean(1);
+        }
+    }
+
+    private static String status(final String description) throws SQLException {
+        try (Connection connection = connection(); Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery(
+                     "SELECT status FROM financial_movement WHERE description = '" + description + "'")) {
+            assertTrue(rs.next());
+            return rs.getString(1);
         }
     }
 }
