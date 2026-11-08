@@ -107,7 +107,7 @@ public class InstallmentBillService {
                                   final UUID categoryCode) {
         log.info("m=update code={} operationType={} description={} amount={} purchaseDate={} installmentTotal={} categoryCode={}",
                 code, operationType, description, amount, purchaseDate, installmentTotal, categoryCode);
-        final InstallmentBill updateInstallmentBill = findByCode(code);
+        final InstallmentBill updateInstallmentBill = repository.findForUpdateByCode(code);
         if (installmentTotal != null && installmentTotal < updateInstallmentBill.getInstallmentCount()) {
             throw new InvalidFieldsException("Campos inválidos", InstallmentBillService.class,
                     Map.of("installmentTotal", "não pode ser menor que o número de parcelas já lançadas"));

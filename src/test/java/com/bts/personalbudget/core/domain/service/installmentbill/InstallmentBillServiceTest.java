@@ -143,7 +143,7 @@ public class InstallmentBillServiceTest {
         LocalDate purchaseDate = LocalDate.now().minusDays(1);
         Integer installmentTotal = 10;
 
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
 
         service.update(code, operationType, description, amount, purchaseDate, installmentTotal, null);
 
@@ -166,7 +166,7 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = new InstallmentBill(
                 code, OperationType.DEBIT, "Test", BigDecimal.TEN, InstallmentBillStatus.PENDING,
                 TODAY.minusDays(120), 6, 2, TODAY.minusDays(5), TODAY.plusDays(25));
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
 
         final LocalDate newPurchaseDate = TODAY.minusDays(100);
         service.update(code, null, null, null, newPurchaseDate, null, null);
@@ -183,7 +183,7 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = new InstallmentBill(
                 code, OperationType.DEBIT, "Test", BigDecimal.TEN, InstallmentBillStatus.PENDING,
                 TODAY.minusDays(120), 6, 0, null, TODAY.minusDays(90));
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
 
         final LocalDate newPurchaseDate = TODAY.minusDays(20);
         service.update(code, null, null, null, newPurchaseDate, null, null);
@@ -199,7 +199,7 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = new InstallmentBill(
                 code, OperationType.DEBIT, "Test", BigDecimal.TEN, InstallmentBillStatus.PENDING,
                 TODAY.minusDays(120), 6, 2, TODAY.minusDays(60), TODAY.minusDays(30));
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
 
         final InvalidFieldsException exception = assertThrows(InvalidFieldsException.class,
                 () -> service.update(code, null, null, null, null, 1, null));
@@ -215,7 +215,7 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = new InstallmentBill(
                 code, OperationType.DEBIT, "Test", BigDecimal.TEN, InstallmentBillStatus.PENDING,
                 TODAY.minusDays(120), 6, 2, TODAY.minusDays(60), TODAY.minusDays(30));
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
 
         final InstallmentBill updated = service.update(code, null, null, null, null, 2, null);
 
@@ -229,8 +229,8 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = new InstallmentBill(
                 code, OperationType.DEBIT, "Test", BigDecimal.TEN, InstallmentBillStatus.PENDING,
                 TODAY.minusDays(45), 3, 0, null, TODAY.minusDays(15));
-        when(repository.findByCode(code)).thenReturn(installmentBill);
         when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
+        when(repository.findByCode(code)).thenReturn(installmentBill);
         when(repository.update(any(InstallmentBill.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(financialMovementService.existsByRecurrenceBillCodeAndOccurrenceDate(eq(code), any()))
                 .thenReturn(false);
@@ -369,7 +369,7 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
         installmentBill.setCategoryCode(CATEGORY_CODE);
         final UUID code = installmentBill.getCode();
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
 
         service.update(code, null, null, null, null, null, OTHER_CATEGORY_CODE);
 
@@ -384,7 +384,7 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
         installmentBill.setCategoryCode(CATEGORY_CODE);
         final UUID code = installmentBill.getCode();
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
 
         service.update(code, null, "Nova descrição", null, null, null, null);
 
@@ -399,7 +399,7 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
         installmentBill.setCategoryCode(CATEGORY_CODE);
         final UUID code = installmentBill.getCode();
-        when(repository.findByCode(code)).thenReturn(installmentBill);
+        when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
         doThrow(categoryRejection()).when(categoryService).validateForUse(CATEGORY_CODE, OperationType.CREDIT);
 
         assertThrows(InvalidFieldsException.class,
