@@ -127,13 +127,8 @@ class CompetenceMigrationTest {
     }
 
     @Test
-    void shouldPreserveUnpaidLegacyMovementStatusAndInitializeZeroAggregate() throws SQLException {
+    void shouldInitializeZeroAggregateAndDeriveLateStatusForUnpaidOverdueMovement() throws SQLException {
         assertEquals(0, BigDecimal.ZERO.compareTo(amountPaid("STANDALONE")));
-        assertEquals("PENDING", status("STANDALONE"));
-    }
-
-    @Test
-    void shouldMarkUnpaidOverdueLegacyMovementLate() throws SQLException {
         assertEquals("LATE", status("STANDALONE"));
     }
 
