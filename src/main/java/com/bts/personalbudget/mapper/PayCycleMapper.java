@@ -15,6 +15,9 @@ import com.bts.personalbudget.controller.paycycle.PayCycleIncomeImpactResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleMovementImpactResponse;
 import com.bts.personalbudget.controller.paycycle.PayCyclePendingResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleSummaryResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleSummaryResponse.PayCycleSummaryCategoryResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleSummaryResponse.PayCycleSummaryPendingResponse;
 import com.bts.personalbudget.core.domain.entity.IncomeScheduleEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleAdjustmentEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleConfigEntity;
@@ -39,6 +42,7 @@ import com.bts.personalbudget.core.domain.service.paycycle.PayCycleEndAdjustment
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleLabel;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCyclePending;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleView;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleSummary;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -129,6 +133,38 @@ public interface PayCycleMapper {
 
     default List<PayCycleResponse> toResponseList(final List<PayCycleView> views) {
         return views.stream().map(this::toResponse).toList();
+    }
+
+    default PayCycleSummaryResponse toSummaryResponse(final PayCycleSummary summary) {
+        return new PayCycleSummaryResponse(
+                toResponse(summary.cycle()),
+                summary.recognizedRevenue(),
+                summary.recognizedExpense(),
+                summary.projectedRevenue(),
+                summary.projectedExpense(),
+                summary.projectionIncomplete(),
+                summary.categories().stream().map(this::toSummaryCategoryResponse).toList(),
+                summary.pending().stream().map(this::toSummaryPendingResponse).toList());
+    }
+
+    default PayCycleSummaryCategoryResponse toSummaryCategoryResponse(final PayCycleSummary.CategoryDetail category) {
+        return new PayCycleSummaryCategoryResponse(
+                category.categoryCode(),
+                category.categoryName(),
+                category.operationType(),
+                category.recognizedAmount(),
+                category.projectedAmount());
+    }
+
+    default PayCycleSummaryPendingResponse toSummaryPendingResponse(final PayCycleSummary.Pending pending) {
+        return new PayCycleSummaryPendingResponse(
+                pending.source().name(),
+                pending.type().name(),
+                pending.sourceCode(),
+                pending.nominalMonth(),
+                pending.year(),
+                pending.boundaryDate(),
+                pending.anchorDate());
     }
 
     default PayCycleConfigResponse toResponse(final PayCycleConfigView view) {

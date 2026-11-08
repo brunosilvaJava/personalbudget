@@ -7,6 +7,7 @@ import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentPreviewRe
 import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentRequest;
 import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleSummaryResponse;
 import com.bts.personalbudget.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -66,6 +67,24 @@ public interface PayCycleControllerApiDocs {
             @ApiResponse(responseCode = "404", description = "Cycle not found")
     })
     ResponseEntity<PayCycleResponse> findByCode(@PathVariable UUID code);
+
+    @Operation(
+            summary = "Summarize a pay cycle by competence",
+            description = "Returns amounts recognized by competence_date and a projection of active "
+                    + "financial movements plus known virtual occurrences of fixed bills, installments and "
+                    + "income schedules. The interval is [start_date, end_date_exclusive). Recognized amounts "
+                    + "use PAID_OUT movements; projected amounts include those recognized amounts, PENDING/LATE "
+                    + "movements and virtual occurrences that are not already materialized. Debits are positive "
+                    + "in this response. Category details include inactive categories used by existing movements "
+                    + "and the 'Sem categoria' line. A pending item marks the projection incomplete; a clean "
+                    + "response does not represent balances, transfers, cards or envelopes, which are outside "
+                    + "this endpoint's supported sources.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Cycle summary",
+                    content = @Content(schema = @Schema(implementation = PayCycleSummaryResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Cycle not found")
+    })
+    ResponseEntity<PayCycleSummaryResponse> summary(@PathVariable UUID code);
 
     @Operation(
             summary = "Preview moving the end of a pay cycle",

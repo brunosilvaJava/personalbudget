@@ -3,6 +3,7 @@ package com.bts.personalbudget.controller.paycycle;
 import com.bts.personalbudget.controller.paycycle.config.PayCycleControllerApiDocs;
 import com.bts.personalbudget.core.domain.service.paycycle.CurrentPayCycle;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleService;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleSummaryService;
 import com.bts.personalbudget.mapper.PayCycleMapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PayCycleController implements PayCycleControllerApiDocs {
 
     private final PayCycleService payCycleService;
+    private final PayCycleSummaryService payCycleSummaryService;
     private final PayCycleMapper payCycleMapper;
 
     @Override
@@ -59,6 +61,13 @@ public class PayCycleController implements PayCycleControllerApiDocs {
     public ResponseEntity<PayCycleResponse> findByCode(@PathVariable UUID code) {
         log.info("m=findByCode, code={}", code);
         return ResponseEntity.ok(payCycleMapper.toResponse(payCycleService.findByCode(code)));
+    }
+
+    @Override
+    @GetMapping("/{code}/summary")
+    public ResponseEntity<PayCycleSummaryResponse> summary(@PathVariable UUID code) {
+        log.info("m=summary, code={}", code);
+        return ResponseEntity.ok(payCycleMapper.toSummaryResponse(payCycleSummaryService.summarize(code)));
     }
 
     @Override
