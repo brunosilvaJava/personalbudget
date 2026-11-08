@@ -455,16 +455,16 @@ public class PayCycleRepositoryTest {
     @Test
     void shouldFillTheGeneratedColumnsForActiveAndClosedCyclesAndReleaseThemWhenCancelled() {
         final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
-        final PayCycleEntity entity = cycleRepository.save(cycle(anchor, NOV_5, DEC_7, NOV));
+        PayCycleEntity entity = cycleRepository.saveAndFlush(cycle(anchor, NOV_5, DEC_7, NOV));
 
         assertGeneratedCycleKeys(entity);
 
         entity.setLifecycle(PayCycleLifecycle.CLOSED);
-        cycleRepository.saveAndFlush(entity);
+        entity = cycleRepository.saveAndFlush(entity);
         assertGeneratedCycleKeys(entity);
 
         entity.setLifecycle(PayCycleLifecycle.CANCELLED);
-        cycleRepository.saveAndFlush(entity);
+        entity = cycleRepository.saveAndFlush(entity);
 
         assertGeneratedCycleKeysAreNull(entity);
     }
