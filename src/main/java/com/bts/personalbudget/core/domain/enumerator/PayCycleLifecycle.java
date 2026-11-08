@@ -7,5 +7,7 @@ package com.bts.personalbudget.core.domain.enumerator;
 public enum PayCycleLifecycle {
     ACTIVE,
     /** Discarded before it started; kept as a row, never deleted. */
-    CANCELLED
+    CANCELLED,
+    /** Closed manually; its boundaries and snapshot are preserved until it is explicitly reopened. */
+    CLOSED
 }

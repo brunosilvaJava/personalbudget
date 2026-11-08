@@ -48,9 +48,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * V11 (pay cycle configuration and cycles) against a real MySQL: the single configuration row, the
- * UNIQUE keys over the generated active_* columns that keep two active cycles from sharing an anchor
- * occurrence or a boundary, the CHECKs, the optimistic version and the locking reads.
+ * Pay cycle configuration and cycles against a real MySQL: the single configuration row, the UNIQUE
+ * keys over generated active_* columns that keep non-cancelled cycles from sharing an anchor
+ * occurrence or a boundary, the CHECKs, optimistic version and locking reads.
  *
  * <p>Cycles and the configuration reference income schedules, so every test leaves the tables as it
  * found them: the other repository tests delete schedules.
@@ -246,7 +246,13 @@ public class PayCycleRepositoryTest {
         final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
         final PayCycleEntity third = cycleRepository.save(cycle(anchor, DEC_7, JAN_5, DEC));
         final PayCycleEntity first = cycleRepository.save(cycle(anchor, OCT_5, NOV_5, OCT));
+        final PayCycleEntity closed = cycle(anchor, NOV_5, DEC_7, NOV);
+        closed.setLifecycle(PayCycleLifecycle.CLOSED);
+        cycleRepository.save(closed);
         final PayCycleEntity cancelled = cycle(anchor, NOV_5, DEC_7, NOV);
+        cancelled.setStartDate(JAN_5);
+        cancelled.setEndDate(LocalDate.of(2027, 2, 5));
+        cancelled.setAnchorNominalMonth(LocalDate.of(2027, 1, 1));
         cancelled.setLifecycle(PayCycleLifecycle.CANCELLED);
         cycleRepository.save(cancelled);
 
@@ -254,9 +260,10 @@ public class PayCycleRepositoryTest {
         final List<PayCycleEntity> all = cycleRepository.findByLifecycleIn(
                 List.of(PayCycleLifecycle.ACTIVE, PayCycleLifecycle.CANCELLED));
 
-        assertEquals(List.of(first.getCode(), third.getCode()), active.stream().map(PayCycleEntity::getCode).toList());
-        assertEquals(3, all.size());
-        assertEquals(cancelled.getCode(), all.get(1).getCode());
+        assertEquals(List.of(first.getCode(), closed.getCode(), third.getCode()),
+                active.stream().map(PayCycleEntity::getCode).toList());
+        assertEquals(List.of(first.getCode(), closed.getCode(), third.getCode(), cancelled.getCode()),
+                all.stream().map(PayCycleEntity::getCode).toList());
         // the anchor was fetched with the cycle: the model reads its code outside any transaction
         assertEquals(anchor.getCode(), active.get(0).getAnchorSchedule().getCode());
     }
@@ -264,7 +271,9 @@ public class PayCycleRepositoryTest {
     @Test
     void shouldLockOnlyTheCyclesOfTheLifecycleOrderedByStartDate() {
         final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
-        final PayCycleEntity second = cycleRepository.save(cycle(anchor, NOV_5, DEC_7, NOV));
+        final PayCycleEntity second = cycle(anchor, NOV_5, DEC_7, NOV);
+        second.setLifecycle(PayCycleLifecycle.CLOSED);
+        cycleRepository.save(second);
         final PayCycleEntity first = cycleRepository.save(cycle(anchor, OCT_5, NOV_5, OCT));
         final PayCycleEntity cancelled = cycle(anchor, DEC_7, JAN_5, DEC);
         cancelled.setLifecycle(PayCycleLifecycle.CANCELLED);
@@ -278,9 +287,46 @@ public class PayCycleRepositoryTest {
     }
 
     @Test
+    void shouldPreserveClosedCycleCodeAndLifecycleDuringRefresh() {
+        final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
+        holidayCalendarService.reviewYear(2026, List.of());
+        holidayCalendarService.reviewYear(2027, List.of());
+        activate(anchor, OCT_5);
+        materialize(anchor, YearMonth.of(2026, 10), OCT_5);
+        materialize(anchor, YearMonth.of(2026, 11), NOV_5);
+        materialize(anchor, YearMonth.of(2026, 12), DEC_7);
+        materialize(anchor, YearMonth.of(2027, 1), JAN_5);
+
+        final PayCycleEntity closed = cycleRepository.save(cycle(anchor, OCT_5, NOV_5, OCT));
+        closed.setLifecycle(PayCycleLifecycle.CLOSED);
+        cycleRepository.saveAndFlush(closed);
+        cycleRepository.saveAll(List.of(
+                cycle(anchor, NOV_5, DEC_7, NOV),
+                cycle(anchor, DEC_7, JAN_5, DEC)));
+        cycleRepository.flush();
+
+        assertDoesNotThrow(payCycleService::refresh);
+
+        final PayCycleEntity refreshed = cycleRepository.findByCode(closed.getCode()).orElseThrow();
+        assertEquals(closed.getCode(), refreshed.getCode());
+        assertEquals(PayCycleLifecycle.CLOSED, refreshed.getLifecycle());
+    }
+
+    @Test
     void shouldRejectTwoActiveCyclesOfTheSameAnchorOccurrence() {
         final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
         cycleRepository.save(cycle(anchor, NOV_5, DEC_7, NOV));
+
+        assertThrows(DataIntegrityViolationException.class,
+                () -> cycleRepository.saveAndFlush(cycle(anchor, DEC_7, JAN_5, NOV)));
+    }
+
+    @Test
+    void shouldRejectAnActiveCycleWithTheSameAnchorOccurrenceAsAClosedCycle() {
+        final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
+        final PayCycleEntity closed = cycle(anchor, NOV_5, DEC_7, NOV);
+        closed.setLifecycle(PayCycleLifecycle.CLOSED);
+        cycleRepository.saveAndFlush(closed);
 
         assertThrows(DataIntegrityViolationException.class,
                 () -> cycleRepository.saveAndFlush(cycle(anchor, DEC_7, JAN_5, NOV)));
@@ -296,12 +342,34 @@ public class PayCycleRepositoryTest {
     }
 
     @Test
+    void shouldRejectAnActiveCycleWithTheSameStartDateAsAClosedCycle() {
+        final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
+        final PayCycleEntity closed = cycle(anchor, NOV_5, DEC_7, NOV);
+        closed.setLifecycle(PayCycleLifecycle.CLOSED);
+        cycleRepository.saveAndFlush(closed);
+
+        assertThrows(DataIntegrityViolationException.class,
+                () -> cycleRepository.saveAndFlush(cycle(anchor, NOV_5, JAN_5, DEC)));
+    }
+
+    @Test
     void shouldRejectTwoActiveCyclesThatEndOnTheSameDay() {
         final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
         cycleRepository.save(cycle(anchor, NOV_5, JAN_5, NOV));
 
         assertThrows(DataIntegrityViolationException.class,
                 () -> cycleRepository.saveAndFlush(cycle(anchor, DEC_7, JAN_5, DEC)));
+    }
+
+    @Test
+    void shouldRejectAnActiveCycleWithTheSameEndDateAsAClosedCycle() {
+        final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
+        final PayCycleEntity closed = cycle(anchor, NOV_5, DEC_7, NOV);
+        closed.setLifecycle(PayCycleLifecycle.CLOSED);
+        cycleRepository.saveAndFlush(closed);
+
+        assertThrows(DataIntegrityViolationException.class,
+                () -> cycleRepository.saveAndFlush(cycle(anchor, LocalDate.of(2026, 12, 1), DEC_7, DEC)));
     }
 
     @Test
@@ -385,23 +453,20 @@ public class PayCycleRepositoryTest {
     }
 
     @Test
-    void shouldFillTheGeneratedColumnsOnlyWhileTheCycleIsActive() {
+    void shouldFillTheGeneratedColumnsForActiveAndClosedCyclesAndReleaseThemWhenCancelled() {
         final IncomeScheduleEntity anchor = scheduleRepository.save(schedule(true));
-        final PayCycleEntity entity = cycleRepository.save(cycle(anchor, NOV_5, DEC_7, NOV));
+        PayCycleEntity entity = cycleRepository.saveAndFlush(cycle(anchor, NOV_5, DEC_7, NOV));
 
-        final Date activeStart = jdbcTemplate.queryForObject(
-                "SELECT active_start_date FROM pay_cycle WHERE id = ?", Date.class, entity.getId());
-        assertEquals(NOV_5, activeStart.toLocalDate());
+        assertGeneratedCycleKeys(entity);
+
+        entity.setLifecycle(PayCycleLifecycle.CLOSED);
+        entity = cycleRepository.saveAndFlush(entity);
+        assertGeneratedCycleKeys(entity);
 
         entity.setLifecycle(PayCycleLifecycle.CANCELLED);
-        cycleRepository.saveAndFlush(entity);
+        entity = cycleRepository.saveAndFlush(entity);
 
-        final Date cancelledStart = jdbcTemplate.queryForObject(
-                "SELECT active_start_date FROM pay_cycle WHERE id = ?", Date.class, entity.getId());
-        final Date cancelledEnd = jdbcTemplate.queryForObject(
-                "SELECT active_end_date FROM pay_cycle WHERE id = ?", Date.class, entity.getId());
-        assertNull(cancelledStart);
-        assertNull(cancelledEnd);
+        assertGeneratedCycleKeysAreNull(entity);
     }
 
     @Test
@@ -441,7 +506,7 @@ public class PayCycleRepositoryTest {
         assertCheckViolation("ck_pay_cycle_kind",
                 () -> jdbcTemplate.update("UPDATE pay_cycle SET kind = 'SHORT' WHERE id = ?", entity.getId()));
         assertCheckViolation("ck_pay_cycle_lifecycle",
-                () -> jdbcTemplate.update("UPDATE pay_cycle SET lifecycle = 'CLOSED' WHERE id = ?", entity.getId()));
+                () -> jdbcTemplate.update("UPDATE pay_cycle SET lifecycle = 'UNKNOWN' WHERE id = ?", entity.getId()));
     }
 
     @Test
@@ -479,6 +544,32 @@ public class PayCycleRepositoryTest {
         final DataAccessException exception = assertThrows(DataAccessException.class, action);
         final String cause = String.valueOf(NestedExceptionUtils.getMostSpecificCause(exception).getMessage());
         assertTrue(cause.contains(constraint), "expected a violation of " + constraint + " but got: " + cause);
+    }
+
+    private void assertGeneratedCycleKeys(final PayCycleEntity entity) {
+        final Long anchorScheduleId = jdbcTemplate.queryForObject(
+                "SELECT active_anchor_schedule_id FROM pay_cycle WHERE id = ?", Long.class, entity.getId());
+        final Date anchorMonth = jdbcTemplate.queryForObject(
+                "SELECT active_anchor_nominal_month FROM pay_cycle WHERE id = ?", Date.class, entity.getId());
+        final Date start = jdbcTemplate.queryForObject(
+                "SELECT active_start_date FROM pay_cycle WHERE id = ?", Date.class, entity.getId());
+        final Date end = jdbcTemplate.queryForObject(
+                "SELECT active_end_date FROM pay_cycle WHERE id = ?", Date.class, entity.getId());
+        assertNotNull(anchorScheduleId);
+        assertEquals(entity.getAnchorNominalMonth(), anchorMonth.toLocalDate());
+        assertEquals(entity.getStartDate(), start.toLocalDate());
+        assertEquals(entity.getEndDate(), end.toLocalDate());
+    }
+
+    private void assertGeneratedCycleKeysAreNull(final PayCycleEntity entity) {
+        assertNull(jdbcTemplate.queryForObject(
+                "SELECT active_anchor_schedule_id FROM pay_cycle WHERE id = ?", Long.class, entity.getId()));
+        assertNull(jdbcTemplate.queryForObject(
+                "SELECT active_anchor_nominal_month FROM pay_cycle WHERE id = ?", Date.class, entity.getId()));
+        assertNull(jdbcTemplate.queryForObject(
+                "SELECT active_start_date FROM pay_cycle WHERE id = ?", Date.class, entity.getId()));
+        assertNull(jdbcTemplate.queryForObject(
+                "SELECT active_end_date FROM pay_cycle WHERE id = ?", Date.class, entity.getId()));
     }
 
     private IncomeScheduleEntity schedule(final boolean anchor) {

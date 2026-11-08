@@ -89,6 +89,9 @@ public record PayCycle(
         if (lifecycle == PayCycleLifecycle.CANCELLED) {
             return PayCycleStatus.CANCELLED;
         }
+        if (lifecycle == PayCycleLifecycle.CLOSED) {
+            return PayCycleStatus.CLOSED;
+        }
         if (today.isBefore(startDate)) {
             return PayCycleStatus.PLANNED;
         }
