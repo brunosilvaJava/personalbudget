@@ -430,19 +430,12 @@ class PayCycleAdjustmentIntegrationTest {
         assertEquals(PayCycleLifecycle.ACTIVE, find(first).getLifecycle());
         assertEquals(PayCycleLifecycle.CANCELLED, find(second).getLifecycle());
         assertEquals(PayCycleLifecycle.CANCELLED, find(third).getLifecycle());
-        final PayCycleEntity transitionCycle = cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE))
-                .stream()
-                .filter(cycle -> cycle.getKind() == PayCycleKind.TRANSITION)
-                .findFirst()
-                .orElseThrow();
-        assertNull(transitionCycle.getAnchorSchedule());
-        assertNull(transitionCycle.getAnchorNominalMonth());
         final PayCycleEntity firstNew = cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)).stream()
-                .filter(cycle -> cycle.getKind() == PayCycleKind.REGULAR
-                        && cycle.getStartDate().equals(LocalDate.of(2026, 11, 10)))
+                .filter(cycle -> cycle.getKind() == PayCycleKind.REGULAR && cycle.getStartDate().equals(NOV_5))
                 .findFirst()
                 .orElseThrow();
         assertEquals(nextAnchor.getCode(), firstNew.getAnchorSchedule().getCode());
+        assertEquals(3, result.newCycles().size());
         assertEquals(PayCycleAdjustmentType.ANCHOR_TRANSITION, result.adjustment().type());
         assertEquals(first.getCode(), result.adjustment().previousCycleCode());
         assertEquals(firstNew.getCode(), result.adjustment().nextCycleCode());
@@ -474,6 +467,13 @@ class PayCycleAdjustmentIntegrationTest {
         assertEquals(PayCycleKind.TRANSITION, result.newCycles().get(0).cycle().kind());
         assertEquals(NOV_5, result.newCycles().get(0).cycle().startDate());
         assertEquals(LocalDate.of(2026, 11, 10), result.newCycles().get(0).cycle().endDate());
+        final PayCycleEntity transitionCycle = cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE))
+                .stream()
+                .filter(cycle -> cycle.getKind() == PayCycleKind.TRANSITION)
+                .findFirst()
+                .orElseThrow();
+        assertNull(transitionCycle.getAnchorSchedule());
+        assertNull(transitionCycle.getAnchorNominalMonth());
         assertEquals(10, scheduleRepository.findByCode(anchor.getCode()).orElseThrow().getRuleValue());
         assertEquals(PayCycleAdjustmentType.ANCHOR_TRANSITION, result.adjustment().type());
         assertEquals(configVersion, result.adjustment().expectedConfigVersion());

@@ -9,7 +9,6 @@ import com.bts.personalbudget.repository.IncomeScheduleRepository;
 import com.bts.personalbudget.repository.PayCycleConfigRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -104,13 +103,15 @@ public class PayCycleConfigService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "IncomeScheduleEntity not found for code " + anchorScheduleCode));
         entity.setAnchorSchedule(anchor);
-        entityManager.lock(entity, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
-        final PayCycleConfig updated = mapper.toModel(configRepository.saveAndFlush(entity));
-        // The forced version increment may be deferred until commit, but the response is built before then.
-        return updated.version() > currentVersion
-                ? updated
-                : new PayCycleConfig(updated.code(), updated.mode(), updated.anchorScheduleCode(),
-                        updated.activationDate(), currentVersion + 1);
+        entityManager.flush();
+        // A same-anchor rule change leaves this row clean, so persist its version explicitly.
+        if (entity.getVersion() == currentVersion
+                && configRepository.incrementVersion(entity.getId(), currentVersion) != 1) {
+            throw new ConflictException(
+                    "A configuração dos ciclos foi alterada por outra operação; recarregue e tente novamente");
+        }
+        entityManager.refresh(entity);
+        return mapper.toModel(entity);
     }
 
     private PayCycleConfigEntity lockEntity() {

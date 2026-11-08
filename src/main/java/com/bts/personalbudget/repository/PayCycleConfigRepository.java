@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -46,5 +48,13 @@ public interface PayCycleConfigRepository extends JpaRepository<PayCycleConfigEn
     default Optional<PayCycleConfigEntity> findSingleForUpdate() {
         return findAllForUpdate().stream().findFirst();
     }
+
+    @Modifying
+    @Query(value = """
+            UPDATE pay_cycle_config
+            SET version = version + 1
+            WHERE id = :id AND version = :expectedVersion
+            """, nativeQuery = true)
+    int incrementVersion(@Param("id") Long id, @Param("expectedVersion") Long expectedVersion);
 
 }
