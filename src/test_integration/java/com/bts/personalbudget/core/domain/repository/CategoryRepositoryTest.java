@@ -8,6 +8,7 @@ import com.bts.personalbudget.repository.CategoryGroupRepository;
 import com.bts.personalbudget.repository.CategoryRepository;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +56,50 @@ public class CategoryRepositoryTest {
                 .findFirst()
                 .orElseThrow();
         assertEquals(7, receitas.getDisplayOrder());
+    }
+
+    @Test
+    void shouldSeedInitialCategoriesWithTheirGroupsAndOperationTypes() {
+        final List<SeededCategory> expected = List.of(
+                new SeededCategory("Residência", "Aluguel/Financiamento", OperationType.DEBIT),
+                new SeededCategory("Residência", "Água", OperationType.DEBIT),
+                new SeededCategory("Residência", "Energia elétrica", OperationType.DEBIT),
+                new SeededCategory("Residência", "Gás", OperationType.DEBIT),
+                new SeededCategory("Residência", "Internet", OperationType.DEBIT),
+                new SeededCategory("Residência", "Manutenção da casa", OperationType.DEBIT),
+                new SeededCategory("Pessoal", "Alimentação", OperationType.DEBIT),
+                new SeededCategory("Pessoal", "Saúde", OperationType.DEBIT),
+                new SeededCategory("Pessoal", "Vestuário", OperationType.DEBIT),
+                new SeededCategory("Pessoal", "Lazer", OperationType.DEBIT),
+                new SeededCategory("Pessoal", "Cuidados pessoais", OperationType.DEBIT),
+                new SeededCategory("Instrução", "Educação", OperationType.DEBIT),
+                new SeededCategory("Instrução", "Cursos", OperationType.DEBIT),
+                new SeededCategory("Instrução", "Livros e materiais", OperationType.DEBIT),
+                new SeededCategory("Moto", "Combustível", OperationType.DEBIT),
+                new SeededCategory("Moto", "Manutenção", OperationType.DEBIT),
+                new SeededCategory("Moto", "Seguro", OperationType.DEBIT),
+                new SeededCategory("Moto", "Documentação", OperationType.DEBIT),
+                new SeededCategory("Investimento", "Reserva de emergência", OperationType.DEBIT),
+                new SeededCategory("Investimento", "Investimentos", OperationType.DEBIT),
+                new SeededCategory("Outros", "Impostos e taxas", OperationType.DEBIT),
+                new SeededCategory("Outros", "Doações", OperationType.DEBIT),
+                new SeededCategory("Outros", "Outros", OperationType.DEBIT),
+                new SeededCategory("Receitas", "Salário", OperationType.CREDIT),
+                new SeededCategory("Receitas", "Renda extra", OperationType.CREDIT),
+                new SeededCategory("Receitas", "Rendimentos", OperationType.CREDIT),
+                new SeededCategory("Receitas", "Reembolso", OperationType.CREDIT),
+                new SeededCategory("Receitas", "Outros", OperationType.CREDIT)
+        );
+
+        final List<SeededCategory> actual = categoryRepository.findByFilters(
+                        null, List.of(CategoryStatus.ACTIVE), null).stream()
+                .filter(category -> SEEDED_GROUPS.contains(category.getCategoryGroup().getName()))
+                .map(category -> new SeededCategory(
+                        category.getCategoryGroup().getName(), category.getName(), category.getOperationType()))
+                .toList();
+
+        assertEquals(expected.size(), actual.size());
+        assertEquals(Set.copyOf(expected), Set.copyOf(actual));
     }
 
     @Test
@@ -182,6 +227,9 @@ public class CategoryRepositoryTest {
 
     private List<UUID> codes(final List<CategoryEntity> categories) {
         return categories.stream().map(CategoryEntity::getCode).toList();
+    }
+
+    private record SeededCategory(String groupName, String name, OperationType operationType) {
     }
 
 }
