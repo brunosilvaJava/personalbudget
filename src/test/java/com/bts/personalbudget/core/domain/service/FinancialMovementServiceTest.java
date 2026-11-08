@@ -9,6 +9,8 @@ import com.bts.personalbudget.core.domain.factory.FinancialMovementFactory.Finan
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
 import com.bts.personalbudget.core.domain.service.category.CategoryService;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleMovementGuard;
+import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
@@ -73,6 +75,9 @@ class FinancialMovementServiceTest {
 
     @Mock
     private IncomeOccurrenceRepository incomeOccurrenceRepository;
+
+    @Mock
+    private PayCycleMovementGuard payCycleMovementGuard;
 
     @Spy
     private FinancialMovementMapper mapper = FinancialMovementMapper.INSTANCE;
@@ -190,6 +195,35 @@ class FinancialMovementServiceTest {
         assertEquals(now, updatedFinancialMovement.dueDate());
         assertEquals(now, updatedFinancialMovement.payDate());
         assertEquals(status, updatedFinancialMovement.status());
+    }
+
+    @Test
+    void shouldAllowRecordingPaymentOnAClosedCycleMovement() {
+        final FinancialMovementEntity entity = FinancialMovementFactory.buildEntity();
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+        final FinancialMovementUpdate payment = new FinancialMovementUpdate(
+                entity.getCode(), null, null, null, new BigDecimal("25.00"), null, null,
+                LocalDateTime.now(clock), FinancialMovementStatus.PAID_OUT, null, null, false);
+
+        financialMovementService.update(payment);
+
+        verify(payCycleMovementGuard).lock();
+        verify(payCycleMovementGuard, never()).requireEditable(any());
+    }
+
+    @Test
+    void shouldRequireReopeningBeforeChangingTheAmount() {
+        final FinancialMovementEntity entity = FinancialMovementFactory.buildEntity();
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+        org.mockito.Mockito.doThrow(new ConflictException("Ciclo fechado"))
+                .when(payCycleMovementGuard).requireEditable(any());
+        final FinancialMovementUpdate amountChange = new FinancialMovementUpdate(
+                entity.getCode(), null, null, new BigDecimal("25.00"), null, null, null,
+                null, null, null, null, false);
+
+        assertThrows(ConflictException.class, () -> financialMovementService.update(amountChange));
+
+        verify(repository, never()).save(any());
     }
 
     @Test

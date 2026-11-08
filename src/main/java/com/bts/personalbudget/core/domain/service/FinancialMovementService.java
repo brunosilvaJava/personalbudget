@@ -8,6 +8,7 @@ import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.core.domain.service.category.CategoryService;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleMovementGuard;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import com.bts.personalbudget.repository.FinancialMovementSpecifications;
@@ -28,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.LATE;
@@ -44,6 +46,7 @@ public class FinancialMovementService {
     private final CategoryService categoryService;
     private final IncomeOccurrenceRepository incomeOccurrenceRepository;
     private final Clock clock;
+    private final PayCycleMovementGuard payCycleMovementGuard;
 
     /**
      * The category is validated only for a movement the user creates. One generated from a
@@ -53,16 +56,21 @@ public class FinancialMovementService {
     @Transactional
     public FinancialMovement create(final FinancialMovement financialMovement) {
         log.info("m=create, financialMovement={}", financialMovement);
+        final FinancialMovement movementWithStatus = markOverdueAsLateWhenPending(financialMovement);
+        final FinancialMovement movementToCreate = withCompetence(movementWithStatus);
+        payCycleMovementGuard.lock();
+        payCycleMovementGuard.requireEditable(movementToCreate.competenceDate());
         if (financialMovement.recurrenceBillCode() == null && financialMovement.categoryCode() != null) {
             categoryService.validateForUse(financialMovement.categoryCode(), financialMovement.operationType());
         }
-        final FinancialMovement movementWithStatus = markOverdueAsLateWhenPending(financialMovement);
-        return mapper.toModel(repository.save(mapper.toEntity(withCompetence(movementWithStatus))));
+        return mapper.toModel(repository.save(mapper.toEntity(movementToCreate)));
     }
 
     @Transactional
     public FinancialMovement createWithAutomaticCompetence(final FinancialMovement financialMovement) {
         log.info("m=createWithAutomaticCompetence, financialMovement={}", financialMovement);
+        payCycleMovementGuard.lock();
+        payCycleMovementGuard.requireEditable(financialMovement.competenceDate());
         return mapper.toModel(repository.save(mapper.toEntity(
                 markOverdueAsLateWhenPending(financialMovement)
                         .withCompetence(financialMovement.competenceDate(), false))));
@@ -187,7 +195,12 @@ public class FinancialMovementService {
     @Transactional
     public FinancialMovement update(final FinancialMovementUpdate financialMovement) {
         log.info("m=update, financialMovement={}", financialMovement);
+        payCycleMovementGuard.lock();
         final FinancialMovementEntity financialMovementEntity = findEntity(financialMovement.code());
+        if (changesClosedBudget(financialMovement, financialMovementEntity)) {
+            payCycleMovementGuard.requireEditable(financialMovementEntity.getCompetenceDate());
+            payCycleMovementGuard.requireEditable(proposedCompetence(financialMovement, financialMovementEntity));
+        }
         validateCategoryOnUpdate(financialMovement, financialMovementEntity);
         update(financialMovement, financialMovementEntity);
         return mapper.toModel(financialMovementEntity);
@@ -258,6 +271,36 @@ public class FinancialMovementService {
 
         normalizeAmountSigns(financialMovementEntity);
         updateCompetence(financialMovement, financialMovementEntity);
+    }
+
+    private boolean changesClosedBudget(final FinancialMovementUpdate changes,
+                                        final FinancialMovementEntity current) {
+        final boolean operationTypeChanged = changes.operationType() != null
+                && changes.operationType() != current.getOperationType();
+        final boolean amountChanged = changes.amount() != null
+                && !changes.amount().equals(current.getAmount());
+        final boolean categoryChanged = changes.categoryCode() != null
+                && !changes.categoryCode().equals(current.getCategoryCode());
+        final boolean competenceChanged = changes.competenceDate() != null
+                || changes.restoreAutomaticCompetence() && Boolean.TRUE.equals(current.getCompetenceOverridden())
+                || !Objects.equals(current.getCompetenceDate(), proposedCompetence(changes, current));
+        return operationTypeChanged || amountChanged || categoryChanged || competenceChanged;
+    }
+
+    private LocalDate proposedCompetence(final FinancialMovementUpdate changes,
+                                         final FinancialMovementEntity current) {
+        if (changes.competenceDate() != null) {
+            return changes.competenceDate();
+        }
+        if (changes.restoreAutomaticCompetence()) {
+            return automaticCompetence(current);
+        }
+        if (!Boolean.TRUE.equals(current.getCompetenceOverridden())
+                && current.getRecurrenceBillCode() == null
+                && changes.movementDate() != null) {
+            return changes.movementDate().toLocalDate();
+        }
+        return current.getCompetenceDate();
     }
 
     /**
@@ -332,18 +375,21 @@ public class FinancialMovementService {
     @Transactional
     public void delete(final UUID code) {
         log.info("m=delete, code={}", code);
+        payCycleMovementGuard.lock();
         final FinancialMovementEntity financialMovementEntity = repository.findByCode(code)
                 .orElseThrow(() -> new EntityNotFoundException("FinancialMovementEntity not found for code " + code));
         if (!Boolean.TRUE.equals(financialMovementEntity.getFlagActive())) {
             log.info("m=delete, code={}, msg=already_deleted", code);
             return;
         }
+        payCycleMovementGuard.requireEditable(financialMovementEntity.getCompetenceDate());
         financialMovementEntity.delete();
     }
 
     @Transactional
     public int markOverdueAsLate(final LocalDate today) {
         log.info("m=markOverdueAsLate, today={}", today);
+        payCycleMovementGuard.lock();
         final int updated = repository.markOverduePendingAsLate(
                 PENDING, LATE, today.atStartOfDay(), Instant.now(clock));
         log.info("m=markOverdueAsLate, today={}, updated={}", today, updated);

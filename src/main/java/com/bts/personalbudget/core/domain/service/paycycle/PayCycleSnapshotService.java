@@ -33,8 +33,8 @@ public class PayCycleSnapshotService {
 
     /**
      * Called in the same transaction that locks configuration, anchor and cycle in that order,
-     * closes and flushes the cycle, then calculates its summary at the resulting version. This
-     * layer does not expose closure until recovery and movement guards are integrated.
+     * closes and flushes the cycle, then calculates its summary at the resulting version. The
+     * caller owns the transaction and the configuration, anchor, and cycle locks.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public PayCycleSnapshot recordClosure(final PayCycleSummary summary) {

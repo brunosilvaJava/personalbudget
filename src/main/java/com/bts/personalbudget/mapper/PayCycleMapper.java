@@ -9,6 +9,8 @@ import com.bts.personalbudget.controller.paycycle.PayCycleAnchorTransitionReques
 import com.bts.personalbudget.controller.paycycle.PayCycleAnchorTransitionResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleConfigResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleCurrentNotFoundResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleClosurePreviewResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleClosureResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentPreviewResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleIncomeImpactResponse;
@@ -16,12 +18,16 @@ import com.bts.personalbudget.controller.paycycle.PayCycleMovementImpactResponse
 import com.bts.personalbudget.controller.paycycle.PayCyclePendingResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleSummaryResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleSnapshotResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleSummaryResponse.PayCycleSummaryCategoryResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleSummaryResponse.PayCycleSummaryPendingResponse;
 import com.bts.personalbudget.core.domain.entity.IncomeScheduleEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleAdjustmentEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleConfigEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleEntity;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleClosurePreview;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleClosureResult;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleSnapshot;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.income.IncomeOccurrenceImpact;
@@ -145,6 +151,43 @@ public interface PayCycleMapper {
                 summary.projectionIncomplete(),
                 summary.categories().stream().map(this::toSummaryCategoryResponse).toList(),
                 summary.pending().stream().map(this::toSummaryPendingResponse).toList());
+    }
+
+    default PayCycleClosurePreviewResponse toResponse(final PayCycleClosurePreview preview) {
+        return new PayCycleClosurePreviewResponse(
+                toSummaryResponse(preview.summary()),
+                preview.summary().cycle().cycle().version(),
+                preview.canClose(),
+                preview.blockers(),
+                preview.lateMovements().stream().map(FinancialMovement::code).toList());
+    }
+
+    default PayCycleClosureResponse toResponse(final PayCycleClosureResult result) {
+        return new PayCycleClosureResponse(
+                toResponse(result.cycle()),
+                toSnapshotResponse(result.snapshot()));
+    }
+
+    default PayCycleSnapshotResponse toSnapshotResponse(final PayCycleSnapshot snapshot) {
+        return new PayCycleSnapshotResponse(
+                snapshot.code(),
+                snapshot.cycleCode(),
+                snapshot.snapshotVersion(),
+                snapshot.cycleVersion(),
+                snapshot.closedAt(),
+                snapshot.recognizedRevenue(),
+                snapshot.recognizedExpense(),
+                snapshot.projectedRevenue(),
+                snapshot.projectedExpense(),
+                snapshot.categories().stream()
+                        .map(category -> new PayCycleSnapshotResponse.Category(
+                                category.categoryCode(), category.categoryName(), category.operationType(),
+                                category.recognizedAmount(), category.projectedAmount()))
+                        .toList());
+    }
+
+    default List<PayCycleSnapshotResponse> toSnapshotResponseList(final List<PayCycleSnapshot> snapshots) {
+        return snapshots.stream().map(this::toSnapshotResponse).toList();
     }
 
     default PayCycleSummaryCategoryResponse toSummaryCategoryResponse(final PayCycleSummary.CategoryDetail category) {
