@@ -102,10 +102,9 @@ Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{F
 
 ## Estado atual (atualizar a cada etapa)
 
-- `master` inclui o pacote de ajustes do backend (PR #79), migrations V1 a V13 e o ciclo financeiro até a **E4b** (PR #76). A camada 1 da **E4c** está nesta branch: guarda da agenda âncora e transição com histórico. Esta branch adiciona V14; a prévia do calendário e o recálculo após commit ficam para um PR empilhado da camada 2.
+- `master` inclui o pacote de ajustes do backend (PR #79), migrations V1 a V13 e o ciclo financeiro até a **E4b** (PR #76). A camada 1 da **E4c** foi entregue no PR #80: guarda da agenda âncora, transição com histórico e V14. Esta branch entrega a camada 2, empilhada sobre o PR #80: prévia de fronteiras/divergências do calendário e refresh em `REQUIRES_NEW` após commit. A prévia agora retorna um objeto com `income_occurrences`, `cycle_boundaries` e `cycle_divergences`, em vez do array na raiz (quebra de contrato autorizada).
 - **Fila de trabalho (nesta ordem):**
-  1. **E4c — camada 2:** prévia do impacto do calendário de feriados nos ciclos e recálculo após commit.
-  2. **Seed das categorias** (a lista inicial ainda será ajustada pelo usuário).
+  1. **Seed das categorias** (a lista inicial ainda será ajustada pelo usuário).
 - **Pacote de ajustes do back para o front entregue:** respostas da parcelada incluem `installment_count` e `next_installment_date`; alterar `purchase_date` recalcula a próxima data apenas antes da primeira parcela, total atualizado igual ao contador conclui a conta, e o PATCH lança parcelas vencidas na mesma transação; DELETE de movimentação e parcelada é idempotente; movimentações vencidas viram `LATE` ao criar/editar e no job, e o update volta para `PENDING` quando o vencimento passa para hoje ou depois; grupo de categorias "Receitas" adicionado na V13.
 - `installment_total` não pode ser reduzido abaixo de `installment_count`; o job atualiza `last_modified_date` junto com o status. DELETE repetido de conta fixa ainda responde 404; pode ser alinhado à idempotência em uma etapa posterior.
 - `amount` da parcelada é o valor de cada parcela.

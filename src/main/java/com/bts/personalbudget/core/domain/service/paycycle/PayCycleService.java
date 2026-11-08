@@ -6,7 +6,10 @@ import com.bts.personalbudget.core.domain.enumerator.PayCycleAdjustmentType;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleTransitionShape;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.core.domain.service.calendar.Holiday;
+import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendar;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarService;
+import com.bts.personalbudget.core.domain.service.income.IncomeOccurrence;
 import com.bts.personalbudget.core.domain.service.income.IncomeSchedule;
 import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
 import com.bts.personalbudget.core.domain.service.income.IncomeScheduleUpdate;
@@ -27,10 +30,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -98,6 +104,62 @@ public class PayCycleService {
 
         final PayCyclePlan plan = plan(anchor, initialDate, List.of(), today);
         return new PayCycleActivationPreview(config.version(), toViews(plan.cycles(), today, plan.pending()), plan.pending());
+    }
+
+    /**
+     * Compares two refresh simulations to isolate the calendar's impact from unrelated pending
+     * upkeep. Only stored boundaries can move; frozen ones instead produce divergences.
+     */
+    @Transactional(readOnly = true)
+    public PayCycleCalendarImpact previewCalendarChange(final int year, final List<Holiday> holidays) {
+        log.info("m=previewCalendarChange, year={}, holidays={}", year, holidays.size());
+        holidayCalendarService.validateYear(year);
+        final HolidayCalendar current = holidayCalendarService.findCalendar();
+        final HolidayCalendar proposed = current.replacingYear(year, holidays);
+        final PayCycleConfig config = configService.find();
+        if (!config.isPayCycle()) {
+            return new PayCycleCalendarImpact(List.of(), List.of());
+        }
+        final LocalDate today = LocalDate.now(clock);
+        final IncomeSchedule anchor = incomeScheduleService.findByCode(config.anchorScheduleCode());
+        final List<IncomeOccurrence> materialized = incomeScheduleService.findMaterializedOccurrences(anchor.code());
+        final List<PayCycle> chain = mapper.toModelList(currentChain(
+                cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)), config));
+        final PayCyclePlan before = PayCyclePlanner.plan(
+                new Request(anchor, materialized, current, config.activationDate(), chain, today));
+        final PayCyclePlan after = PayCyclePlanner.plan(
+                new Request(anchor, materialized, proposed, config.activationDate(), chain, today));
+        final Map<UUID, PayCycle> beforeByCode = new HashMap<>();
+        final Map<UUID, PayCycle> afterByCode = new HashMap<>();
+        before.cycles().forEach(cycle -> beforeByCode.put(cycle.code(), cycle));
+        after.cycles().forEach(cycle -> afterByCode.put(cycle.code(), cycle));
+        final List<PayCycleBoundaryImpact> boundaries = new ArrayList<>();
+        for (int i = 0; i < chain.size(); i++) {
+            final PayCycle previous = beforeByCode.get(chain.get(i).code());
+            final PayCycle next = afterByCode.get(chain.get(i).code());
+            if (!previous.endDate().equals(next.endDate())) {
+                boundaries.add(new PayCycleBoundaryImpact(previous.code(),
+                        i + 1 < chain.size() ? chain.get(i + 1).code() : null,
+                        previous.endDate(), next.endDate()));
+            }
+        }
+        final Set<UUID> storedCodes = chain.stream().map(PayCycle::code).collect(Collectors.toSet());
+        final List<PayCyclePending> previousDivergences = calendarDivergences(before, storedCodes);
+        final List<PayCyclePending> divergences = calendarDivergences(after, storedCodes).stream()
+                .filter(pending -> !previousDivergences.contains(pending))
+                .toList();
+        return new PayCycleCalendarImpact(boundaries, divergences);
+    }
+
+    private List<PayCyclePending> calendarDivergences(final PayCyclePlan plan, final Set<UUID> storedCodes) {
+        return plan.pending().stream()
+                .filter(pending -> pending.type() == PayCyclePending.Type.BOUNDARY_DIVERGES_FROM_ANCHOR)
+                // Simulated horizon cycles have random codes, not persistent public identifiers.
+                .map(pending -> PayCyclePending.boundaryDiverges(
+                        storedCodes.contains(pending.cycleCode()) ? pending.cycleCode() : null,
+                        pending.nominalMonth(), pending.boundaryDate(), pending.anchorDate()))
+                .distinct()
+                .toList();
     }
 
     /**
@@ -491,7 +553,7 @@ public class PayCycleService {
      * and adds the cycles the horizon needs. Idempotent: with nothing changed it writes nothing. Does
      * nothing in CALENDAR_MONTH. Called by the nightly job after the day's receipts are posted.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void refresh() {
         log.info("m=refresh");
         final LocalDate today = LocalDate.now(clock);

@@ -1,6 +1,6 @@
 package com.bts.personalbudget.controller.holidaycalendar.config;
 
-import com.bts.personalbudget.controller.holidaycalendar.HolidayChangeImpactResponse;
+import com.bts.personalbudget.controller.holidaycalendar.HolidayCalendarPreviewResponse;
 import com.bts.personalbudget.controller.holidaycalendar.HolidayYearRequest;
 import com.bts.personalbudget.controller.holidaycalendar.HolidayYearResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,7 +48,9 @@ public interface HolidayCalendarControllerApiDocs {
             description = "Replaces the holidays of the year with the list sent and marks the year as reviewed, "
                     + "even with an empty list. Income occurrences already generated keep the date they were "
                     + "generated on; the ones not generated yet follow the new calendar. "
-                    + "Use the preview endpoint of the income schedules to see which dates would move.")
+                    + "Pay cycles refresh only after commit, in a new transaction. A refresh failure is logged "
+                    + "and does not undo this review; the daily job retries. Use this calendar's preview to see "
+                    + "which income dates and cycle boundaries would move.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Year reviewed",
                     content = @Content(schema = @Schema(implementation = HolidayYearResponse.class))),
@@ -62,13 +64,20 @@ public interface HolidayCalendarControllerApiDocs {
             summary = "Preview the review of a year",
             description = "Shows which income occurrences not generated yet would move, or stop being calculable, "
                     + "if the year were reviewed with the holidays sent. Changes nothing: occurrences already "
-                    + "generated keep their date and are not listed.")
+                    + "generated keep their date and are not listed. The response is an object (not the former "
+                    + "root array): income_occurrences keeps the former items; cycle_boundaries lists existing "
+                    + "boundaries whose dates differ between refresh simulations under the current and proposed "
+                    + "calendar, once per shared boundary, including the stored chain's final end; "
+                    + "cycle_divergences lists new or changed BOUNDARY_DIVERGES_FROM_ANCHOR pendencies. "
+                    + "Frozen boundaries never move. Cycle lists are empty in CALENDAR_MONTH. "
+                    + "New horizon cycles are not listed as moved boundaries.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Occurrences affected by the review; empty when none is"),
+            @ApiResponse(responseCode = "200", description = "Review impact; all lists empty when nothing changes",
+                    content = @Content(schema = @Schema(implementation = HolidayCalendarPreviewResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid year, holiday outside the year or two holidays on the same date")
     })
     @PostMapping("/{year}/preview")
-    ResponseEntity<List<HolidayChangeImpactResponse>> previewReview(@PathVariable int year,
+    ResponseEntity<HolidayCalendarPreviewResponse> previewReview(@PathVariable int year,
                                                                     @RequestBody @Valid HolidayYearRequest request);
 
 }
