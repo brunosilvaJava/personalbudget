@@ -55,4 +55,22 @@ public class PayCycleConfigController implements PayCycleConfigControllerApiDocs
                 payCycleService.deactivate(request.expectedVersion(), request.justification())));
     }
 
+    @Override
+    @PostMapping("/anchor_transition/preview")
+    public ResponseEntity<PayCycleAnchorTransitionPreviewResponse> previewAnchorTransition(
+            @Valid @RequestBody PayCycleAnchorTransitionPreviewRequest request) {
+        log.info("m=previewAnchorTransition, request={}", request);
+        return ResponseEntity.ok(payCycleMapper.toResponse(
+                payCycleService.previewAnchorTransition(payCycleMapper.toModel(request))));
+    }
+
+    @Override
+    @PostMapping("/anchor_transition")
+    public ResponseEntity<PayCycleAnchorTransitionResponse> transitionAnchor(
+            @Valid @RequestBody PayCycleAnchorTransitionRequest request) {
+        log.info("m=transitionAnchor, request={}", request);
+        return ResponseEntity.ok(payCycleMapper.toResponse(
+                payCycleService.transitionAnchor(payCycleMapper.toModel(request))));
+    }
+
 }

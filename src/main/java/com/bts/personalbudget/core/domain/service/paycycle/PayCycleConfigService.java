@@ -7,7 +7,9 @@ import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.mapper.PayCycleMapper;
 import com.bts.personalbudget.repository.IncomeScheduleRepository;
 import com.bts.personalbudget.repository.PayCycleConfigRepository;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,7 @@ public class PayCycleConfigService {
     private final PayCycleConfigRepository configRepository;
     private final IncomeScheduleRepository scheduleRepository;
     private final PayCycleMapper mapper;
+    private final EntityManager entityManager;
 
     public PayCycleConfig find() {
         log.info("m=find");
@@ -82,6 +85,32 @@ public class PayCycleConfigService {
         entity.setAnchorSchedule(null);
         entity.setActivationDate(null);
         return mapper.toModel(configRepository.saveAndFlush(entity));
+    }
+
+    /**
+     * Updates the anchor while PAY_CYCLE stays active. The forced optimistic increment makes the
+     * preview version stale after every applied transition, including a rule change on the same
+     * schedule where the configuration columns themselves do not change.
+     */
+    @Transactional
+    public PayCycleConfig switchAnchor(final UUID anchorScheduleCode) {
+        log.info("m=switchAnchor, anchorScheduleCode={}", anchorScheduleCode);
+        final PayCycleConfigEntity entity = lockEntity();
+        if (entity.getMode() != PayCycleMode.PAY_CYCLE) {
+            throw new ConflictException("Os ciclos financeiros não estão ativados");
+        }
+        final long currentVersion = entity.getVersion();
+        final IncomeScheduleEntity anchor = scheduleRepository.findByCode(anchorScheduleCode)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "IncomeScheduleEntity not found for code " + anchorScheduleCode));
+        entity.setAnchorSchedule(anchor);
+        entityManager.lock(entity, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
+        final PayCycleConfig updated = mapper.toModel(configRepository.saveAndFlush(entity));
+        // The forced version increment may be deferred until commit, but the response is built before then.
+        return updated.version() > currentVersion
+                ? updated
+                : new PayCycleConfig(updated.code(), updated.mode(), updated.anchorScheduleCode(),
+                        updated.activationDate(), currentVersion + 1);
     }
 
     private PayCycleConfigEntity lockEntity() {

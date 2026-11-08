@@ -15,6 +15,9 @@ import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillUpdate;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleConfig;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleConfigService;
+import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.IncomeScheduleMapper;
 import com.bts.personalbudget.repository.IncomeOccurrenceRepository;
@@ -29,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -75,6 +79,7 @@ public class IncomeScheduleService {
     private final FinancialMovementService financialMovementService;
     private final FixedBillService fixedBillService;
     private final CategoryService categoryService;
+    private final PayCycleConfigService payCycleConfigService;
     private final Clock clock;
 
     /**
@@ -119,6 +124,12 @@ public class IncomeScheduleService {
         }
 
         final IncomeSchedule updated = applyChanges(current, changes);
+        if (isConfiguredAnchor(code)
+                && (!current.rule().equals(updated.rule())
+                || !Objects.equals(current.endMonth(), updated.endMonth())
+                || current.anchor() != updated.anchor())) {
+            throw anchorTransitionRequired();
+        }
         if (updated.equals(current)) {
             log.info("m=update, message=NoChangesDetected, code={}", code);
             return current;
@@ -195,6 +206,56 @@ public class IncomeScheduleService {
     public IncomeSchedule findByCodeForUpdate(final UUID code) {
         log.info("m=findByCodeForUpdate, code={}", code);
         return mapper.toModel(lockEntity(code));
+    }
+
+    public IncomeSchedule previewAnchorRuleTransition(final UUID code, final IncomeScheduleUpdate changes) {
+        log.info("m=previewAnchorRuleTransition, code={}, changes={}", code, changes);
+        final IncomeSchedule current = mapper.toModel(findEntity(code));
+        if (!current.isActive() || !current.anchor()) {
+            throw new ConflictException("A agenda âncora foi alterada por outra operação; recarregue e tente novamente");
+        }
+        return applyChanges(current, changes);
+    }
+
+    /**
+     * The schedule whose rule is being changed by the explicit pay-cycle transition. The caller has
+     * already acquired the configuration and schedule locks in the required order.
+     */
+    @Transactional
+    public IncomeSchedule updateForAnchorTransition(final UUID code, final IncomeScheduleUpdate changes) {
+        log.info("m=updateForAnchorTransition, code={}, changes={}", code, changes);
+        final IncomeScheduleEntity entity = lockEntity(code);
+        final IncomeSchedule current = mapper.toModel(entity);
+        if (!current.isActive() || !current.anchor()) {
+            throw new ConflictException("A agenda âncora foi alterada por outra operação; recarregue e tente novamente");
+        }
+        final IncomeSchedule updated = applyChanges(current, changes);
+        mapper.copyEditableFields(updated, entity);
+        return mapper.toModel(scheduleRepository.saveAndFlush(entity));
+    }
+
+    /**
+     * Switches the active anchor without ever leaving two active anchor rows, while retaining both
+     * schedule locks until the enclosing transition commits.
+     */
+    @Transactional
+    public IncomeSchedule switchAnchorForTransition(final UUID previousCode, final UUID nextCode) {
+        log.info("m=switchAnchorForTransition, previousCode={}, nextCode={}", previousCode, nextCode);
+        final IncomeScheduleEntity previous = lockEntity(previousCode);
+        if (previousCode.equals(nextCode)) {
+            return mapper.toModel(previous);
+        }
+        final IncomeScheduleEntity next = lockEntity(nextCode);
+        if (next.getStatus() != IncomeScheduleStatus.ACTIVE) {
+            throw invalid("anchorScheduleCode", "a nova agenda âncora deve estar ativa");
+        }
+        if (!Boolean.TRUE.equals(previous.getAnchor()) || Boolean.TRUE.equals(next.getAnchor())) {
+            throw new ConflictException("A agenda âncora foi alterada por outra operação; recarregue e tente novamente");
+        }
+        previous.setAnchor(false);
+        scheduleRepository.saveAndFlush(previous);
+        next.setAnchor(true);
+        return mapper.toModel(scheduleRepository.saveAndFlush(next));
     }
 
     /**
@@ -600,12 +661,16 @@ public class IncomeScheduleService {
             log.info("m=changeStatus, message=StatusAlreadySet, code={}, status={}", code, newStatus);
             return mapper.toModel(entity);
         }
+        if (newStatus == IncomeScheduleStatus.INACTIVE && isConfiguredAnchor(code)) {
+            throw anchorTransitionRequired();
+        }
         if (newStatus == IncomeScheduleStatus.ACTIVE) {
             final UUID fixedBillCode = entity.getReplacesFixedBillCode();
             if (fixedBillCode != null) {
                 fixedBillService.findByCodeForUpdate(fixedBillCode);
                 rejectActiveReplacement(fixedBillCode, code);
             }
+
             if (Boolean.TRUE.equals(entity.getAnchor())) {
                 rejectSecondActiveAnchor(code);
             }
@@ -619,6 +684,16 @@ public class IncomeScheduleService {
         }
         entity.setStatus(newStatus);
         return mapper.toModel(scheduleRepository.save(entity));
+    }
+
+    private boolean isConfiguredAnchor(final UUID code) {
+        final PayCycleConfig config = payCycleConfigService.find();
+        return config.isPayCycle() && code.equals(config.anchorScheduleCode());
+    }
+
+    private ConflictException anchorTransitionRequired() {
+        return new ConflictException("A agenda âncora não pode mudar enquanto os ciclos estão ativos; "
+                + "use a transição de âncora");
     }
 
     /**

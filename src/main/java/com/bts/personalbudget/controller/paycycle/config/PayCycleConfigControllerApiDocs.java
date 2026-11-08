@@ -3,6 +3,10 @@ package com.bts.personalbudget.controller.paycycle.config;
 import com.bts.personalbudget.controller.paycycle.PayCycleActivationPreviewRequest;
 import com.bts.personalbudget.controller.paycycle.PayCycleActivationPreviewResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleActivationRequest;
+import com.bts.personalbudget.controller.paycycle.PayCycleAnchorTransitionPreviewRequest;
+import com.bts.personalbudget.controller.paycycle.PayCycleAnchorTransitionPreviewResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleAnchorTransitionRequest;
+import com.bts.personalbudget.controller.paycycle.PayCycleAnchorTransitionResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleConfigResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleDeactivationRequest;
 import com.bts.personalbudget.exception.ErrorResponse;
@@ -89,5 +93,43 @@ public interface PayCycleConfigControllerApiDocs {
     })
     @PostMapping("/deactivation")
     ResponseEntity<PayCycleConfigResponse> deactivate(@Valid @RequestBody PayCycleDeactivationRequest request);
+
+    @Operation(
+            summary = "Preview an anchor transition",
+            description = "Previews changing the current anchor rule or switching to another active schedule. "
+                    + "Started cycles and the last frozen boundary are preserved; future cycles that would be "
+                    + "cancelled, created, or diverge are listed. Switching schedules requires transition_shape "
+                    + "(SHORT or LONG) when the first new occurrence is after the frozen boundary. If the first "
+                    + "occurrence is exactly on that boundary it continues regularly, without a TRANSITION. "
+                    + "A same-schedule rule change derives SHORT or LONG from the direction of the date change. "
+                    + "No dates are invented when a holiday year is not reviewed.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The preview, with no writes",
+                    content = @Content(schema = @Schema(implementation = PayCycleAnchorTransitionPreviewResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid transition data or missing transition_shape"),
+            @ApiResponse(responseCode = "409", description = "Cycles are off or the proposed transition cannot be calculated",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/anchor_transition/preview")
+    ResponseEntity<PayCycleAnchorTransitionPreviewResponse> previewAnchorTransition(
+            @Valid @RequestBody PayCycleAnchorTransitionPreviewRequest request);
+
+    @Operation(
+            summary = "Apply an anchor transition",
+            description = "Applies the rule change or anchor switch and rebuilds future cycles from the frozen "
+                    + "boundary. expected_version must be the configuration version returned by the preview. "
+                    + "A justification of up to 500 characters is recorded as ANCHOR_TRANSITION in the adjustment "
+                    + "history in the same transaction. The configuration version advances after every transition.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Transition applied",
+                    content = @Content(schema = @Schema(implementation = PayCycleAnchorTransitionResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid transition data, justification, or transition_shape"),
+            @ApiResponse(responseCode = "409", description = "Stale configuration version, cycles are off, or "
+                    + "transition dates cannot be calculated",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/anchor_transition")
+    ResponseEntity<PayCycleAnchorTransitionResponse> transitionAnchor(
+            @Valid @RequestBody PayCycleAnchorTransitionRequest request);
 
 }

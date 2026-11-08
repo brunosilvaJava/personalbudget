@@ -11,6 +11,8 @@ import static com.bts.personalbudget.core.domain.factory.IncomeScheduleFactory.S
 import static com.bts.personalbudget.core.domain.factory.IncomeScheduleFactory.buildInactive;
 import static com.bts.personalbudget.core.domain.factory.IncomeScheduleFactory.buildNewSchedule;
 import static com.bts.personalbudget.core.domain.factory.IncomeScheduleFactory.buildSchedule;
+import static com.bts.personalbudget.core.domain.factory.PayCycleFactory.buildCalendarMonthConfig;
+import static com.bts.personalbudget.core.domain.factory.PayCycleFactory.buildPayCycleConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -21,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -45,6 +48,8 @@ import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillUpdate;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleConfigService;
+import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.IncomeScheduleMapper;
 import com.bts.personalbudget.repository.IncomeOccurrenceRepository;
@@ -64,6 +69,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -114,8 +120,16 @@ class IncomeScheduleServiceTest {
     @Mock
     private CategoryService categoryService;
 
+    @Mock
+    private PayCycleConfigService payCycleConfigService;
+
     @Spy
     private Clock clock = Clock.fixed(FIXED_INSTANT, ZONE_ID);
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(payCycleConfigService.find()).thenReturn(buildCalendarMonthConfig());
+    }
 
     // ---- create
 
@@ -803,6 +817,66 @@ class IncomeScheduleServiceTest {
     }
 
     @Test
+    void shouldRejectChangingTheActiveAnchorRuleWhilePayCyclesAreOn() {
+        stubLocked(anchorSchedule(buildSchedule(JUNE)));
+        when(payCycleConfigService.find()).thenReturn(buildPayCycleConfig(JUNE_5, 1L));
+
+        assertThrows(ConflictException.class, () -> service.update(SCHEDULE_CODE, update(
+                null, null, null, null, 7, null, null, null, false, null)));
+
+        verify(scheduleRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectChangingTheActiveAnchorEndMonthWhilePayCyclesAreOn() {
+        stubLocked(anchorSchedule(buildSchedule(JUNE)));
+        when(payCycleConfigService.find()).thenReturn(buildPayCycleConfig(JUNE_5, 1L));
+
+        assertThrows(ConflictException.class, () -> service.update(SCHEDULE_CODE, update(
+                null, null, null, null, null, null, null, YearMonth.of(2027, 5), false, null)));
+
+        verify(scheduleRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectChangingTheActiveAnchorFlagWhilePayCyclesAreOn() {
+        stubLocked(anchorSchedule(buildSchedule(JUNE)));
+        when(payCycleConfigService.find()).thenReturn(buildPayCycleConfig(JUNE_5, 1L));
+
+        assertThrows(ConflictException.class, () -> service.update(SCHEDULE_CODE, update(
+                null, null, null, null, null, null, null, null, false, false)));
+
+        verify(scheduleRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectInactivatingTheActiveAnchorWhilePayCyclesAreOn() {
+        stubLocked(anchorSchedule(buildSchedule(JUNE)));
+        when(payCycleConfigService.find()).thenReturn(buildPayCycleConfig(JUNE_5, 1L));
+
+        assertThrows(ConflictException.class, () -> service.inactivate(SCHEDULE_CODE));
+
+        verify(scheduleRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldAllowChangingFreeFieldsAndNonAnchorRulesWhilePayCyclesAreOn() {
+        final IncomeSchedule base = buildSchedule(JUNE);
+        final IncomeSchedule nonAnchor = new IncomeSchedule(UUID.randomUUID(), base.description(), base.amount(),
+                base.categoryCode(), base.rule(), base.startMonth(), base.endMonth(), false, base.status(),
+                base.replacesFixedBillCode());
+        stubLocked(nonAnchor);
+        when(payCycleConfigService.find()).thenReturn(buildPayCycleConfig(JUNE_5, 1L));
+        stubSave();
+
+        final IncomeSchedule updated = service.update(nonAnchor.code(), update(
+                "Nova descrição", new BigDecimal("5200.00"), null, null, 7, null, null, null, false, null));
+
+        assertEquals("Nova descrição", updated.description());
+        assertEquals(7, updated.rule().value());
+    }
+
+    @Test
     void shouldRejectARuleThatIsInvalidAsAWhole() {
         final IncomeSchedule nthBusinessDay = buildSchedule(
                 IncomeDateRule.nthBusinessDay(5, BusinessWeek.MONDAY_TO_FRIDAY), JUNE, null);
@@ -1159,5 +1233,11 @@ class IncomeScheduleServiceTest {
                                         final Boolean anchor) {
         return new IncomeScheduleUpdate(description, amount, categoryCode, ruleType, ruleValue, businessWeek,
                 policy, endMonth, removeEndMonth, anchor);
+    }
+
+    private IncomeSchedule anchorSchedule(final IncomeSchedule schedule) {
+        return new IncomeSchedule(schedule.code(), schedule.description(), schedule.amount(), schedule.categoryCode(),
+                schedule.rule(), schedule.startMonth(), schedule.endMonth(), true, schedule.status(),
+                schedule.replacesFixedBillCode());
     }
 }

@@ -2,6 +2,10 @@ package com.bts.personalbudget.mapper;
 
 import com.bts.personalbudget.controller.paycycle.PayCycleActivationPreviewResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleAdjustmentResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleAnchorTransitionPreviewRequest;
+import com.bts.personalbudget.controller.paycycle.PayCycleAnchorTransitionPreviewResponse;
+import com.bts.personalbudget.controller.paycycle.PayCycleAnchorTransitionRequest;
+import com.bts.personalbudget.controller.paycycle.PayCycleAnchorTransitionResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleConfigResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleCurrentNotFoundResponse;
 import com.bts.personalbudget.controller.paycycle.PayCycleEndAdjustmentPreviewResponse;
@@ -18,7 +22,11 @@ import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.income.IncomeOccurrenceImpact;
 import com.bts.personalbudget.core.domain.service.income.IncomeOccurrenceView;
+import com.bts.personalbudget.core.domain.service.income.IncomeScheduleUpdate;
 import com.bts.personalbudget.core.domain.service.paycycle.CurrentPayCycle;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAnchorChange;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAnchorTransitionPreview;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAnchorTransitionResult;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycle;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleActivationPreview;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAdjustment;
@@ -135,6 +143,61 @@ public interface PayCycleMapper {
                 preview.version(),
                 toResponseList(preview.cycles()),
                 toPendingResponseList(preview.pending()));
+    }
+
+    default PayCycleAnchorChange toModel(final PayCycleAnchorTransitionPreviewRequest request) {
+        return new PayCycleAnchorChange(
+                request.anchorScheduleCode(),
+                toScheduleUpdate(request.ruleType(), request.ruleValue(), request.businessWeek(),
+                        request.nonBusinessDayPolicy(), request.endMonth(), request.removeEndMonth()),
+                request.transitionShape(),
+                null,
+                null);
+    }
+
+    default PayCycleAnchorChange toModel(final PayCycleAnchorTransitionRequest request) {
+        return new PayCycleAnchorChange(
+                request.anchorScheduleCode(),
+                toScheduleUpdate(request.ruleType(), request.ruleValue(), request.businessWeek(),
+                        request.nonBusinessDayPolicy(), request.endMonth(), request.removeEndMonth()),
+                request.transitionShape(),
+                request.justification(),
+                request.expectedVersion());
+    }
+
+    default IncomeScheduleUpdate toScheduleUpdate(
+            final com.bts.personalbudget.core.domain.enumerator.DateRuleType ruleType,
+            final Integer ruleValue,
+            final com.bts.personalbudget.core.domain.enumerator.BusinessWeek businessWeek,
+            final com.bts.personalbudget.core.domain.enumerator.NonBusinessDayPolicy nonBusinessDayPolicy,
+            final YearMonth endMonth,
+            final Boolean removeEndMonth) {
+        return new IncomeScheduleUpdate(null, null, null, ruleType, ruleValue, businessWeek,
+                nonBusinessDayPolicy, endMonth, Boolean.TRUE.equals(removeEndMonth), null);
+    }
+
+    default PayCycleAnchorTransitionPreviewResponse toResponse(final PayCycleAnchorTransitionPreview preview) {
+        return new PayCycleAnchorTransitionPreviewResponse(
+                preview.expectedVersion(),
+                preview.previousAnchorScheduleCode(),
+                preview.anchorScheduleCode(),
+                preview.boundary(),
+                preview.oldBoundary(),
+                preview.newBoundary(),
+                preview.transitionShape(),
+                toResponseList(preview.preservedCycles()),
+                toResponseList(preview.cancelledCycles()),
+                toResponseList(preview.newCycles()),
+                toPendingResponseList(preview.pending()));
+    }
+
+    default PayCycleAnchorTransitionResponse toResponse(final PayCycleAnchorTransitionResult result) {
+        return new PayCycleAnchorTransitionResponse(
+                toResponse(result.configuration()),
+                toResponse(result.adjustment()),
+                toResponseList(result.preservedCycles()),
+                toResponseList(result.cancelledCycles()),
+                toResponseList(result.newCycles()));
     }
 
     default PayCycleCurrentNotFoundResponse toNotFoundResponse(final CurrentPayCycle current) {

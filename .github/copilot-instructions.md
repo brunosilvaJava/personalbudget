@@ -102,13 +102,14 @@ Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{F
 
 ## Estado atual (atualizar a cada etapa)
 
-- `master` inclui o ciclo financeiro até a **E4b** (PR #76): competência, agenda de receita, calendário de feriados, ciclos com ativação e ajuste manual de fronteira com histórico. Migrations V1 a V13.
+- `master` inclui o pacote de ajustes do backend (PR #79), migrations V1 a V13 e o ciclo financeiro até a **E4b** (PR #76). A camada 1 da **E4c** está nesta branch: guarda da agenda âncora e transição com histórico. Esta branch adiciona V14; a prévia do calendário e o recálculo após commit ficam para um PR empilhado da camada 2.
 - **Fila de trabalho (nesta ordem):**
-  1. **E4c** — guarda 409 nos endpoints da agenda âncora enquanto o modo é `PAY_CYCLE` (regra, `end_month`, `anchor`, inativação); transição de âncora (mesma agenda, ou troca de agenda com `SHORT`/`LONG`), gravando `ANCHOR_TRANSITION` no histórico; prévia do calendário de feriados com o impacto nos ciclos; recálculo por evento depois do commit.
+  1. **E4c — camada 2:** prévia do impacto do calendário de feriados nos ciclos e recálculo após commit.
   2. **Seed das categorias** (a lista inicial ainda será ajustada pelo usuário).
 - **Pacote de ajustes do back para o front entregue:** respostas da parcelada incluem `installment_count` e `next_installment_date`; alterar `purchase_date` recalcula a próxima data apenas antes da primeira parcela, total atualizado igual ao contador conclui a conta, e o PATCH lança parcelas vencidas na mesma transação; DELETE de movimentação e parcelada é idempotente; movimentações vencidas viram `LATE` ao criar/editar e no job, e o update volta para `PENDING` quando o vencimento passa para hoje ou depois; grupo de categorias "Receitas" adicionado na V13.
 - `installment_total` não pode ser reduzido abaixo de `installment_count`; o job atualiza `last_modified_date` junto com o status. DELETE repetido de conta fixa ainda responde 404; pode ser alinhado à idempotência em uma etapa posterior.
 - `amount` da parcelada é o valor de cada parcela.
+- A alteração da regra da âncora ativa em `PAY_CYCLE` só ocorre por `/pay_cycle_config/anchor_transition`; os endpoints diretos da agenda retornam 409 para mudanças protegidas. A transição preserva ciclos iniciados e registra `ANCHOR_TRANSITION`. Quando a primeira ocorrência da nova agenda coincide com a fronteira congelada, ela abre um ciclo regular sem transição.
 - Fora do escopo por enquanto: multiusuário (`owner_user_id`), relatório por ciclo (E5), fechamento de ciclo (E6), pagamentos parciais (E7), contas (E8), cartões (E9). O Dashboard mensal não é adaptado para ciclos.
 
 ## O que não fazer

@@ -70,7 +70,9 @@ public interface IncomeScheduleControllerApiDocs {
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Schedule successfully updated"),
             @ApiResponse(responseCode = "404", description = "Schedule not found"),
-            @ApiResponse(responseCode = "400", description = "Invalid request data, invalid merged rule or a second active anchor")
+            @ApiResponse(responseCode = "400", description = "Invalid request data, invalid merged rule or a second active anchor"),
+            @ApiResponse(responseCode = "409", description = "In PAY_CYCLE mode, changing the active anchor's rule, "
+                    + "end month or anchor flag requires /pay_cycle_config/anchor_transition")
     })
     @PatchMapping("/{code}")
     ResponseEntity<IncomeScheduleResponse> update(@PathVariable UUID code,
@@ -82,7 +84,9 @@ public interface IncomeScheduleControllerApiDocs {
                     + "already generated stay.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Schedule successfully inactivated"),
-            @ApiResponse(responseCode = "404", description = "Schedule not found")
+            @ApiResponse(responseCode = "404", description = "Schedule not found"),
+            @ApiResponse(responseCode = "409", description = "In PAY_CYCLE mode, the active anchor cannot be "
+                    + "inactivated; use /pay_cycle_config/anchor_transition first")
     })
     @PatchMapping("/{code}/inactivate")
     ResponseEntity<IncomeScheduleResponse> inactivate(@PathVariable UUID code);

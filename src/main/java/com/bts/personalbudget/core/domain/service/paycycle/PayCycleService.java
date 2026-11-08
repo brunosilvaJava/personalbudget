@@ -2,11 +2,14 @@ package com.bts.personalbudget.core.domain.service.paycycle;
 
 import com.bts.personalbudget.core.domain.entity.IncomeScheduleEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleEntity;
+import com.bts.personalbudget.core.domain.enumerator.PayCycleAdjustmentType;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
+import com.bts.personalbudget.core.domain.enumerator.PayCycleTransitionShape;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarService;
 import com.bts.personalbudget.core.domain.service.income.IncomeSchedule;
 import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
+import com.bts.personalbudget.core.domain.service.income.IncomeScheduleUpdate;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAdjustmentPlanner.EndAdjustment;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCyclePlanner.Request;
 import com.bts.personalbudget.exception.ConflictException;
@@ -202,6 +205,131 @@ public class PayCycleService {
                 adjustment.receivingCycleCode(),
                 financialMovementService.findByCompetenceInterval(adjustment.movedFrom(), adjustment.movedUntil()),
                 incomeScheduleService.findOccurrencesPlannedBetween(adjustment.movedFrom(), adjustment.movedUntil()));
+    }
+
+    /**
+     * Shows the anchor chain a rule change or schedule switch would leave, without writing anything.
+     */
+    @Transactional(readOnly = true)
+    public PayCycleAnchorTransitionPreview previewAnchorTransition(final PayCycleAnchorChange change) {
+        log.info("m=previewAnchorTransition, change={}", change);
+        final LocalDate today = LocalDate.now(clock);
+        final PayCycleConfig config = configService.find();
+        requirePayCycleMode(config);
+        final IncomeSchedule previous = incomeScheduleService.findByCode(config.anchorScheduleCode());
+        final TransitionTarget target = resolveTransitionTarget(config, previous, change);
+        final List<PayCycleEntity> active = cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE));
+        final List<PayCycle> chain = mapper.toModelList(currentChain(active, config));
+        final LocalDate boundary = lastFrozenBoundary(chain, config, today);
+        final PayCycleAnchorTransitionPlan plan = planAnchorTransition(
+                boundary, chain, previous, target.schedule(), target.sameSchedule(), change.transitionShape());
+        if (plan.transitionShapeRequired()) {
+            throw invalid("transitionShape", "deve ser informado como SHORT ou LONG");
+        }
+        return new PayCycleAnchorTransitionPreview(
+                config.version(),
+                previous.code(),
+                target.schedule().code(),
+                boundary,
+                plan.oldBoundary(),
+                plan.newBoundary(),
+                plan.shape(),
+                toViews(plan.preserved(), today, plan.pending()),
+                toViews(plan.cancelled(), today, plan.pending()),
+                toViews(plan.created(), today, plan.pending()),
+                plan.pending());
+    }
+
+    /**
+     * Applies the transition and records it atomically. Started cycles are preserved, future cycles
+     * are cancelled before the replacement chain is inserted, and the configuration version advances
+     * even when the current schedule remains the anchor.
+     */
+    @Transactional
+    public PayCycleAnchorTransitionResult transitionAnchor(final PayCycleAnchorChange change) {
+        log.info("m=transitionAnchor, change={}", change);
+        final String justification = requireJustification(change.justification());
+        final LocalDate today = LocalDate.now(clock);
+        final PayCycleConfig config = configService.lock();
+        configService.requireVersion(config, change.expectedVersion());
+        requirePayCycleMode(config);
+
+        final IncomeSchedule previous = incomeScheduleService.findByCodeForUpdate(config.anchorScheduleCode());
+        final TransitionTarget target = resolveTransitionTarget(config, previous, change);
+        final IncomeSchedule lockedTarget = target.sameSchedule()
+                ? previous
+                : incomeScheduleService.findByCodeForUpdate(target.schedule().code());
+        if (!lockedTarget.isActive() || (!target.sameSchedule() && lockedTarget.anchor())) {
+            throw new ConflictException("A nova agenda precisa estar ativa e ainda não pode ser a âncora");
+        }
+
+        final List<PayCycleEntity> allActive = cycleRepository.findForUpdateByLifecycle(PayCycleLifecycle.ACTIVE);
+        final List<PayCycleEntity> chainEntities = currentChain(allActive, config);
+        final List<PayCycle> chain = mapper.toModelList(chainEntities);
+        final LocalDate boundary = lastFrozenBoundary(chain, config, today);
+        final PayCycleAnchorTransitionPlan plan = planAnchorTransition(
+                boundary, chain, previous, target.schedule(), target.sameSchedule(), change.transitionShape());
+        if (plan.transitionShapeRequired()) {
+            throw invalid("transitionShape", "deve ser informado como SHORT ou LONG");
+        }
+        if (!plan.isCalculable()) {
+            throw new ConflictException(describeTransitionBlocker(plan.pending()));
+        }
+
+        final IncomeSchedule resultingAnchor;
+        if (target.sameSchedule()) {
+            resultingAnchor = incomeScheduleService.updateForAnchorTransition(
+                    previous.code(), target.scheduleUpdate());
+        } else {
+            resultingAnchor = incomeScheduleService.switchAnchorForTransition(previous.code(), lockedTarget.code());
+        }
+
+        final Map<UUID, PayCycleEntity> activeByCode = new HashMap<>();
+        chainEntities.forEach(entity -> activeByCode.put(entity.getCode(), entity));
+        for (final PayCycle cycle : plan.cancelled()) {
+            final PayCycleEntity entity = activeByCode.get(cycle.code());
+            if (entity != null) {
+                entity.setLifecycle(PayCycleLifecycle.CANCELLED);
+            }
+        }
+        if (!plan.cancelled().isEmpty()) {
+            cycleRepository.flush();
+        }
+
+        final IncomeScheduleEntity anchorEntity = findScheduleEntity(resultingAnchor.code());
+        final List<PayCycleEntity> created = plan.created().stream()
+                .map(cycle -> mapper.toEntity(cycle, anchorEntity))
+                .toList();
+        final List<PayCycleEntity> savedCreated = cycleRepository.saveAll(created);
+        cycleRepository.flush();
+
+        final PayCycleEntity previousEntity = plan.preserved().isEmpty()
+                ? null
+                : activeByCode.get(plan.preserved().get(plan.preserved().size() - 1).code());
+        final PayCycleEntity nextEntity = savedCreated.isEmpty() ? null : savedCreated.get(0);
+        final PayCycleAdjustment adjustment = PayCycleAdjustment.anchorTransition(
+                previousEntity == null ? null : previousEntity.getCode(),
+                nextEntity == null ? null : nextEntity.getCode(),
+                plan.oldBoundary(),
+                plan.newBoundary(),
+                justification,
+                change.expectedVersion());
+        final PayCycleAdjustment savedAdjustment = mapper.toModel(adjustmentRepository.saveAndFlush(
+                mapper.toEntity(adjustment, previousEntity, nextEntity)));
+        final PayCycleConfig updatedConfig = configService.switchAnchor(resultingAnchor.code());
+        final List<PayCyclePending> pending = findPending(updatedConfig);
+
+        final List<PayCycle> cancelled = plan.cancelled().stream()
+                .map(cycle -> activeByCode.get(cycle.code()))
+                .filter(Objects::nonNull)
+                .map(mapper::toModel)
+                .toList();
+        return new PayCycleAnchorTransitionResult(
+                new PayCycleConfigView(updatedConfig, pending),
+                savedAdjustment,
+                toViews(plan.preserved(), today, pending),
+                toViews(cancelled, today, pending),
+                toViews(mapper.toModelList(savedCreated), today, pending));
     }
 
     /**
@@ -432,8 +560,87 @@ public class PayCycleService {
                               final LocalDate activationDate,
                               final List<PayCycle> existing,
                               final LocalDate today) {
+        return plan(anchor, activationDate, existing, today, holidayCalendarService.findCalendar());
+    }
+
+    private PayCyclePlan plan(final IncomeSchedule anchor,
+                              final LocalDate activationDate,
+                              final List<PayCycle> existing,
+                              final LocalDate today,
+                              final com.bts.personalbudget.core.domain.service.calendar.HolidayCalendar calendar) {
         return PayCyclePlanner.plan(new Request(anchor, incomeScheduleService.findMaterializedOccurrences(anchor.code()),
-                holidayCalendarService.findCalendar(), activationDate, existing, today));
+                calendar, activationDate, existing, today));
+    }
+
+    private PayCycleAnchorTransitionPlan planAnchorTransition(
+            final LocalDate boundary,
+            final List<PayCycle> chain,
+            final IncomeSchedule previous,
+            final IncomeSchedule next,
+            final boolean sameSchedule,
+            final PayCycleTransitionShape shape) {
+        final List<com.bts.personalbudget.core.domain.service.income.IncomeOccurrence> materialized =
+                incomeScheduleService.findMaterializedOccurrences(next.code());
+        return PayCycleAnchorTransitionPlanner.plan(boundary, chain, previous, next, materialized,
+                holidayCalendarService.findCalendar(), LocalDate.now(clock), sameSchedule, shape);
+    }
+
+    private TransitionTarget resolveTransitionTarget(
+            final PayCycleConfig config,
+            final IncomeSchedule previous,
+            final PayCycleAnchorChange change) {
+        final UUID targetCode = change.anchorScheduleCode() == null
+                ? previous.code()
+                : change.anchorScheduleCode();
+        final boolean sameSchedule = previous.code().equals(targetCode);
+        final IncomeScheduleUpdate update = change.scheduleUpdate();
+        if (sameSchedule) {
+            if (update == null || update.isEmpty()) {
+                throw invalid("anchorScheduleCode", "informe uma nova regra ou outra agenda âncora");
+            }
+            return new TransitionTarget(
+                    incomeScheduleService.previewAnchorRuleTransition(targetCode, update), update, true);
+        }
+        if (update != null && !update.isEmpty()) {
+            throw invalid("anchorScheduleCode", "não envie uma nova regra ao trocar de agenda âncora");
+        }
+        final IncomeSchedule next = incomeScheduleService.findByCode(targetCode);
+        if (!next.isActive()) {
+            throw invalid("anchorScheduleCode", "a nova agenda âncora deve estar ativa");
+        }
+        return new TransitionTarget(next, null, false);
+    }
+
+    private LocalDate lastFrozenBoundary(final List<PayCycle> chain,
+                                         final PayCycleConfig config,
+                                         final LocalDate today) {
+        LocalDate boundary = config.activationDate();
+        for (int i = 0; i < chain.size(); i++) {
+            final PayCycle cycle = chain.get(i);
+            final boolean nextStartAdjusted = i + 1 < chain.size() && chain.get(i + 1).startAdjusted();
+            if (cycle.endIsFrozen(today) || nextStartAdjusted) {
+                boundary = cycle.endDate();
+            }
+        }
+        return boundary;
+    }
+
+    private String describeTransitionBlocker(final List<PayCyclePending> pending) {
+        if (pending.isEmpty()) {
+            return "A transição não pode ser calculada sem criar lacuna ou sobreposição";
+        }
+        return switch (pending.get(0).type()) {
+            case CALENDAR_NOT_REVIEWED -> "O calendário de feriados de " + pending.get(0).year()
+                    + " precisa ser revisado antes de transicionar a âncora";
+            case BUSINESS_DAY_NOT_FOUND -> "A regra da nova âncora não encontra dia útil suficiente em "
+                    + pending.get(0).nominalMonth();
+            case ANCHOR_SCHEDULE_ENDS -> "A nova agenda não tem ocorrências suficientes depois da fronteira congelada";
+            case BOUNDARY_DIVERGES_FROM_ANCHOR -> "A cadeia atual não contém a fronteira congelada esperada";
+            case NO_CURRENT_CYCLE -> "A transição não pode ser calculada sem um ciclo atual";
+        };
+    }
+
+    private record TransitionTarget(IncomeSchedule schedule, IncomeScheduleUpdate scheduleUpdate, boolean sameSchedule) {
     }
 
     /**
