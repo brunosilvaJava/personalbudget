@@ -92,14 +92,14 @@ class CompetenceMigrationTest {
     }
 
     @Test
-    void shouldNotReinterpretAmountDifferentFromAmountPaid() throws SQLException {
+    void shouldPreserveAmountPaidAndMarkLegacyPartialPaymentLate() throws SQLException {
         try (Connection connection = connection(); Statement statement = connection.createStatement();
              ResultSet rs = statement.executeQuery(
                      "SELECT amount, amount_paid, status FROM financial_movement WHERE description = 'PAID_DIFFERENT'")) {
             assertTrue(rs.next());
             assertEquals(0, new BigDecimal("-100.00").compareTo(rs.getBigDecimal("amount")));
             assertEquals(0, new BigDecimal("-80.00").compareTo(rs.getBigDecimal("amount_paid")));
-            assertEquals("PAID_OUT", rs.getString("status"));
+            assertEquals("LATE", rs.getString("status"));
             assertEquals(LocalDate.of(2025, 3, 7), competence("PAID_DIFFERENT"));
         }
     }
