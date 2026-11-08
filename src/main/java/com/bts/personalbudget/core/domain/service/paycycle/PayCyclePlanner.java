@@ -1,6 +1,5 @@
 package com.bts.personalbudget.core.domain.service.paycycle;
 
-import com.bts.personalbudget.core.domain.enumerator.DateRuleType;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleKind;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendar;
@@ -51,7 +50,6 @@ public final class PayCyclePlanner {
      * An anchor date can sit in the month before or after its nominal month (anticipation and
      * postponement), so the months around a date are looked at, not only its own.
      */
-    private static final int SCAN_MONTHS_BEFORE = 1;
     private static final int SCAN_MONTHS_AFTER = 2;
 
     private PayCyclePlanner() {
@@ -77,6 +75,11 @@ public final class PayCyclePlanner {
     }
 
     public static PayCyclePlan plan(final Request request) {
+        return plan(request, false);
+    }
+
+    /** A transition fixes the opening boundary; only its following anchor boundaries are compared. */
+    public static PayCyclePlan plan(final Request request, final boolean transitionBoundary) {
         final AnchorDates dates = new AnchorDates(request.anchor(), request.materialized(), request.calendar());
         final Set<PayCyclePending> pending = new LinkedHashSet<>();
         final List<PayCycle> chain = new ArrayList<>();
@@ -93,7 +96,7 @@ public final class PayCyclePlanner {
         }
 
         extend(chain, dates, request.today(), pending);
-        reportAnchorMismatches(chain, dates, pending);
+        reportAnchorMismatches(chain, dates, pending, transitionBoundary);
         if (!request.today().isBefore(chain.get(0).startDate())
                 && chain.stream().noneMatch(cycle -> cycle.contains(request.today()))) {
             pending.add(PayCyclePending.noCurrentCycle());
@@ -243,9 +246,10 @@ public final class PayCyclePlanner {
      */
     private static void reportAnchorMismatches(final List<PayCycle> chain,
                                                final AnchorDates dates,
-                                               final Set<PayCyclePending> pending) {
+                                               final Set<PayCyclePending> pending,
+                                               final boolean transitionBoundary) {
         for (final PayCycle cycle : chain) {
-            if (cycle.anchorNominalMonth() == null) {
+            if (cycle.anchorNominalMonth() == null || (transitionBoundary && cycle == chain.get(0))) {
                 continue;
             }
             switch (dates.at(cycle.anchorNominalMonth())) {
@@ -362,14 +366,7 @@ public final class PayCyclePlanner {
         }
 
         private YearMonth firstMonthToScan(final YearMonth month) {
-            final YearMonth previous = month.minusMonths(SCAN_MONTHS_BEFORE);
-            final boolean previousHasRelevantOccurrence = materialized.stream().anyMatch(occurrence ->
-                    occurrence.nominalMonth().equals(previous)
-                            && !occurrence.plannedDate().isBefore(month.atDay(1)));
-            final boolean projectionCannotReachMonth = schedule.rule().ruleType() == DateRuleType.NTH_BUSINESS_DAY
-                    || schedule.rule().nonBusinessDayPolicy()
-                            == com.bts.personalbudget.core.domain.enumerator.NonBusinessDayPolicy.ANTICIPATE;
-            return projectionCannotReachMonth && !previousHasRelevantOccurrence ? month : previous;
+            return IncomeOccurrenceResolver.firstRelevantNominalMonth(schedule, materialized, month);
         }
 
         private YearMonth startMonth() {

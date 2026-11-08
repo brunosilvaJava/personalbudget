@@ -67,4 +67,18 @@ public record PayCycleAdjustment(
                 firstCancelledCycleCode, firstCancelledStart, null, justification, null, null,
                 expectedConfigVersion, null);
     }
+
+    /**
+     * The anchor schedule or its rule changed. The previous cycle is the last one preserved at the
+     * frozen boundary; the next is the first replacement cycle.
+     */
+    public static PayCycleAdjustment anchorTransition(final UUID previousCycleCode,
+                                                      final UUID nextCycleCode,
+                                                      final LocalDate oldBoundary,
+                                                      final LocalDate newBoundary,
+                                                      final String justification,
+                                                      final Long expectedConfigVersion) {
+        return new PayCycleAdjustment(null, PayCycleAdjustmentType.ANCHOR_TRANSITION, previousCycleCode,
+                nextCycleCode, oldBoundary, newBoundary, justification, null, null, expectedConfigVersion, null);
+    }
 }

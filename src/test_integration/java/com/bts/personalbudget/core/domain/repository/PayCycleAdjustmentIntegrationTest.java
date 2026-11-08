@@ -22,12 +22,16 @@ import com.bts.personalbudget.core.domain.enumerator.PayCycleAdjustmentType;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleKind;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleMode;
+import com.bts.personalbudget.core.domain.enumerator.PayCycleTransitionShape;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCyclePending;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.calendar.HolidayCalendarService;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleEndAdjustmentPreview;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleEndAdjustmentResult;
+import com.bts.personalbudget.core.domain.service.paycycle.PayCycleAnchorChange;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleService;
+import com.bts.personalbudget.core.domain.service.income.IncomeScheduleUpdate;
 import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.repository.IncomeOccurrenceRepository;
 import com.bts.personalbudget.repository.IncomeScheduleRepository;
@@ -197,6 +201,15 @@ class PayCycleAdjustmentIntegrationTest {
                         .code(UUID.randomUUID())
                         .type(PayCycleAdjustmentType.DEACTIVATION)
                         .justification("")
+                        .build()));
+    }
+
+    @Test
+    void shouldRejectAnAnchorTransitionWithoutAJustification() {
+        assertCheckViolation("ck_pay_cycle_adjustment_justification", () -> adjustmentRepository.saveAndFlush(
+                PayCycleAdjustmentEntity.builder()
+                        .code(UUID.randomUUID())
+                        .type(PayCycleAdjustmentType.ANCHOR_TRANSITION)
                         .build()));
     }
 
@@ -399,6 +412,205 @@ class PayCycleAdjustmentIntegrationTest {
         assertEveryActiveCycleContiguous();
     }
 
+    @Test
+    void shouldSwitchToANewAnchorAtTheFrozenBoundaryAndKeepTheChainContinuous() {
+        givenTheChain();
+        final IncomeScheduleEntity nextAnchor = schedule();
+        nextAnchor.setAnchor(false);
+        nextAnchor.setRuleValue(5);
+        nextAnchor.setStartMonth(LocalDate.of(2026, 10, 1));
+        scheduleRepository.saveAndFlush(nextAnchor);
+        final long configVersion = configRepository.findSingle().orElseThrow().getVersion();
+
+        final var result = payCycleService.transitionAnchor(new PayCycleAnchorChange(
+                nextAnchor.getCode(), emptyScheduleUpdate(), null, JUSTIFICATION, configVersion));
+
+        assertEquals(1, result.preservedCycles().size());
+        assertEquals(2, result.cancelledCycles().size());
+        assertEquals(NOV_5, result.newCycles().get(0).cycle().startDate());
+        assertEquals(PayCycleKind.REGULAR, result.newCycles().get(0).cycle().kind());
+        assertEquals(PayCycleLifecycle.ACTIVE, find(first).getLifecycle());
+        assertEquals(PayCycleLifecycle.CANCELLED, find(second).getLifecycle());
+        assertEquals(PayCycleLifecycle.CANCELLED, find(third).getLifecycle());
+        final PayCycleEntity firstNew = cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)).stream()
+                .filter(cycle -> cycle.getKind() == PayCycleKind.REGULAR && cycle.getStartDate().equals(NOV_5))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(nextAnchor.getCode(), firstNew.getAnchorSchedule().getCode());
+        assertEquals(3, result.newCycles().size());
+        assertEquals(PayCycleAdjustmentType.ANCHOR_TRANSITION, result.adjustment().type());
+        assertEquals(first.getCode(), result.adjustment().previousCycleCode());
+        assertEquals(firstNew.getCode(), result.adjustment().nextCycleCode());
+        assertEquals(configVersion, result.adjustment().expectedConfigVersion());
+        assertEquals(configVersion + 1, result.configuration().config().version());
+        assertEquals(configVersion + 1, configRepository.findSingle().orElseThrow().getVersion());
+        assertTrue(adjustmentRepository.findByCycleId(first.getId()).stream()
+                .anyMatch(adjustment -> adjustment.getType() == PayCycleAdjustmentType.ANCHOR_TRANSITION));
+        assertTrue(adjustmentRepository.findByCycleId(firstNew.getId()).stream()
+                .anyMatch(adjustment -> adjustment.getType() == PayCycleAdjustmentType.ANCHOR_TRANSITION));
+        assertEveryActiveCycleContiguous();
+    }
+
+    @Test
+    void shouldChangeTheCurrentAnchorRuleAndCreateAShortTransition() {
+        givenTheChain();
+        final long configVersion = configRepository.findSingle().orElseThrow().getVersion();
+
+        final var result = payCycleService.transitionAnchor(new PayCycleAnchorChange(
+                null,
+                new IncomeScheduleUpdate(null, null, null, DateRuleType.FIXED_DAY, 10,
+                        BusinessWeek.MONDAY_TO_FRIDAY, NonBusinessDayPolicy.KEEP, null, false, null),
+                null,
+                JUSTIFICATION,
+                configVersion));
+
+        assertEquals(1, result.preservedCycles().size());
+        assertEquals(2, result.cancelledCycles().size());
+        assertEquals(PayCycleKind.TRANSITION, result.newCycles().get(0).cycle().kind());
+        assertEquals(NOV_5, result.newCycles().get(0).cycle().startDate());
+        assertEquals(LocalDate.of(2026, 11, 10), result.newCycles().get(0).cycle().endDate());
+        final PayCycleEntity transitionCycle = cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE))
+                .stream()
+                .filter(cycle -> cycle.getKind() == PayCycleKind.TRANSITION)
+                .findFirst()
+                .orElseThrow();
+        assertNull(transitionCycle.getAnchorSchedule());
+        assertNull(transitionCycle.getAnchorNominalMonth());
+        assertEquals(10, scheduleRepository.findByCode(anchor.getCode()).orElseThrow().getRuleValue());
+        assertEquals(PayCycleAdjustmentType.ANCHOR_TRANSITION, result.adjustment().type());
+        assertEquals(configVersion, result.adjustment().expectedConfigVersion());
+        assertEquals(configVersion + 1, result.configuration().config().version());
+        assertEquals(configVersion + 1, configRepository.findSingle().orElseThrow().getVersion());
+        assertEveryActiveCycleContiguous();
+    }
+
+    @Test
+    void shouldKeepDistinctAnchorOccurrencesWhenTheNextBoundaryDoesNotChange() {
+        givenTheChain();
+        final LocalDate nov29 = LocalDate.of(2026, 11, 29);
+        final PayCycleEntity current = find(first);
+        current.setEndDate(nov29);
+        cycleRepository.saveAndFlush(current);
+        final PayCycleEntity future = find(second);
+        future.setStartDate(nov29);
+        cycleRepository.saveAndFlush(future);
+
+        final var result = payCycleService.transitionAnchor(new PayCycleAnchorChange(null,
+                ruleUpdate(7), null, JUSTIFICATION, configRepository.findSingle().orElseThrow().getVersion()));
+
+        assertEquals(nov29, result.newCycles().get(0).cycle().startDate());
+        assertEquals(DEC_7, result.newCycles().get(0).cycle().endDate());
+        final var active = cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE));
+        assertEquals(NOV, active.get(1).getAnchorNominalMonth());
+        assertEquals(DEC, active.get(2).getAnchorNominalMonth());
+        assertNoBoundaryDivergence();
+        payCycleService.refresh();
+        assertEquals(nov29, find(first).getEndDate());
+        assertNoBoundaryDivergence();
+        assertEveryActiveCycleContiguous();
+    }
+
+    @Test
+    void shouldNotApplyTheNewAnchorToPreservedCyclesOnRefresh() {
+        givenTheChain();
+        final IncomeScheduleEntity next = schedule();
+        next.setAnchor(false);
+        next.setRuleValue(10);
+        next.setNonBusinessDayPolicy(NonBusinessDayPolicy.KEEP);
+        scheduleRepository.saveAndFlush(next);
+
+        payCycleService.transitionAnchor(new PayCycleAnchorChange(next.getCode(), emptyScheduleUpdate(),
+                PayCycleTransitionShape.SHORT, JUSTIFICATION,
+                configRepository.findSingle().orElseThrow().getVersion()));
+        assertNoBoundaryDivergence();
+        payCycleService.refresh();
+        assertEquals(OCT_5, find(first).getStartDate());
+        assertEquals(NOV_5, find(first).getEndDate());
+        assertNoBoundaryDivergence();
+        assertEveryActiveCycleContiguous();
+    }
+
+    @Test
+    void shouldPreserveFuturePrefixBeforeAManualBoundaryAfterSwitchingAnchor() {
+        givenTheChain();
+        final LocalDate dec10 = LocalDate.of(2026, 12, 10);
+        payCycleService.adjustEnd(second.getCode(), dec10, JUSTIFICATION,
+                find(second).getVersion(), find(third).getVersion());
+        final IncomeScheduleEntity next = schedule();
+        next.setAnchor(false);
+        next.setRuleValue(12);
+        next.setNonBusinessDayPolicy(NonBusinessDayPolicy.KEEP);
+        scheduleRepository.saveAndFlush(next);
+
+        final var result = payCycleService.transitionAnchor(new PayCycleAnchorChange(next.getCode(),
+                emptyScheduleUpdate(), PayCycleTransitionShape.SHORT, JUSTIFICATION,
+                configRepository.findSingle().orElseThrow().getVersion()));
+        assertEquals(2, result.preservedCycles().size());
+        payCycleService.refresh();
+        assertEquals(NOV_5, find(first).getEndDate());
+        assertEquals(NOV_5, find(second).getStartDate());
+        assertEquals(dec10, find(second).getEndDate());
+        assertNoBoundaryDivergence();
+        assertEveryActiveCycleContiguous();
+    }
+
+    @Test
+    void shouldPreserveFuturePrefixBeforeAManualBoundaryAfterChangingTheSameRule() {
+        givenTheChain();
+        final LocalDate dec10 = LocalDate.of(2026, 12, 10);
+        payCycleService.adjustEnd(second.getCode(), dec10, JUSTIFICATION,
+                find(second).getVersion(), find(third).getVersion());
+        final var result = payCycleService.transitionAnchor(new PayCycleAnchorChange(null,
+                ruleUpdate(12), null, JUSTIFICATION, configRepository.findSingle().orElseThrow().getVersion()));
+
+        assertEquals(2, result.preservedCycles().size());
+        assertNoBoundaryDivergence();
+        payCycleService.refresh();
+        payCycleService.refresh();
+        assertEquals(NOV_5, find(first).getEndDate());
+        assertEquals(NOV_5, find(second).getStartDate());
+        assertEquals(dec10, find(second).getEndDate());
+        assertNoBoundaryDivergence();
+        assertEveryActiveCycleContiguous();
+    }
+
+    private void assertNoBoundaryDivergence() {
+        assertTrue(payCycleService.findConfig().pending().stream()
+                .noneMatch(item -> item.type() == PayCyclePending.Type.BOUNDARY_DIVERGES_FROM_ANCHOR));
+    }
+
+    private IncomeScheduleUpdate ruleUpdate(final int day) {
+        return new IncomeScheduleUpdate(null, null, null, DateRuleType.FIXED_DAY, day,
+                BusinessWeek.MONDAY_TO_FRIDAY, NonBusinessDayPolicy.KEEP, null, false, null);
+    }
+
+    @Test
+    void shouldRollBackTheRuleAndCyclesWhenAnchorTransitionHistoryCannotBeWritten() {
+        givenTheChain();
+        jdbcTemplate.execute("ALTER TABLE pay_cycle_adjustment "
+                + "ADD CONSTRAINT ck_test_forced_failure CHECK (justification <> 'forced failure')");
+        try {
+            assertCheckViolation("ck_test_forced_failure", () -> payCycleService.transitionAnchor(
+                    new PayCycleAnchorChange(
+                            null,
+                            new IncomeScheduleUpdate(null, null, null, DateRuleType.FIXED_DAY, 10,
+                                    BusinessWeek.MONDAY_TO_FRIDAY, NonBusinessDayPolicy.KEEP,
+                                    null, false, null),
+                            null,
+                            "forced failure",
+                            configRepository.findSingle().orElseThrow().getVersion())));
+
+            assertEquals(5, scheduleRepository.findByCode(anchor.getCode()).orElseThrow().getRuleValue());
+            assertEquals(PayCycleLifecycle.ACTIVE, find(first).getLifecycle());
+            assertEquals(PayCycleLifecycle.ACTIVE, find(second).getLifecycle());
+            assertEquals(PayCycleLifecycle.ACTIVE, find(third).getLifecycle());
+            assertEquals(3, cycleRepository.findByLifecycleIn(List.of(PayCycleLifecycle.ACTIVE)).size());
+            assertEquals(0, historySize());
+        } finally {
+            jdbcTemplate.execute("ALTER TABLE pay_cycle_adjustment DROP CHECK ck_test_forced_failure");
+        }
+    }
+
     // ---- the operations: deactivation
 
     @Test
@@ -558,5 +770,9 @@ class PayCycleAdjustmentIntegrationTest {
                 .startAdjusted(false)
                 .endAdjusted(false)
                 .build();
+    }
+
+    private IncomeScheduleUpdate emptyScheduleUpdate() {
+        return new IncomeScheduleUpdate(null, null, null, null, null, null, null, null, false, null);
     }
 }
