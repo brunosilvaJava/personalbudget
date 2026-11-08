@@ -1,6 +1,7 @@
 package com.bts.personalbudget.core.domain.service.paycycle;
 
 import com.bts.personalbudget.core.domain.entity.PayCycleEntity;
+import com.bts.personalbudget.core.domain.entity.PayCycleSnapshotCategoryEntity;
 import com.bts.personalbudget.core.domain.entity.PayCycleSnapshotEntity;
 import com.bts.personalbudget.core.domain.enumerator.PayCycleLifecycle;
 import com.bts.personalbudget.exception.ConflictException;
@@ -10,8 +11,10 @@ import com.bts.personalbudget.repository.PayCycleSnapshotCategoryRepository;
 import com.bts.personalbudget.repository.PayCycleSnapshotRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -68,9 +71,17 @@ public class PayCycleSnapshotService {
         log.info("m=findSnapshots, code={}", code);
         final PayCycleEntity cycle = cycleRepository.findByCode(code)
                 .orElseThrow(() -> new EntityNotFoundException("Pay cycle not found"));
-        return snapshotRepository.findAllByPayCycleIdOrderBySnapshotVersionDesc(cycle.getId()).stream()
-                .map(snapshot -> mapper.toModel(snapshot,
-                        categoryRepository.findAllBySnapshotIdOrderByIdAsc(snapshot.getId())))
+        final List<PayCycleSnapshotEntity> snapshots =
+                snapshotRepository.findAllByPayCycleIdOrderBySnapshotVersionDesc(cycle.getId());
+        if (snapshots.isEmpty()) {
+            return List.of();
+        }
+        final List<Long> snapshotIds = snapshots.stream().map(PayCycleSnapshotEntity::getId).toList();
+        final Map<Long, List<PayCycleSnapshotCategoryEntity>> categoriesBySnapshot =
+                categoryRepository.findAllBySnapshotIdInOrderByIdAsc(snapshotIds).stream()
+                        .collect(Collectors.groupingBy(category -> category.getSnapshot().getId()));
+        return snapshots.stream()
+                .map(snapshot -> mapper.toModel(snapshot, categoriesBySnapshot.getOrDefault(snapshot.getId(), List.of())))
                 .toList();
     }
 }

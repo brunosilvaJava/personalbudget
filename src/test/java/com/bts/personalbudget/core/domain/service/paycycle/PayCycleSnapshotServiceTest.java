@@ -8,6 +8,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bts.personalbudget.core.domain.entity.PayCycleEntity;
@@ -94,6 +96,51 @@ class PayCycleSnapshotServiceTest {
         assertThatThrownBy(() -> service.recordClosure(summary(List.of())))
                 .isInstanceOf(ConflictException.class).hasMessageContaining("snapshot");
         verify(snapshotRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void shouldLoadCategoriesInOneBatchAndPreserveSnapshotAndCategoryOrder() {
+        final PayCycleEntity cycle = entity();
+        final PayCycleSnapshotEntity newest = snapshot(cycle, 3L, 3);
+        final PayCycleSnapshotEntity empty = snapshot(cycle, 2L, 2);
+        final PayCycleSnapshotEntity oldest = snapshot(cycle, 1L, 1);
+        when(cycleRepository.findByCode(CODE)).thenReturn(Optional.of(cycle));
+        when(snapshotRepository.findAllByPayCycleIdOrderBySnapshotVersionDesc(1L))
+                .thenReturn(List.of(newest, empty, oldest));
+        when(categoryRepository.findAllBySnapshotIdInOrderByIdAsc(List.of(3L, 2L, 1L)))
+                .thenReturn(List.of(category(oldest, "Casa"), category(newest, "Moradia"),
+                        category(oldest, "Sem categoria"), category(newest, "Sem categoria")));
+
+        final List<PayCycleSnapshot> result = service.findSnapshots(CODE);
+
+        assertThat(result).extracting(PayCycleSnapshot::snapshotVersion).containsExactly(3, 2, 1);
+        assertThat(result.get(0).categories()).extracting(PayCycleSnapshot.Category::categoryName)
+                .containsExactly("Moradia", "Sem categoria");
+        assertThat(result.get(1).categories()).isEmpty();
+        assertThat(result.get(2).categories()).extracting(PayCycleSnapshot.Category::categoryName)
+                .containsExactly("Casa", "Sem categoria");
+        verify(categoryRepository).findAllBySnapshotIdInOrderByIdAsc(List.of(3L, 2L, 1L));
+        verifyNoMoreInteractions(categoryRepository);
+    }
+
+    @Test
+    void shouldSkipCategoryQueryWhenHistoryIsEmpty() {
+        when(cycleRepository.findByCode(CODE)).thenReturn(Optional.of(entity()));
+        when(snapshotRepository.findAllByPayCycleIdOrderBySnapshotVersionDesc(1L)).thenReturn(List.of());
+
+        assertThat(service.findSnapshots(CODE)).isEmpty();
+
+        verifyNoInteractions(categoryRepository);
+    }
+
+    private static PayCycleSnapshotEntity snapshot(PayCycleEntity cycle, long id, int version) {
+        return PayCycleSnapshotEntity.builder().id(id).code(UUID.randomUUID()).payCycle(cycle)
+                .snapshotVersion(version).cycleVersion((long) version).build();
+    }
+
+    private static PayCycleSnapshotCategoryEntity category(PayCycleSnapshotEntity snapshot, String name) {
+        return PayCycleSnapshotCategoryEntity.builder().snapshot(snapshot).categoryName(name)
+                .operationType(DEBIT).recognizedAmount(BigDecimal.ONE).projectedAmount(BigDecimal.ONE).build();
     }
 
     private static PayCycleEntity entity() {
