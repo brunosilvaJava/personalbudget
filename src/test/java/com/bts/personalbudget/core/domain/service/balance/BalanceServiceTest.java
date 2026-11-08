@@ -15,6 +15,8 @@ import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillFactory;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlement;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -23,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 public class BalanceServiceTest {
@@ -56,6 +60,40 @@ public class BalanceServiceTest {
 
     @Mock
     private IncomeScheduleService incomeScheduleService;
+
+    @Mock
+    private MovementSettlementService movementSettlementService;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(movementSettlementService.findForCashDateBetween(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+    }
+
+    @Test
+    void shouldRecognizeEachPartialPaymentOnItsEffectiveDateAndProjectOnlyTheResidual() {
+        final LocalDate start = LocalDate.of(2026, 11, 1);
+        final LocalDate end = start.plusDays(2);
+        final UUID code = UUID.randomUUID();
+        when(financialMovementService.findBalance(start.minusDays(1))).thenReturn(BigDecimal.ZERO);
+        when(financialMovementService.findProjectedBalance(start.minusDays(1))).thenReturn(BigDecimal.ZERO);
+        when(financialMovementService.findMovementsForBalanceCalculation(start, end)).thenReturn(List.of(
+                new FinancialMovement(code, DEBIT, "Parcial", new BigDecimal("-100"),
+                        new BigDecimal("-50"), start.atStartOfDay(), end.atStartOfDay(),
+                        null, PENDING, true, null, null, null)));
+        when(movementSettlementService.findForCashDateBetween(start, end)).thenReturn(List.of(
+                new MovementSettlement(UUID.randomUUID(), code, new BigDecimal("30"), start,
+                        null, 0L, DEBIT, null, start),
+                new MovementSettlement(UUID.randomUUID(), code, new BigDecimal("20"), start.plusDays(1),
+                        null, 0L, DEBIT, null, start)));
+
+        final List<DailyBalance> balances = balanceService.findDailyBalanceBetween(start, end).stream().toList();
+
+        assertThat(balances.get(0).getClosingBalance()).isEqualByComparingTo("-30");
+        assertThat(balances.get(1).getClosingBalance()).isEqualByComparingTo("-50");
+        assertThat(balances.get(2).getClosingBalance()).isEqualByComparingTo("-50");
+        assertThat(balances.get(2).getProjectedClosingBalance()).isEqualByComparingTo("-100");
+    }
 
     @Test
     @DisplayName("Balanço diário com datas entre data vigente")

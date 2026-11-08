@@ -1,13 +1,14 @@
 package com.bts.personalbudget.controller.financialmovement;
 
-import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -15,7 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Schema(description = "Data for creating a new financial movement.")
+@Schema(description = "Data for creating a new unpaid financial movement. Payments are recorded as settlements.")
 public record FinancialMovementRequest(
 
         @NotNull
@@ -37,12 +38,6 @@ public record FinancialMovementRequest(
         @Schema(description = "Total amount of the financial movement", example = "150.75")
         BigDecimal amount,
 
-        @DecimalMin(value = "0.01", inclusive = false)
-        @Digits(integer = 8, fraction = 2)
-        @JsonProperty("amount_paid")
-        @Schema(description = "Amount that has already been paid", example = "100.50")
-        BigDecimal amountPaid,
-
         @NotNull
         @JsonProperty("movement_date")
         @Schema(description = "Date and time when the financial movement was created", example = "2024-11-07T15:30:00", type = "string", format = "date-time")
@@ -53,13 +48,17 @@ public record FinancialMovementRequest(
         @Schema(description = "Due date for the financial movement", example = "2024-11-30T23:59:59", type = "string", format = "date-time")
         LocalDateTime dueDate,
 
-        @JsonProperty("pay_date")
-        @Schema(description = "Date when the payment was made", example = "2024-11-15T10:00:00", type = "string", format = "date-time")
-        LocalDateTime payDate,
+        @JsonProperty("amount_paid")
+        @Schema(hidden = true)
+        BigDecimal legacyAmountPaid,
 
-        @NotNull
-        @Schema(description = "Status of the financial movement (e.g., PENDING, COMPLETED, CANCELLED)", example = "PENDING")
-        FinancialMovementStatus status,
+        @JsonProperty("pay_date")
+        @Schema(hidden = true)
+        LocalDateTime legacyPayDate,
+
+        @JsonProperty("status")
+        @Schema(hidden = true)
+        FinancialMovementStatus legacyStatus,
 
         @Schema(description = "Code of the category. Must be an ACTIVE category of the same operation type", example = "123e4567-e89b-12d3-a456-426614174000")
         @JsonProperty("category_code")
@@ -69,4 +68,9 @@ public record FinancialMovementRequest(
         @JsonProperty("competence_date")
         LocalDate competenceDate
 ) {
+    @AssertTrue(message = "Use the settlements endpoints to record payments; payment fields and status are not accepted here")
+    @Schema(hidden = true)
+    public boolean isPaymentFieldsAreNotProvided() {
+        return legacyAmountPaid == null && legacyPayDate == null && legacyStatus == null;
+    }
 }

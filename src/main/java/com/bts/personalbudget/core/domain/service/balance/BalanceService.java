@@ -7,6 +7,7 @@ import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData.Paymen
 import com.bts.personalbudget.core.domain.service.fixedbill.FixedBillService;
 import com.bts.personalbudget.core.domain.service.income.IncomeScheduleService;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ public class BalanceService {
     private final InstallmentBillService installmentBillService;
     private final FixedBillService fixedBillService;
     private final IncomeScheduleService incomeScheduleService;
+    private final MovementSettlementService movementSettlementService;
 
     public Set<DailyBalance> findDailyBalanceBetween(final LocalDate initialDate,
                                                      final LocalDate endDate) {
@@ -70,9 +72,9 @@ public class BalanceService {
     }
 
     /**
-     * What findDailyBalanceBetween adds up for the period: the movements that count in it (PAID_OUT
-     * by pay date, PENDING/LATE by due date) and the bills' occurrences not posted yet. Exposed so
-     * other reports total the period the same way and match the balance and the dashboard.
+     * What findDailyBalanceBetween adds up for the period: settlements by effective date, unpaid
+     * movement residuals by due date, and bill occurrences not posted yet. Exposed so other reports
+     * total the period the same way and match the balance and the dashboard.
      */
     public List<BalanceCalcData> findBalanceCalcDataBetween(final LocalDate initialDate,
                                                             final LocalDate endDate) {
@@ -120,9 +122,10 @@ public class BalanceService {
     private List<BalanceCalcData> findBalanceCalcDataList(final LocalDate initialDate,
                                                           final LocalDate endDate,
                                                           final List<ProjectedOccurrence> projectedOccurrences) {
-        final List<FinancialMovement> financialMovementList = financialMovementService.findMovementsForBalanceCalculation(initialDate, endDate);
-
+        final List<FinancialMovement> financialMovementList =
+                financialMovementService.findMovementsForBalanceCalculation(initialDate, endDate);
         final List<BalanceCalcData> balanceCalcDataList = new ArrayList<>(financialMovementList);
+        balanceCalcDataList.addAll(movementSettlementService.findForCashDateBetween(initialDate, endDate));
         projectedOccurrences.stream()
                 .filter(occurrence -> !occurrence.occurrenceDate().isBefore(initialDate))
                 .forEach(balanceCalcDataList::add);

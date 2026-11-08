@@ -27,6 +27,13 @@ public interface FinancialMovementRepository
 
     Optional<FinancialMovementEntity> findByCodeAndFlagActiveTrue(UUID code);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT fm FROM FinancialMovementEntity fm
+            WHERE fm.code = :code AND fm.flagActive = true
+            """)
+    Optional<FinancialMovementEntity> findForUpdateByCodeAndFlagActiveTrue(@Param("code") UUID code);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE FinancialMovementEntity fm
@@ -77,33 +84,23 @@ public interface FinancialMovementRepository
     );
 
     @Query("""
-            SELECT fm FROM FinancialMovementEntity fm WHERE fm.flagActive = true 
-                        AND ((fm.status = :pending AND fm.dueDate BETWEEN :startDate AND :endDate) 
-                        OR (fm.status = :paidOut AND fm.payDate BETWEEN :startDate AND :endDate) 
-                        OR (fm.status = :late AND fm.dueDate BETWEEN :startDate AND :endDate))
+            SELECT fm FROM FinancialMovementEntity fm WHERE fm.flagActive = true
+              AND fm.status IN (:pending, :late)
+              AND fm.dueDate BETWEEN :startDate AND :endDate
             """)
-    List<FinancialMovementEntity> findAllByStatusAndDates(
+    List<FinancialMovementEntity> findUnpaidByDueDateBetween(
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
             @Param("pending") FinancialMovementStatus pending,
-            @Param("paidOut") FinancialMovementStatus paidOut,
             @Param("late") FinancialMovementStatus late
     );
 
     @Query("""
-            SELECT SUM(fm.amountPaid) FROM FinancialMovementEntity fm
-                        WHERE fm.status = :status AND fm.payDate <= :payDate AND fm.flagActive = true
+            SELECT COALESCE(SUM(fm.amount - COALESCE(fm.amountPaid, 0)), 0)
+            FROM FinancialMovementEntity fm
+            WHERE fm.status IN (:statuses) AND fm.dueDate <= :dueDate AND fm.flagActive = true
             """)
-    Optional<BigDecimal> sumAmountPaidByStatusAndPayDateLessThanEqual(
-            @Param("status") FinancialMovementStatus status,
-            @Param("payDate") LocalDateTime payDate
-    );
-
-    @Query("""
-            SELECT SUM(fm.amount) FROM FinancialMovementEntity fm 
-                    WHERE fm.status IN :statuses AND fm.dueDate <= :dueDate AND fm.flagActive = true
-            """)
-    Optional<BigDecimal> sumAmountByStatusAndDueDateLessThanEqual(
+    BigDecimal sumUnpaidAmountByStatusAndDueDateLessThanEqual(
             @Param("statuses") List<FinancialMovementStatus> statuses,
             @Param("dueDate") LocalDateTime dueDate
     );

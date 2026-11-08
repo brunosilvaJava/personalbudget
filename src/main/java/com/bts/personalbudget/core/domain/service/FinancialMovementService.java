@@ -9,6 +9,7 @@ import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleMovementGuard;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import com.bts.personalbudget.repository.FinancialMovementSpecifications;
@@ -47,6 +48,7 @@ public class FinancialMovementService {
     private final IncomeOccurrenceRepository incomeOccurrenceRepository;
     private final Clock clock;
     private final PayCycleMovementGuard payCycleMovementGuard;
+    private final MovementSettlementService movementSettlementService;
 
     /**
      * The category is validated only for a movement the user creates. One generated from a
@@ -56,7 +58,8 @@ public class FinancialMovementService {
     @Transactional
     public FinancialMovement create(final FinancialMovement financialMovement) {
         log.info("m=create, financialMovement={}", financialMovement);
-        final FinancialMovement movementWithStatus = markOverdueAsLateWhenPending(financialMovement);
+        final FinancialMovement movementWithStatus = markOverdueAsLateWhenPending(
+                financialMovement.withPaymentSummary(BigDecimal.ZERO, null, PENDING));
         final FinancialMovement movementToCreate = withCompetence(movementWithStatus);
         payCycleMovementGuard.lock();
         payCycleMovementGuard.requireEditable(movementToCreate.competenceDate());
@@ -72,7 +75,7 @@ public class FinancialMovementService {
         payCycleMovementGuard.lock();
         payCycleMovementGuard.requireEditable(financialMovement.competenceDate());
         return mapper.toModel(repository.save(mapper.toEntity(
-                markOverdueAsLateWhenPending(financialMovement)
+                markOverdueAsLateWhenPending(financialMovement.withPaymentSummary(BigDecimal.ZERO, null, PENDING))
                         .withCompetence(financialMovement.competenceDate(), false))));
     }
 
@@ -236,11 +239,6 @@ public class FinancialMovementService {
             financialMovementEntity.setAmount(financialMovement.amount());
         }
 
-        if (financialMovement.amountPaid() != null &&
-                !financialMovement.amountPaid().equals(financialMovementEntity.getAmountPaid())) {
-            financialMovementEntity.setAmountPaid(financialMovement.amountPaid());
-        }
-
         if (financialMovement.movementDate() != null &&
                 !financialMovement.movementDate().equals(financialMovementEntity.getMovementDate())) {
             financialMovementEntity.setMovementDate(financialMovement.movementDate());
@@ -251,31 +249,29 @@ public class FinancialMovementService {
             financialMovementEntity.setDueDate(financialMovement.dueDate());
         }
 
-        if (financialMovement.payDate() != null &&
-                !financialMovement.payDate().equals(financialMovementEntity.getPayDate())) {
-            financialMovementEntity.setPayDate(financialMovement.payDate());
-        }
-
-        if (financialMovement.status() != null &&
-                !financialMovement.status().equals(financialMovementEntity.getStatus())) {
-            financialMovementEntity.setStatus(financialMovement.status());
-        } else if (financialMovement.status() == null
-                && financialMovementEntity.getStatus() == LATE
-                && !financialMovementEntity.getDueDate().isBefore(LocalDate.now(clock).atStartOfDay())) {
-            financialMovementEntity.setStatus(PENDING);
-        } else if (financialMovement.status() == null
-                && financialMovementEntity.getStatus() == PENDING
-                && financialMovementEntity.getDueDate().isBefore(LocalDate.now(clock).atStartOfDay())) {
-            financialMovementEntity.setStatus(LATE);
-        }
-
         if (financialMovement.categoryCode() != null &&
                 !financialMovement.categoryCode().equals(financialMovementEntity.getCategoryCode())) {
             financialMovementEntity.setCategoryCode(financialMovement.categoryCode());
         }
 
         normalizeAmountSigns(financialMovementEntity);
+        updateSettlementStatus(financialMovementEntity);
         updateCompetence(financialMovement, financialMovementEntity);
+    }
+
+    private void updateSettlementStatus(final FinancialMovementEntity movement) {
+        final BigDecimal paid = movement.getAmountPaid() == null ? BigDecimal.ZERO : movement.getAmountPaid().abs();
+        if (paid.compareTo(movement.getAmount().abs()) > 0) {
+            throw new InvalidFieldsException("Campos inválidos", FinancialMovementUpdate.class,
+                    Map.of("amount", "não pode ser menor que o total já liquidado"));
+        }
+        movement.setAmountPaid(movement.getOperationType() == OperationType.DEBIT ? paid.negate() : paid);
+        movement.setPayDate(null);
+        if (paid.compareTo(movement.getAmount().abs()) == 0 && paid.signum() > 0) {
+            movement.setStatus(PAID_OUT);
+        } else {
+            movement.setStatus(movement.getDueDate().toLocalDate().isBefore(LocalDate.now(clock)) ? LATE : PENDING);
+        }
     }
 
     private boolean changesClosedBudget(final FinancialMovementUpdate changes,
@@ -411,29 +407,24 @@ public class FinancialMovementService {
                                                                       final LocalDate endDate) {
         log.info("m=findMovementsForBalanceCalculation initialDate={} endDate={}", initialDate, endDate);
         return mapper.toModel(
-                repository.findAllByStatusAndDates(
+                repository.findUnpaidByDueDateBetween(
                         initialDate.atStartOfDay(),
                         endDate.atTime(23, 59, 59),
                         PENDING,
-                        PAID_OUT,
                         LATE));
     }
 
     public BigDecimal findBalance(final LocalDate date) {
         log.info("m=findBalance, date={}", date);
-        return repository.sumAmountPaidByStatusAndPayDateLessThanEqual(
-                        PAID_OUT,
-                        date.atTime(23, 59, 59))
-                .orElse(BigDecimal.ZERO);
+        return movementSettlementService.sumActiveSignedAmountsThrough(date);
     }
 
     public BigDecimal findProjectedBalance(final LocalDate date) {
         log.info("m=findProjectedBalance, date={}", date);
         final BigDecimal balance = findBalance(date);
-        final BigDecimal projectedBalance = repository.sumAmountByStatusAndDueDateLessThanEqual(
+        final BigDecimal projectedBalance = repository.sumUnpaidAmountByStatusAndDueDateLessThanEqual(
                         List.of(PENDING, LATE),
-                        date.atTime(23, 59, 59))
-                .orElse(BigDecimal.ZERO);
+                        date.atTime(23, 59, 59));
         return balance.add(projectedBalance);
     }
 }

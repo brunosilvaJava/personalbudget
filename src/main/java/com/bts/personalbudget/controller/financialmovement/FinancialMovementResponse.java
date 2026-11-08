@@ -27,7 +27,7 @@ public record FinancialMovementResponse (
         @Schema(description = "Total amount of the financial movement", example = "150.75")
         BigDecimal amount,
 
-        @Schema(description = "Amount that has already been paid", example = "100.50")
+        @Schema(description = "Aggregate amount of active settlements", example = "100.50")
         @JsonProperty("amount_paid")
         BigDecimal amountPaid,
 
@@ -38,10 +38,6 @@ public record FinancialMovementResponse (
         @Schema(description = "Due date for the financial movement", example = "2024-11-30T23:59:59", type = "string", format = "date-time")
         @JsonProperty("due_date")
         LocalDateTime dueDate,
-
-        @Schema(description = "Date when the payment was made", example = "2024-11-15T10:00:00", type = "string", format = "date-time")
-        @JsonProperty("pay_date")
-        LocalDateTime payDate,
 
         @Schema(description = "Status of the financial movement (e.g., PENDING, COMPLETED, CANCELLED)", example = "PENDING")
         FinancialMovementStatus status,

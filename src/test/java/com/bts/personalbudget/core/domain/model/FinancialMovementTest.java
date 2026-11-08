@@ -44,8 +44,15 @@ class FinancialMovementTest {
         assertEquals(FinancialMovement.class, exception.getAClass());
         assertTrue(validations.containsKey("amountPaid"));
         assertEquals("deve ser informado um valor válido quando o status for PAID_OUT", validations.get("amountPaid"));
-        assertTrue(validations.containsKey("payDate"));
-        assertEquals("deve ser informado um valor válido quando o status for PAID_OUT", validations.get("payDate"));
+    }
+
+    @Test
+    void shouldAllowPaidOutMovementWithoutLegacyPayDate() {
+        final LocalDateTime date = LocalDateTime.of(2026, 11, 5, 10, 0);
+
+        assertDoesNotThrow(() -> new FinancialMovement(
+                UUID.randomUUID(), OperationType.CREDIT, "Pago", BigDecimal.TEN, BigDecimal.TEN,
+                date, date, null, FinancialMovementStatus.PAID_OUT, Boolean.TRUE, null, null, null));
     }
 
     @Test

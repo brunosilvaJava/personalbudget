@@ -5,6 +5,8 @@ import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlement;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -30,6 +32,9 @@ class FinancialMovementLateIntegrationTest {
 
     @Autowired
     private FinancialMovementService service;
+
+    @Autowired
+    private MovementSettlementService settlementService;
 
     @Autowired
     private FinancialMovementRepository repository;
@@ -62,11 +67,15 @@ class FinancialMovementLateIntegrationTest {
 
     private FinancialMovement createMovement(final LocalDateTime dueDate, final FinancialMovementStatus status) {
         final LocalDateTime movementDate = dueDate.minusDays(1);
-        final LocalDateTime payDate = status == FinancialMovementStatus.PAID_OUT ? dueDate : null;
-        return service.create(new FinancialMovement(
+        final FinancialMovement created = service.create(new FinancialMovement(
                 UUID.randomUUID(), OperationType.DEBIT, "Lançamento de teste", new BigDecimal("20.00"),
-                status == FinancialMovementStatus.PAID_OUT ? new BigDecimal("20.00") : null,
-                movementDate, dueDate, payDate, status, Boolean.TRUE, null, null, null,
+                null, movementDate, dueDate, null, FinancialMovementStatus.PENDING, Boolean.TRUE, null, null, null,
                 dueDate.toLocalDate(), false));
+        if (status == FinancialMovementStatus.PAID_OUT) {
+            settlementService.create(created.code(), new MovementSettlement(
+                    null, null, new BigDecimal("20.00"), dueDate.toLocalDate(),
+                    null, null, null, null, null));
+        }
+        return created;
     }
 }

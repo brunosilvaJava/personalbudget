@@ -15,6 +15,8 @@ import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBil
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBillService;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleSummary;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleSummaryService;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlement;
+import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import com.bts.personalbudget.repository.PayCycleRepository;
 import java.math.BigDecimal;
@@ -75,6 +77,9 @@ class PayCycleSummaryIntegrationTest {
     @Autowired
     private PayCycleSummaryService payCycleSummaryService;
 
+    @Autowired
+    private MovementSettlementService movementSettlementService;
+
     @BeforeEach
     void setUp() {
         cleanData();
@@ -105,8 +110,11 @@ class PayCycleSummaryIntegrationTest {
                 INSTALLMENT_MOVEMENT_CODE, DEBIT, "-40.00", null, PENDING,
                 INSTALLMENT_CODE, LocalDate.of(2026, 11, 15), LocalDate.of(2026, 11, 15)));
         financialMovementRepository.saveAndFlush(movement(
-                PAID_MOVEMENT_CODE, CREDIT, "500.00", "500.00", PAID_OUT,
+                PAID_MOVEMENT_CODE, CREDIT, "500.00", "0.00", PENDING,
                 null, LocalDate.of(2026, 11, 20), LocalDate.of(2026, 12, 5)));
+        movementSettlementService.create(PAID_MOVEMENT_CODE, new MovementSettlement(
+                null, null, new BigDecimal("500.00"), LocalDate.of(2026, 12, 5),
+                null, null, null, null, null));
         financialMovementRepository.saveAndFlush(movement(
                 OUTSIDE_MOVEMENT_CODE, CREDIT, "900.00", null, PENDING,
                 null, END_EXCLUSIVE, END_EXCLUSIVE));
@@ -150,7 +158,7 @@ class PayCycleSummaryIntegrationTest {
                 .amountPaid(amountPaid == null ? null : new BigDecimal(amountPaid))
                 .movementDate(dueDate)
                 .dueDate(dueDate)
-                .payDate(status == PAID_OUT ? cashDate.atStartOfDay() : null)
+                .payDate(null)
                 .status(status)
                 .recurrenceBillCode(recurrenceBillCode)
                 .occurrenceDate(recurrenceBillCode == null ? null : competenceDate)
@@ -160,6 +168,10 @@ class PayCycleSummaryIntegrationTest {
     }
 
     private void cleanData() {
+        jdbcTemplate.update("DELETE FROM movement_settlement WHERE financial_movement_id IN "
+                        + "(SELECT id FROM financial_movement WHERE code IN "
+                        + "(UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?)))",
+                INSTALLMENT_MOVEMENT_CODE.toString(), PAID_MOVEMENT_CODE.toString(), OUTSIDE_MOVEMENT_CODE.toString());
         jdbcTemplate.update("DELETE FROM financial_movement WHERE code IN "
                         + "(UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?))",
                 INSTALLMENT_MOVEMENT_CODE.toString(), PAID_MOVEMENT_CODE.toString(), OUTSIDE_MOVEMENT_CODE.toString());

@@ -45,8 +45,7 @@ public class FinancialMovementController implements FinancialMovementControllerA
             "operation_type", "operationType",
             "status", "status",
             "movement_date", "movementDate",
-            "due_date", "dueDate",
-            "pay_date", "payDate");
+            "due_date", "dueDate");
 
     private final FinancialMovementService service;
     private final FinancialMovementMapper mapper;
