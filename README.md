@@ -35,6 +35,22 @@ O projeto inclui funcionalidades para gerenciar diferentes tipos de movimentaç�
 - Suporte a tipos de operações: **CREDIT** (crédito) e **DEBIT** (débito).
 - Estados de movimentação: **PENDING** (pendente), **PAID_OUT** (pago) e **LATE** (atrasado).
 
+### Categorias iniciais
+
+Uma instalação nova recebe categorias ativas organizadas nos grupos existentes. A lista é um conjunto inicial de defaults e pode ser ajustada depois pelo usuário:
+
+| Grupo | Categorias |
+|---|---|
+| Residência | Aluguel/Financiamento, Água, Energia elétrica, Gás, Internet, Manutenção da casa |
+| Pessoal | Alimentação, Saúde, Vestuário, Lazer, Cuidados pessoais |
+| Instrução | Educação, Cursos, Livros e materiais |
+| Moto | Combustível, Manutenção, Seguro, Documentação |
+| Investimento | Reserva de emergência, Investimentos |
+| Outros | Impostos e taxas, Doações, Outros |
+| Receitas | Salário, Renda extra, Rendimentos, Reembolso, Outros |
+
+As categorias dos seis primeiros grupos são do tipo **DEBIT**; as de **Receitas** são **CREDIT**. A migration não duplica uma categoria quando já existe a mesma combinação de nome e tipo de operação, nem modifica categorias existentes.
+
 ### Contas Recorrentes
 
 O PersonalBudget permite o gerenciamento de **contas recorrentes**, que são movimentações financeiras programadas para ocorrer periodicamente. Existem dois tipos principais de contas recorrentes:
@@ -183,4 +199,3 @@ Se desejar contribuir para o projeto, siga os passos abaixo:
 2. Crie uma branch para sua feature ou correção:
    ```bash
    git checkout -b feature/BTS-XXX/sua-feature
-
