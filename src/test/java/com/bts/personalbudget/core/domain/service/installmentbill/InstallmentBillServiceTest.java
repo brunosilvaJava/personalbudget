@@ -210,6 +210,20 @@ public class InstallmentBillServiceTest {
     }
 
     @Test
+    void shouldConcludeInstallmentBillWhenUpdatedTotalEqualsInstallmentCount() {
+        final UUID code = UUID.randomUUID();
+        final InstallmentBill installmentBill = new InstallmentBill(
+                code, OperationType.DEBIT, "Test", BigDecimal.TEN, InstallmentBillStatus.PENDING,
+                TODAY.minusDays(120), 6, 2, TODAY.minusDays(60), TODAY.minusDays(30));
+        when(repository.findByCode(code)).thenReturn(installmentBill);
+
+        final InstallmentBill updated = service.update(code, null, null, null, null, 2, null);
+
+        assertEquals(InstallmentBillStatus.DONE, updated.getStatus());
+        assertNull(updated.getNextInstallmentDate());
+    }
+
+    @Test
     void shouldPostInstallmentsMadeDueByPurchaseDateUpdate() {
         final UUID code = UUID.randomUUID();
         final InstallmentBill installmentBill = new InstallmentBill(
@@ -236,7 +250,7 @@ public class InstallmentBillServiceTest {
     }
 
     @Test
-    void shouldNotDoAnythingIfAlreadyDeletedInstallmentBill() {
+    void shouldDeleteInstallmentBillIdempotentlyWhenAlreadyDeleted() {
         UUID code = UUID.randomUUID();
         doThrow(new InstallmentBillAlreadyDeletedException(code)).when(repository).delete(code);
         service.delete(code);

@@ -33,13 +33,15 @@ class InstallmentBillControllerTest {
     private InstallmentBillMapper mapper;
 
     @Test
-    void shouldReturnNoContentWhenInstallmentBillIsDeleted() {
+    void shouldReturnNoContentOnRepeatedInstallmentBillDelete() {
         final UUID code = UUID.randomUUID();
 
-        final ResponseEntity<Void> response = controller.delete(code);
+        final ResponseEntity<Void> firstResponse = controller.delete(code);
+        final ResponseEntity<Void> repeatedResponse = controller.delete(code);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        verify(installmentBillService).delete(code);
+        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(repeatedResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        verify(installmentBillService, org.mockito.Mockito.times(2)).delete(code);
     }
 
     @Test

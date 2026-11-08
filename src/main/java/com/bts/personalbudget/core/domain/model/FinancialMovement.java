@@ -95,6 +95,12 @@ public record FinancialMovement(
                 newCompetenceDate, overridden);
     }
 
+    public FinancialMovement withStatus(final FinancialMovementStatus newStatus) {
+        return new FinancialMovement(code, operationType, description, amount, amountPaid, movementDate,
+                dueDate, payDate, newStatus, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
+                competenceDate, competenceOverridden);
+    }
+
     @Override
     public BigDecimal getBalanceCalcValue() {
         final BigDecimal balanceCalcValue = switch (status) {

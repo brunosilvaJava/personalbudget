@@ -118,6 +118,9 @@ public class InstallmentBillService {
             updateInstallmentBill.setCategoryCode(categoryCode);
         }
         final InstallmentBill updated = repository.update(updateInstallmentBill);
+        if (updated.getStatus() == InstallmentBillStatus.DONE) {
+            return updated;
+        }
         final LocalDate today = LocalDate.now(clock);
         if (updated.getNextInstallmentDate() != null && !updated.getNextInstallmentDate().isAfter(today)) {
             postDueInstallments(code, today);

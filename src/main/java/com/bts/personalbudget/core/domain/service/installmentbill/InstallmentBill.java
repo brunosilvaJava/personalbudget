@@ -82,7 +82,8 @@ public class InstallmentBill implements BalanceCalcData {
                           final LocalDate purchaseDate,
                           final Integer installmentTotal) {
         if (installmentCount > 0 &&
-                (operationType != null || amount != null || installmentTotal != null)) {
+                (operationType != null || amount != null
+                        || (installmentTotal != null && !installmentTotal.equals(installmentCount)))) {
             log.error("m=update msg=update_not_allowed code={}", code);
             throw new RuntimeException("Update not allowed, code=" + code);
         }
@@ -96,6 +97,9 @@ public class InstallmentBill implements BalanceCalcData {
             }
         }
         this.installmentTotal = installmentTotal != null ? installmentTotal : this.installmentTotal;
+        if (installmentCount.equals(this.installmentTotal)) {
+            conclude();
+        }
     }
 
     protected void updateInstallment() {

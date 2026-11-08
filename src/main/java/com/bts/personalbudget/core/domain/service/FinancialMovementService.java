@@ -56,14 +56,25 @@ public class FinancialMovementService {
         if (financialMovement.recurrenceBillCode() == null && financialMovement.categoryCode() != null) {
             categoryService.validateForUse(financialMovement.categoryCode(), financialMovement.operationType());
         }
-        return mapper.toModel(repository.save(mapper.toEntity(withCompetence(financialMovement))));
+        final FinancialMovement movementWithStatus = markOverdueAsLateWhenPending(financialMovement);
+        return mapper.toModel(repository.save(mapper.toEntity(withCompetence(movementWithStatus))));
     }
 
     @Transactional
     public FinancialMovement createWithAutomaticCompetence(final FinancialMovement financialMovement) {
         log.info("m=createWithAutomaticCompetence, financialMovement={}", financialMovement);
         return mapper.toModel(repository.save(mapper.toEntity(
-                financialMovement.withCompetence(financialMovement.competenceDate(), false))));
+                markOverdueAsLateWhenPending(financialMovement)
+                        .withCompetence(financialMovement.competenceDate(), false))));
+    }
+
+    private FinancialMovement markOverdueAsLateWhenPending(final FinancialMovement financialMovement) {
+        if (financialMovement.status() == PENDING
+                && financialMovement.dueDate() != null
+                && financialMovement.dueDate().isBefore(LocalDate.now(clock).atStartOfDay())) {
+            return financialMovement.withStatus(LATE);
+        }
+        return financialMovement;
     }
 
     /**
@@ -234,6 +245,10 @@ public class FinancialMovementService {
                 && financialMovementEntity.getStatus() == LATE
                 && !financialMovementEntity.getDueDate().isBefore(LocalDate.now(clock).atStartOfDay())) {
             financialMovementEntity.setStatus(PENDING);
+        } else if (financialMovement.status() == null
+                && financialMovementEntity.getStatus() == PENDING
+                && financialMovementEntity.getDueDate().isBefore(LocalDate.now(clock).atStartOfDay())) {
+            financialMovementEntity.setStatus(LATE);
         }
 
         if (financialMovement.categoryCode() != null &&
