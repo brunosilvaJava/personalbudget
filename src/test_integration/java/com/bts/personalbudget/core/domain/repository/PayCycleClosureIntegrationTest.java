@@ -86,6 +86,7 @@ class PayCycleClosureIntegrationTest {
     @MockBean private PayCycleSummaryService summaryService;
 
     private IncomeScheduleEntity anchor;
+    private boolean createdCalendarReview;
 
     @BeforeEach
     void setUp() {
@@ -125,6 +126,10 @@ class PayCycleClosureIntegrationTest {
     @AfterEach
     void tearDown() {
         cleanData();
+        if (createdCalendarReview) {
+            jdbc.update("DELETE FROM holiday_calendar_review WHERE calendar_year = 2026");
+            createdCalendarReview = false;
+        }
     }
 
     @Test
@@ -157,6 +162,8 @@ class PayCycleClosureIntegrationTest {
 
     @Test
     void shouldRecoverDueIncomeBeforeCloseAndRollbackWhenItCreatesALateMovement() {
+        createdCalendarReview = jdbc.update(
+                "INSERT IGNORE INTO holiday_calendar_review (calendar_year) VALUES (2026)") > 0;
         anchor.setStartMonth(START);
         anchor.setEndMonth(START);
         schedules.saveAndFlush(anchor);
@@ -257,7 +264,7 @@ class PayCycleClosureIntegrationTest {
                 .amount(new BigDecimal("100.00"))
                 .amountPaid(BigDecimal.ZERO)
                 .movementDate(LocalDateTime.of(2026, 10, 15, 0, 0))
-                .dueDate(LocalDateTime.of(2026, 10, 15, 0, 0))
+                .dueDate(TODAY.atStartOfDay())
                 .status(PENDING)
                 .competenceDate(LocalDate.of(2026, 10, 15))
                 .competenceOverridden(false)
