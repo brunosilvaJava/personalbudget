@@ -28,6 +28,10 @@ public record MovementSettlementResponse(
         LocalDateTime reversedAt,
 
         @Schema(description = "Optimistic-lock version")
-        Long version
+        Long version,
+
+        @JsonProperty("account_code")
+        @Schema(description = "Account the money came from or went to")
+        UUID accountCode
 ) {
 }

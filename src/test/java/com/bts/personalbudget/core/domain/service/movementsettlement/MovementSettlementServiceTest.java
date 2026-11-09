@@ -1,6 +1,11 @@
 package com.bts.personalbudget.core.domain.service.movementsettlement;
 
+import com.bts.personalbudget.core.domain.entity.AccountEntity;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
+import com.bts.personalbudget.core.domain.enumerator.AccountStatus;
+import com.bts.personalbudget.core.domain.factory.AccountFactory;
+import com.bts.personalbudget.exception.InvalidFieldsException;
+import com.bts.personalbudget.repository.AccountRepository;
 import com.bts.personalbudget.core.domain.entity.MovementSettlementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
@@ -45,6 +50,9 @@ class MovementSettlementServiceTest {
     private MovementSettlementRepository settlementRepository;
 
     @Mock
+    private AccountRepository accountRepository;
+
+    @Mock
     private PayCycleMovementGuard payCycleMovementGuard;
 
     @Spy
@@ -59,6 +67,7 @@ class MovementSettlementServiceTest {
         final FinancialMovementEntity movement = movement(OperationType.DEBIT, "-100.00", "0.00");
         when(movementRepository.findForUpdateByCodeAndFlagActiveTrue(movement.getCode()))
                 .thenReturn(Optional.of(movement));
+        when(accountRepository.findByDefaultAccountTrue()).thenReturn(Optional.of(AccountFactory.buildEntity()));
         when(settlementRepository.save(any(MovementSettlementEntity.class))).thenAnswer(invocation -> {
             final MovementSettlementEntity entity = invocation.getArgument(0);
             entity.setId(1L);
@@ -80,6 +89,7 @@ class MovementSettlementServiceTest {
         final FinancialMovementEntity movement = movement(OperationType.CREDIT, "100.00", "75.00");
         when(movementRepository.findForUpdateByCodeAndFlagActiveTrue(movement.getCode()))
                 .thenReturn(Optional.of(movement));
+        when(accountRepository.findByDefaultAccountTrue()).thenReturn(Optional.of(AccountFactory.buildEntity()));
 
         assertThrows(ConflictException.class,
                 () -> service.create(movement.getCode(), settlement("30.00")));
@@ -92,6 +102,7 @@ class MovementSettlementServiceTest {
         final FinancialMovementEntity movement = movement(OperationType.CREDIT, "100.00", "60.00");
         when(movementRepository.findForUpdateByCodeAndFlagActiveTrue(movement.getCode()))
                 .thenReturn(Optional.of(movement));
+        when(accountRepository.findByDefaultAccountTrue()).thenReturn(Optional.of(AccountFactory.buildEntity()));
         when(settlementRepository.save(any(MovementSettlementEntity.class))).thenAnswer(invocation -> {
             final MovementSettlementEntity entity = invocation.getArgument(0);
             entity.setId(1L);
@@ -168,6 +179,89 @@ class MovementSettlementServiceTest {
 
         assertThat(movement.getStatus()).isEqualTo(FinancialMovementStatus.LATE);
         assertThat(movement.getAmountPaid()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void shouldUseTheDefaultAccountWhenNoAccountIsInformed() {
+        final FinancialMovementEntity movement = movement(OperationType.DEBIT, "-100.00", "0.00");
+        final AccountEntity defaultAccount = AccountFactory.buildEntity();
+        when(movementRepository.findForUpdateByCodeAndFlagActiveTrue(movement.getCode()))
+                .thenReturn(Optional.of(movement));
+        when(accountRepository.findByDefaultAccountTrue()).thenReturn(Optional.of(defaultAccount));
+        when(settlementRepository.save(any(MovementSettlementEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        final MovementSettlement recorded = service.create(movement.getCode(), settlement("10.00"));
+
+        assertThat(recorded.accountCode()).isEqualTo(defaultAccount.getCode());
+    }
+
+    @Test
+    void shouldUseTheInformedAccountInsteadOfTheDefault() {
+        final FinancialMovementEntity movement = movement(OperationType.DEBIT, "-100.00", "0.00");
+        final AccountEntity wallet = AccountFactory.buildEntity();
+        wallet.setCode(AccountFactory.OTHER_ACCOUNT_CODE);
+        when(movementRepository.findForUpdateByCodeAndFlagActiveTrue(movement.getCode()))
+                .thenReturn(Optional.of(movement));
+        when(accountRepository.findByCode(wallet.getCode())).thenReturn(Optional.of(wallet));
+        when(settlementRepository.save(any(MovementSettlementEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        final MovementSettlement recorded = service.create(movement.getCode(),
+                settlementWithAccount("10.00", wallet.getCode(), LocalDate.of(2026, 11, 8)));
+
+        assertThat(recorded.accountCode()).isEqualTo(wallet.getCode());
+        verify(accountRepository, never()).findByDefaultAccountTrue();
+    }
+
+    @Test
+    void shouldRejectUnknownAccountBeforeSaving() {
+        final FinancialMovementEntity movement = movement(OperationType.DEBIT, "-100.00", "0.00");
+        final UUID unknown = UUID.randomUUID();
+        when(movementRepository.findForUpdateByCodeAndFlagActiveTrue(movement.getCode()))
+                .thenReturn(Optional.of(movement));
+        when(accountRepository.findByCode(unknown)).thenReturn(Optional.empty());
+
+        assertThrows(InvalidFieldsException.class, () -> service.create(movement.getCode(),
+                settlementWithAccount("10.00", unknown, LocalDate.of(2026, 11, 8))));
+
+        verify(settlementRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectInactiveAccountBeforeSaving() {
+        final FinancialMovementEntity movement = movement(OperationType.DEBIT, "-100.00", "0.00");
+        final AccountEntity inactive = AccountFactory.buildEntity();
+        inactive.setStatus(AccountStatus.INACTIVE);
+        when(movementRepository.findForUpdateByCodeAndFlagActiveTrue(movement.getCode()))
+                .thenReturn(Optional.of(movement));
+        when(accountRepository.findByCode(inactive.getCode())).thenReturn(Optional.of(inactive));
+
+        assertThrows(InvalidFieldsException.class, () -> service.create(movement.getCode(),
+                settlementWithAccount("10.00", inactive.getCode(), LocalDate.of(2026, 11, 8))));
+
+        verify(settlementRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectSettlementDatedBeforeTheAccountInitialBalanceDate() {
+        final FinancialMovementEntity movement = movement(OperationType.DEBIT, "-100.00", "0.00");
+        final AccountEntity account = AccountFactory.buildEntity();
+        account.setInitialBalanceDate(LocalDate.of(2026, 11, 1));
+        when(movementRepository.findForUpdateByCodeAndFlagActiveTrue(movement.getCode()))
+                .thenReturn(Optional.of(movement));
+        when(accountRepository.findByCode(account.getCode())).thenReturn(Optional.of(account));
+
+        assertThrows(InvalidFieldsException.class, () -> service.create(movement.getCode(),
+                settlementWithAccount("10.00", account.getCode(), LocalDate.of(2026, 10, 31))));
+
+        verify(settlementRepository, never()).save(any());
+    }
+
+    private static MovementSettlement settlementWithAccount(final String amount, final UUID accountCode,
+                                                            final LocalDate effectiveDate) {
+        return new MovementSettlement(null, null, new BigDecimal(amount), effectiveDate,
+                null, null, null, null, null, accountCode);
     }
 
     private static MovementSettlement settlement(final String amount) {
