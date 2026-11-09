@@ -467,6 +467,19 @@ public class FinancialMovementService {
                         LATE));
     }
 
+    /** Every unpaid movement due up to {@code endDate} (overdue ones included), for the cash forecast. */
+    public List<FinancialMovement> findOpenDueThrough(final LocalDate endDate) {
+        log.info("m=findOpenDueThrough, endDate={}", endDate);
+        return mapper.toModel(repository.findUnpaidDueThrough(endDate.atTime(23, 59, 59), PENDING, LATE));
+    }
+
+    /** The unpaid card installments due after {@code afterDate}, for the cash forecast. */
+    public List<FinancialMovement> findOpenCardInstallmentsDueAfter(final LocalDate afterDate) {
+        log.info("m=findOpenCardInstallmentsDueAfter, afterDate={}", afterDate);
+        return mapper.toModel(repository.findUnpaidCardInstallmentsDueAfter(
+                afterDate.atTime(23, 59, 59), PENDING, LATE));
+    }
+
     public BigDecimal findBalance(final LocalDate date) {
         log.info("m=findBalance, date={}", date);
         return movementSettlementService.sumActiveSignedAmountsThrough(date);
