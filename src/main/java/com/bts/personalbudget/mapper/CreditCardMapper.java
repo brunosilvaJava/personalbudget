@@ -1,9 +1,11 @@
 package com.bts.personalbudget.mapper;
 
+import com.bts.personalbudget.controller.creditcard.CreditCardLimitResponse;
 import com.bts.personalbudget.controller.creditcard.CreditCardRequest;
 import com.bts.personalbudget.controller.creditcard.CreditCardResponse;
 import com.bts.personalbudget.core.domain.entity.CreditCardEntity;
 import com.bts.personalbudget.core.domain.model.CreditCard;
+import com.bts.personalbudget.core.domain.service.creditcard.CreditCardLimit;
 import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -35,4 +37,6 @@ public interface CreditCardMapper {
     CreditCardResponse toResponse(CreditCard card);
 
     List<CreditCardResponse> toResponseList(List<CreditCard> cards);
+
+    CreditCardLimitResponse toResponse(CreditCardLimit limit);
 }

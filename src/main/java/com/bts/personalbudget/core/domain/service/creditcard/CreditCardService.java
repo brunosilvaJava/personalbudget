@@ -8,6 +8,7 @@ import com.bts.personalbudget.core.domain.model.CreditCard;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.CreditCardMapper;
 import com.bts.personalbudget.repository.AccountRepository;
+import com.bts.personalbudget.repository.CardInstallmentRepository;
 import com.bts.personalbudget.repository.CreditCardRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
@@ -33,6 +34,7 @@ public class CreditCardService {
 
     private final CreditCardRepository cardRepository;
     private final AccountRepository accountRepository;
+    private final CardInstallmentRepository installmentRepository;
     private final CreditCardMapper mapper;
 
     @Transactional
@@ -68,6 +70,20 @@ public class CreditCardService {
     public CreditCard findByCode(final UUID code) {
         log.info("m=findByCode, code={}", code);
         return mapper.toModel(findEntity(code));
+    }
+
+    /**
+     * Used = unpaid part of every active installment of the card, future ones included.
+     * Available = limit - used (null without a limit; negative when the limit was lowered under
+     * what is already used).
+     */
+    @Transactional(readOnly = true)
+    public CreditCardLimit limit(final UUID code) {
+        log.info("m=limit, code={}", code);
+        final CreditCardEntity entity = findEntity(code);
+        final BigDecimal used = installmentRepository.sumUnpaidByCardId(entity.getId());
+        final BigDecimal limit = entity.getCreditLimit();
+        return new CreditCardLimit(code, limit, used, limit == null ? null : limit.subtract(used));
     }
 
     /**

@@ -2,6 +2,7 @@ package com.bts.personalbudget.controller.creditcard;
 
 import com.bts.personalbudget.core.domain.enumerator.CreditCardStatus;
 import com.bts.personalbudget.core.domain.factory.CreditCardFactory;
+import com.bts.personalbudget.core.domain.service.creditcard.CreditCardLimit;
 import com.bts.personalbudget.core.domain.service.creditcard.CreditCardService;
 import com.bts.personalbudget.exception.ControllerExceptionHandler;
 import com.bts.personalbudget.mapper.CreditCardMapper;
@@ -117,5 +118,19 @@ class CreditCardControllerTest {
                 .andExpect(status().isOk());
         mvc.perform(patch("/credit_card/{code}/activate", CreditCardFactory.CARD_CODE))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldReturnTheLimitOfTheCard() throws Exception {
+        when(service.limit(CreditCardFactory.CARD_CODE)).thenReturn(new CreditCardLimit(
+                CreditCardFactory.CARD_CODE, new BigDecimal("5000.00"), new BigDecimal("1250.00"),
+                new BigDecimal("3750.00")));
+
+        mvc.perform(get("/credit_card/{code}/limit", CreditCardFactory.CARD_CODE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.card_code").value(CreditCardFactory.CARD_CODE.toString()))
+                .andExpect(jsonPath("$.credit_limit").value(5000.00))
+                .andExpect(jsonPath("$.used").value(1250.00))
+                .andExpect(jsonPath("$.available").value(3750.00));
     }
 }

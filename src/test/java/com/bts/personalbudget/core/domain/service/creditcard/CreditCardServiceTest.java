@@ -10,6 +10,7 @@ import com.bts.personalbudget.core.domain.model.CreditCard;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.CreditCardMapper;
 import com.bts.personalbudget.repository.AccountRepository;
+import com.bts.personalbudget.repository.CardInstallmentRepository;
 import com.bts.personalbudget.repository.CreditCardRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
@@ -43,6 +44,9 @@ class CreditCardServiceTest {
 
     @Mock
     private AccountRepository accountRepository;
+
+    @Mock
+    private CardInstallmentRepository installmentRepository;
 
     @Spy
     private CreditCardMapper mapper = Mappers.getMapper(CreditCardMapper.class);
@@ -180,5 +184,31 @@ class CreditCardServiceTest {
         assertThat(service.activate(card.getCode()).status()).isEqualTo(CreditCardStatus.ACTIVE);
         assertThat(service.activate(card.getCode()).status()).isEqualTo(CreditCardStatus.ACTIVE);
         verify(cardRepository, times(2)).save(card);
+    }
+
+    @Test
+    void shouldComputeUsedAndAvailableFromTheUnpaidInstallments() {
+        final CreditCardEntity card = CreditCardFactory.buildEntity();
+        when(cardRepository.findByCode(card.getCode())).thenReturn(Optional.of(card));
+        when(installmentRepository.sumUnpaidByCardId(card.getId())).thenReturn(new BigDecimal("1250.00"));
+
+        final CreditCardLimit limit = service.limit(card.getCode());
+
+        assertThat(limit.creditLimit()).isEqualByComparingTo("5000.00");
+        assertThat(limit.used()).isEqualByComparingTo("1250.00");
+        assertThat(limit.available()).isEqualByComparingTo("3750.00");
+    }
+
+    @Test
+    void shouldLeaveAvailableNullWithoutLimitAndAllowItNegativeWhenTheLimitWasLowered() {
+        final CreditCardEntity card = CreditCardFactory.buildEntity();
+        when(cardRepository.findByCode(card.getCode())).thenReturn(Optional.of(card));
+        when(installmentRepository.sumUnpaidByCardId(card.getId())).thenReturn(new BigDecimal("1250.00"));
+
+        card.setCreditLimit(null);
+        assertThat(service.limit(card.getCode()).available()).isNull();
+
+        card.setCreditLimit(new BigDecimal("1000.00"));
+        assertThat(service.limit(card.getCode()).available()).isEqualByComparingTo("-250.00");
     }
 }

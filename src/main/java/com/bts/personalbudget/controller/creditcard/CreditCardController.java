@@ -56,6 +56,13 @@ public class CreditCardController implements CreditCardControllerApiDocs {
     }
 
     @Override
+    @GetMapping("/{code}/limit")
+    public ResponseEntity<CreditCardLimitResponse> limit(@PathVariable final UUID code) {
+        log.info("m=limit, code={}", code);
+        return ResponseEntity.ok(mapper.toResponse(service.limit(code)));
+    }
+
+    @Override
     @PatchMapping("/{code}")
     public ResponseEntity<CreditCardResponse> update(@PathVariable final UUID code,
                                                      @RequestBody @Valid final CreditCardUpdateRequest request) {
