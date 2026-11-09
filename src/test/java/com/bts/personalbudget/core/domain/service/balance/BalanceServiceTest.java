@@ -282,13 +282,13 @@ public class BalanceServiceTest {
 
     @Test
     void shouldProjectRemainingInstallmentsInPeriod() {
-        // 2 of 6 installments posted: 4 remain, every 30 days from July 5; 3 fall in the period.
+        // 2 of 6 installments posted: 4 remain, monthly from July 5; 3 fall in the period.
         final InstallmentBill television = new InstallmentBill(UUID.randomUUID(), DEBIT, "television",
-                new BigDecimal("50.00"), InstallmentBillStatus.PENDING, LocalDate.of(2026, 5, 6), 6,
+                new BigDecimal("50.00"), InstallmentBillStatus.PENDING, LocalDate.of(2026, 4, 5), 6,
                 2, LocalDate.of(2026, 6, 5), LocalDate.of(2026, 7, 5));
-        // 2 of 3 posted: only July 20 remains, nothing 30 days later.
+        // 2 of 3 posted: only July 20 remains, nothing a month later.
         final InstallmentBill almostPaid = new InstallmentBill(UUID.randomUUID(), DEBIT, "almost paid",
-                new BigDecimal("30.00"), InstallmentBillStatus.PENDING, LocalDate.of(2026, 4, 21), 3,
+                new BigDecimal("30.00"), InstallmentBillStatus.PENDING, LocalDate.of(2026, 4, 20), 3,
                 2, LocalDate.of(2026, 6, 20), LocalDate.of(2026, 7, 20));
 
         stubPeriod(JULY_1, SEPTEMBER_30, List.of());
@@ -298,7 +298,7 @@ public class BalanceServiceTest {
 
         Set<DailyBalance> result = balanceService.findDailyBalanceBetween(JULY_1, SEPTEMBER_30);
 
-        List.of(LocalDate.of(2026, 7, 5), LocalDate.of(2026, 8, 4), LocalDate.of(2026, 9, 3))
+        List.of(LocalDate.of(2026, 7, 5), LocalDate.of(2026, 8, 5), LocalDate.of(2026, 9, 5))
                 .forEach(date -> assertValue(date, "pendingTotalExpense", new BigDecimal("-50"),
                         findDailyBalance(result, date).orElseThrow().getPendingTotalExpense()));
         assertValue(LocalDate.of(2026, 7, 20), "pendingTotalExpense", new BigDecimal("-30"),
@@ -431,7 +431,7 @@ public class BalanceServiceTest {
         final FixedBill rent = buildMonthlyDebitFixedBill(LocalDate.of(2026, 7, 10));
         rent.setCategoryCode(RENT_CATEGORY);
         final InstallmentBill television = new InstallmentBill(UUID.randomUUID(), DEBIT, "television",
-                new BigDecimal("50.00"), InstallmentBillStatus.PENDING, LocalDate.of(2026, 5, 6), 6,
+                new BigDecimal("50.00"), InstallmentBillStatus.PENDING, LocalDate.of(2026, 4, 5), 6,
                 2, LocalDate.of(2026, 6, 5), LocalDate.of(2026, 7, 5));
         television.setCategoryCode(TELEVISION_CATEGORY);
 
@@ -444,7 +444,7 @@ public class BalanceServiceTest {
 
         final List<BalanceCalcData> result = balanceService.findBalanceCalcDataBetween(JULY_1, SEPTEMBER_30);
 
-        // 2 occurrences of the rent and 3 remaining installments (July 5, August 4, September 3).
+        // 2 occurrences of the rent and 3 remaining installments (July 5, August 5, September 5).
         assertThat(result).hasSize(5);
         assertThat(result).allMatch(data -> data.findStatus() == BalanceCalcData.PaymentStatus.PENDING);
         assertThat(result.stream().filter(data -> RENT_CATEGORY.equals(data.getCategoryCode())).count()).isEqualTo(2);
