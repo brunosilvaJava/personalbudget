@@ -3,6 +3,7 @@ package com.bts.personalbudget.controller.account;
 import com.bts.personalbudget.core.domain.factory.AccountFactory;
 import com.bts.personalbudget.core.domain.service.account.AccountBalance;
 import com.bts.personalbudget.core.domain.service.account.AccountService;
+import com.bts.personalbudget.core.domain.service.account.AccountsBalance;
 import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.ControllerExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -108,13 +109,33 @@ class AccountControllerTest {
     void shouldReturnTheBalanceOnTheRequestedDate() throws Exception {
         when(service.balance(AccountFactory.ACCOUNT_CODE, LocalDate.of(2026, 11, 5)))
                 .thenReturn(new AccountBalance(AccountFactory.ACCOUNT_CODE, LocalDate.of(2026, 11, 5),
-                        new BigDecimal("100.00"), new BigDecimal("-30.00"), new BigDecimal("70.00")));
+                        new BigDecimal("100.00"), new BigDecimal("-30.00"), new BigDecimal("20.00"),
+                        new BigDecimal("90.00")));
 
         mvc.perform(get("/account/{code}/balance", AccountFactory.ACCOUNT_CODE).param("date", "2026-11-05"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.account_code").value(AccountFactory.ACCOUNT_CODE.toString()))
                 .andExpect(jsonPath("$.initial_balance").value(100.00))
                 .andExpect(jsonPath("$.settlements_total").value(-30.00))
-                .andExpect(jsonPath("$.balance").value(70.00));
+                .andExpect(jsonPath("$.transfers_total").value(20.00))
+                .andExpect(jsonPath("$.balance").value(90.00));
+    }
+
+    @Test
+    void shouldReturnTheBalanceOfAllAccountsWithTheTotal() throws Exception {
+        final LocalDate date = LocalDate.of(2026, 11, 5);
+        when(service.balances(date)).thenReturn(new AccountsBalance(date,
+                List.of(new AccountBalance(AccountFactory.ACCOUNT_CODE, date, new BigDecimal("100.00"),
+                        BigDecimal.ZERO, new BigDecimal("-20.00"), new BigDecimal("80.00")),
+                        new AccountBalance(AccountFactory.OTHER_ACCOUNT_CODE, date, BigDecimal.ZERO,
+                                BigDecimal.ZERO, new BigDecimal("20.00"), new BigDecimal("20.00"))),
+                new BigDecimal("100.00")));
+
+        mvc.perform(get("/account/balance").param("date", "2026-11-05"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.date").value("2026-11-05"))
+                .andExpect(jsonPath("$.accounts.length()").value(2))
+                .andExpect(jsonPath("$.accounts[1].transfers_total").value(20.00))
+                .andExpect(jsonPath("$.total").value(100.00));
     }
 }

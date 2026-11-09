@@ -10,6 +10,7 @@ import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.AccountMapper;
 import com.bts.personalbudget.repository.AccountRepository;
+import com.bts.personalbudget.repository.AccountTransferRepository;
 import com.bts.personalbudget.repository.MovementSettlementRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
@@ -50,6 +51,9 @@ class AccountServiceTest {
 
     @Mock
     private MovementSettlementRepository settlementRepository;
+
+    @Mock
+    private AccountTransferRepository transferRepository;
 
     @Spy
     private AccountMapper accountMapper = Mappers.getMapper(AccountMapper.class);
@@ -232,12 +236,75 @@ class AccountServiceTest {
         when(settlementRepository.sumActiveSignedAmountsByAccountBetween(
                 eq(account.getId()), eq(account.getInitialBalanceDate()), eq(LocalDate.of(2026, 11, 5)),
                 eq(OperationType.DEBIT))).thenReturn(new BigDecimal("-30.00"));
+        stubTransfers(account, LocalDate.of(2026, 11, 5), BigDecimal.ZERO, BigDecimal.ZERO);
 
         final AccountBalance balance = service.balance(account.getCode(), LocalDate.of(2026, 11, 5));
 
         assertThat(balance.initialBalance()).isEqualByComparingTo("100.00");
         assertThat(balance.settlementsTotal()).isEqualByComparingTo("-30.00");
+        assertThat(balance.transfersTotal()).isEqualByComparingTo("0");
         assertThat(balance.balance()).isEqualByComparingTo("70.00");
+    }
+
+    @Test
+    void shouldAddIncomingAndSubtractOutgoingTransfersOnTheBalance() {
+        final AccountEntity account = AccountFactory.buildEntity();
+        when(accountRepository.findByCode(account.getCode())).thenReturn(Optional.of(account));
+        when(settlementRepository.sumActiveSignedAmountsByAccountBetween(
+                eq(account.getId()), eq(account.getInitialBalanceDate()), eq(LocalDate.of(2026, 11, 5)),
+                eq(OperationType.DEBIT))).thenReturn(new BigDecimal("-30.00"));
+        stubTransfers(account, LocalDate.of(2026, 11, 5), new BigDecimal("500.00"), new BigDecimal("120.00"));
+
+        final AccountBalance balance = service.balance(account.getCode(), LocalDate.of(2026, 11, 5));
+
+        assertThat(balance.transfersTotal()).isEqualByComparingTo("380.00");
+        assertThat(balance.balance()).isEqualByComparingTo("450.00");
+    }
+
+    @Test
+    void shouldSumEveryAccountOnTheTotalAndLetTransfersCancelOut() {
+        final AccountEntity main = AccountFactory.buildEntity();
+        final AccountEntity wallet = AccountFactory.buildEntity(2L, AccountFactory.OTHER_ACCOUNT_CODE, "Carteira", false);
+        wallet.setInitialBalance(new BigDecimal("50.00"));
+        final LocalDate date = LocalDate.of(2026, 11, 5);
+        when(accountRepository.findByStatuses(List.of(AccountStatus.ACTIVE, AccountStatus.INACTIVE)))
+                .thenReturn(List.of(main, wallet));
+        when(settlementRepository.sumActiveSignedAmountsByAccountBetween(
+                any(), eq(main.getInitialBalanceDate()), eq(date), eq(OperationType.DEBIT)))
+                .thenReturn(new BigDecimal("-30.00"));
+        // 200.00 leaves the main account and enters the wallet
+        stubTransfers(main, date, BigDecimal.ZERO, new BigDecimal("200.00"));
+        stubTransfers(wallet, date, new BigDecimal("200.00"), BigDecimal.ZERO);
+
+        final AccountsBalance result = service.balances(date);
+
+        assertThat(result.accounts()).hasSize(2);
+        assertThat(result.accounts().get(0).balance()).isEqualByComparingTo("-130.00");
+        assertThat(result.accounts().get(1).balance()).isEqualByComparingTo("220.00");
+        assertThat(result.total()).isEqualByComparingTo("90.00");
+    }
+
+    @Test
+    void shouldRejectInitialBalanceDateLaterThanTheFirstActiveTransfer() {
+        final AccountEntity account = AccountFactory.buildEntity();
+        when(accountRepository.findByCode(account.getCode())).thenReturn(Optional.of(account));
+        when(settlementRepository.findEarliestActiveEffectiveDateByAccount(account.getId()))
+                .thenReturn(Optional.empty());
+        when(transferRepository.findEarliestActiveEffectiveDateByAccount(account.getId()))
+                .thenReturn(Optional.of(LocalDate.of(2026, 3, 10)));
+
+        assertThrows(InvalidFieldsException.class, () -> service.update(account.getCode(), null, null, null,
+                LocalDate.of(2026, 3, 11), null));
+
+        verify(accountRepository, never()).save(any());
+    }
+
+    private void stubTransfers(final AccountEntity account, final LocalDate date,
+                               final BigDecimal incoming, final BigDecimal outgoing) {
+        when(transferRepository.sumActiveIncomingBetween(account.getId(), account.getInitialBalanceDate(), date))
+                .thenReturn(incoming);
+        when(transferRepository.sumActiveOutgoingBetween(account.getId(), account.getInitialBalanceDate(), date))
+                .thenReturn(outgoing);
     }
 
     @Test
@@ -247,6 +314,7 @@ class AccountServiceTest {
         when(settlementRepository.sumActiveSignedAmountsByAccountBetween(
                 eq(account.getId()), eq(account.getInitialBalanceDate()), eq(TODAY), eq(OperationType.DEBIT)))
                 .thenReturn(BigDecimal.ZERO);
+        stubTransfers(account, TODAY, BigDecimal.ZERO, BigDecimal.ZERO);
 
         assertThat(service.balance(account.getCode(), null).date()).isEqualTo(TODAY);
     }

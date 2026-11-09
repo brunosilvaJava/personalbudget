@@ -9,14 +9,18 @@ import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.AccountMapper;
 import com.bts.personalbudget.repository.AccountRepository;
+import com.bts.personalbudget.repository.AccountTransferRepository;
 import com.bts.personalbudget.repository.MovementSettlementRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +37,7 @@ public class AccountService {
 
     private final AccountRepository accountRepository;
     private final MovementSettlementRepository settlementRepository;
+    private final AccountTransferRepository transferRepository;
     private final AccountMapper accountMapper;
     private final Clock clock;
 
@@ -152,15 +157,38 @@ public class AccountService {
     @Transactional(readOnly = true)
     public AccountBalance balance(final UUID code, final LocalDate date) {
         log.info("m=balance, code={}, date={}", code, date);
-        final AccountEntity entity = findEntity(code);
+        return balanceOf(findEntity(code), date == null ? LocalDate.now(clock) : date);
+    }
+
+    /**
+     * Balance of every account (ACTIVE and INACTIVE) on {@code date} (today when null) plus the total.
+     */
+    @Transactional(readOnly = true)
+    public AccountsBalance balances(final LocalDate date) {
+        log.info("m=balances, date={}", date);
         final LocalDate effectiveDate = date == null ? LocalDate.now(clock) : date;
+        final List<AccountBalance> balances = accountRepository
+                .findByStatuses(List.of(AccountStatus.ACTIVE, AccountStatus.INACTIVE)).stream()
+                .map(entity -> balanceOf(entity, effectiveDate))
+                .toList();
+        final BigDecimal total = balances.stream().map(AccountBalance::balance)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new AccountsBalance(effectiveDate, balances, total);
+    }
+
+    private AccountBalance balanceOf(final AccountEntity entity, final LocalDate effectiveDate) {
         if (effectiveDate.isBefore(entity.getInitialBalanceDate())) {
-            return new AccountBalance(code, effectiveDate, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+            return new AccountBalance(entity.getCode(), effectiveDate,
+                    BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
         }
+        final LocalDate from = entity.getInitialBalanceDate();
         final BigDecimal settlements = settlementRepository.sumActiveSignedAmountsByAccountBetween(
-                entity.getId(), entity.getInitialBalanceDate(), effectiveDate, OperationType.DEBIT);
-        return new AccountBalance(code, effectiveDate, entity.getInitialBalance(), settlements,
-                entity.getInitialBalance().add(settlements));
+                entity.getId(), from, effectiveDate, OperationType.DEBIT);
+        final BigDecimal incoming = transferRepository.sumActiveIncomingBetween(entity.getId(), from, effectiveDate);
+        final BigDecimal outgoing = transferRepository.sumActiveOutgoingBetween(entity.getId(), from, effectiveDate);
+        final BigDecimal transfers = incoming.subtract(outgoing);
+        return new AccountBalance(entity.getCode(), effectiveDate, entity.getInitialBalance(), settlements,
+                transfers, entity.getInitialBalance().add(settlements).add(transfers));
     }
 
     private void makeDefault(final AccountEntity entity) {
@@ -176,11 +204,17 @@ public class AccountService {
     }
 
     private void rejectDateAfterEarliestSettlement(final AccountEntity entity, final LocalDate newDate) {
-        settlementRepository.findEarliestActiveEffectiveDateByAccount(entity.getId())
-                .filter(earliest -> newDate.isAfter(earliest))
+        final Optional<LocalDate> earliestSettlement =
+                settlementRepository.findEarliestActiveEffectiveDateByAccount(entity.getId());
+        final Optional<LocalDate> earliestTransfer =
+                transferRepository.findEarliestActiveEffectiveDateByAccount(entity.getId());
+        Stream.of(earliestSettlement, earliestTransfer)
+                .flatMap(Optional::stream)
+                .min(Comparator.naturalOrder())
+                .filter(newDate::isAfter)
                 .ifPresent(earliest -> {
                     throw invalid("initialBalanceDate",
-                            "não pode ser posterior à primeira liquidação da conta (" + earliest + ")");
+                            "não pode ser posterior à primeira liquidação ou transferência da conta (" + earliest + ")");
                 });
     }
 

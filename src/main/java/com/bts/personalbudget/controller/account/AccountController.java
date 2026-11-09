@@ -82,6 +82,15 @@ public class AccountController implements AccountControllerApiDocs {
     }
 
     @Override
+    @GetMapping("/balance")
+    public ResponseEntity<AccountsBalanceResponse> balances(
+            @RequestParam(value = "date", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) final LocalDate date) {
+        log.info("m=balances, date={}", date);
+        return ResponseEntity.ok(accountMapper.toResponse(accountService.balances(date)));
+    }
+
+    @Override
     @GetMapping("/{code}/balance")
     public ResponseEntity<AccountBalanceResponse> balance(
             @PathVariable final UUID code,
