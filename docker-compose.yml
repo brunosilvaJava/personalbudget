@@ -2,7 +2,7 @@ services:
   mysql:
     container_name: mysql
     profiles: [app, dependents]
-    image: mysql:latest
+    image: mysql:8.0
     restart: always
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-time-zone=-03:00
     environment:

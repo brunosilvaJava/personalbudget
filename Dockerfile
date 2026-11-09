@@ -1,4 +1,4 @@
-FROM gradle:jdk21 as gradle
+FROM gradle:8.6-jdk21 as gradle
 WORKDIR /gradle
 COPY build.gradle settings.gradle ./
 COPY gradle/ ./gradle
