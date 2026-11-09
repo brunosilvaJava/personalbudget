@@ -105,4 +105,23 @@ public interface MovementSettlementRepository extends JpaRepository<MovementSett
               AND s.reversedAt IS NULL
             """)
     Optional<LocalDate> findEarliestActiveEffectiveDateByAccount(@Param("accountId") Long accountId);
+
+    /**
+     * Active settlements of one account in a period, oldest first, with the movement (description,
+     * type, category) and the invoice payment that generated them, when any. For the statement.
+     */
+    @Query("""
+            SELECT s FROM MovementSettlementEntity s
+            JOIN FETCH s.financialMovement m
+            LEFT JOIN FETCH s.invoicePayment
+            WHERE s.account.id = :accountId
+              AND m.flagActive = true
+              AND s.reversedAt IS NULL
+              AND s.effectiveDate BETWEEN :startDate AND :endDate
+            ORDER BY s.effectiveDate ASC, s.id ASC
+            """)
+    List<MovementSettlementEntity> findActiveByAccountBetween(
+            @Param("accountId") Long accountId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
 }

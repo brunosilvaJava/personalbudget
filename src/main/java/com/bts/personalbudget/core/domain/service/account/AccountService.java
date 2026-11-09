@@ -1,6 +1,10 @@
 package com.bts.personalbudget.core.domain.service.account;
 
 import com.bts.personalbudget.core.domain.entity.AccountEntity;
+import com.bts.personalbudget.core.domain.entity.AccountTransferEntity;
+import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
+import com.bts.personalbudget.core.domain.entity.MovementSettlementEntity;
+import com.bts.personalbudget.core.domain.enumerator.AccountStatementEntryType;
 import com.bts.personalbudget.core.domain.enumerator.AccountStatus;
 import com.bts.personalbudget.core.domain.enumerator.AccountType;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
@@ -15,6 +19,7 @@ import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +38,7 @@ public class AccountService {
 
     static final int NAME_MIN_LENGTH = 3;
     static final int NAME_MAX_LENGTH = 50;
+    static final int STATEMENT_MAX_PERIOD_DAYS = 366;
     private static final String INVALID_FIELDS_MESSAGE = "Campos inválidos";
 
     private final AccountRepository accountRepository;
@@ -174,6 +180,75 @@ public class AccountService {
         final BigDecimal total = balances.stream().map(AccountBalance::balance)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         return new AccountsBalance(effectiveDate, balances, total);
+    }
+
+    /**
+     * What moved the account from {@code startDate} through {@code endDate} (both inclusive, at most
+     * {@value #STATEMENT_MAX_PERIOD_DAYS} days): the initial balance when its date is in the period,
+     * the active settlements and the active transfers, oldest first, each with the balance right after
+     * it. Reversed settlements and transfers are left out, as in the balance.
+     */
+    @Transactional(readOnly = true)
+    public AccountStatement statement(final UUID code, final LocalDate startDate, final LocalDate endDate) {
+        log.info("m=statement, code={}, startDate={}, endDate={}", code, startDate, endDate);
+        if (startDate == null || endDate == null) {
+            throw invalid(startDate == null ? "startDate" : "endDate", "o período deve ser informado");
+        }
+        if (endDate.isBefore(startDate)) {
+            throw invalid("endDate", "não pode ser anterior à data inicial");
+        }
+        if (startDate.plusDays(STATEMENT_MAX_PERIOD_DAYS).isBefore(endDate)) {
+            throw invalid("endDate", "o período não pode passar de " + STATEMENT_MAX_PERIOD_DAYS + " dias");
+        }
+        final AccountEntity entity = findEntity(code);
+        final BigDecimal opening = balanceOf(entity, startDate.minusDays(1)).balance();
+        final LocalDate initialDate = entity.getInitialBalanceDate();
+        if (endDate.isBefore(initialDate)) {
+            return new AccountStatement(entity.getCode(), startDate, endDate, opening, opening, List.of());
+        }
+        final LocalDate from = startDate.isBefore(initialDate) ? initialDate : startDate;
+
+        final List<AccountStatementEntry> unsorted = new ArrayList<>();
+        if (!initialDate.isBefore(startDate)) {
+            unsorted.add(new AccountStatementEntry(AccountStatementEntryType.INITIAL_BALANCE, initialDate,
+                    entity.getInitialBalance(), null, "Saldo inicial", null, null, null, null, null, null));
+        }
+        settlementRepository.findActiveByAccountBetween(entity.getId(), from, endDate)
+                .forEach(settlement -> unsorted.add(settlementEntry(settlement)));
+        transferRepository.findActiveByAccountBetween(entity.getId(), from, endDate)
+                .forEach(transfer -> unsorted.add(transferEntry(entity.getId(), transfer)));
+
+        // Stable sort: on the same day the initial balance comes first, then settlements, then
+        // transfers, each in the order the repositories returned (by id).
+        unsorted.sort(Comparator.comparing(AccountStatementEntry::date));
+        BigDecimal running = opening;
+        final List<AccountStatementEntry> entries = new ArrayList<>(unsorted.size());
+        for (final AccountStatementEntry entry : unsorted) {
+            running = running.add(entry.amount());
+            entries.add(new AccountStatementEntry(entry.type(), entry.date(), entry.amount(), running,
+                    entry.description(), entry.movementCode(), entry.settlementCode(), entry.categoryCode(),
+                    entry.invoicePaymentCode(), entry.transferCode(), entry.counterpartAccountCode()));
+        }
+        return new AccountStatement(entity.getCode(), startDate, endDate, opening, running, entries);
+    }
+
+    private static AccountStatementEntry settlementEntry(final MovementSettlementEntity settlement) {
+        final FinancialMovementEntity movement = settlement.getFinancialMovement();
+        final BigDecimal amount = settlement.getAmount().abs();
+        return new AccountStatementEntry(AccountStatementEntryType.SETTLEMENT, settlement.getEffectiveDate(),
+                movement.getOperationType() == OperationType.DEBIT ? amount.negate() : amount, null,
+                movement.getDescription(), movement.getCode(), settlement.getCode(), movement.getCategoryCode(),
+                settlement.getInvoicePayment() == null ? null : settlement.getInvoicePayment().getCode(),
+                null, null);
+    }
+
+    private static AccountStatementEntry transferEntry(final Long accountId, final AccountTransferEntity transfer) {
+        final boolean incoming = transfer.getToAccount().getId().equals(accountId);
+        final AccountEntity counterpart = incoming ? transfer.getFromAccount() : transfer.getToAccount();
+        return new AccountStatementEntry(
+                incoming ? AccountStatementEntryType.TRANSFER_IN : AccountStatementEntryType.TRANSFER_OUT,
+                transfer.getEffectiveDate(), incoming ? transfer.getAmount() : transfer.getAmount().negate(), null,
+                transfer.getDescription(), null, null, null, null, transfer.getCode(), counterpart.getCode());
     }
 
     private AccountBalance balanceOf(final AccountEntity entity, final LocalDate effectiveDate) {
