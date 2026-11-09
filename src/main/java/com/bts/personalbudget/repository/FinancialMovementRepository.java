@@ -120,4 +120,29 @@ public interface FinancialMovementRepository
             @Param("from") LocalDate from,
             @Param("toExclusive") LocalDate toExclusive
     );
+
+    /** Every unpaid movement due up to {@code endDate}, overdue ones included. */
+    @Query("""
+            SELECT fm FROM FinancialMovementEntity fm WHERE fm.flagActive = true
+              AND fm.status IN (:pending, :late)
+              AND fm.dueDate <= :endDate
+            """)
+    List<FinancialMovementEntity> findUnpaidDueThrough(
+            @Param("endDate") LocalDateTime endDate,
+            @Param("pending") FinancialMovementStatus pending,
+            @Param("late") FinancialMovementStatus late
+    );
+
+    /** The unpaid installments of card purchases due after {@code afterDate}. */
+    @Query("""
+            SELECT fm FROM FinancialMovementEntity fm WHERE fm.flagActive = true
+              AND fm.status IN (:pending, :late)
+              AND fm.cardPurchaseId IS NOT NULL
+              AND fm.dueDate > :afterDate
+            """)
+    List<FinancialMovementEntity> findUnpaidCardInstallmentsDueAfter(
+            @Param("afterDate") LocalDateTime afterDate,
+            @Param("pending") FinancialMovementStatus pending,
+            @Param("late") FinancialMovementStatus late
+    );
 }
