@@ -75,6 +75,18 @@ class FinancialMovementMapperCompetenceTest {
     }
 
     @Test
+    void shouldCarryMovementAndDueDatesOfFixedBill() {
+        final FixedBill fixedBill = FixedBillFactory.buildModel(RecurrenceType.MONTHLY, Set.of(10));
+        fixedBill.setNextDueDate(java.time.LocalDate.of(2026, 11, 10));
+
+        final FinancialMovement movement =
+                mapper.toFinancialMovement(fixedBill, FinancialMovementStatus.PENDING);
+
+        assertThat(movement.movementDate()).isEqualTo(java.time.LocalDateTime.of(2026, 11, 10, 0, 0));
+        assertThat(movement.dueDate()).isEqualTo(java.time.LocalDateTime.of(2026, 11, 10, 0, 0));
+    }
+
+    @Test
     void shouldCarryOccurrenceDateOfInstallmentAndLeaveCompetenceToTheService() {
         final InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
 
