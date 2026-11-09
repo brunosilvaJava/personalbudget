@@ -197,6 +197,7 @@ class CardInvoicePaymentIntegrationTest {
         assertThat(payment.amount()).isEqualByComparingTo("40.00");
         assertThat(movementService.find(movementCode).status()).isEqualTo(FinancialMovementStatus.PAID_OUT);
         paymentService.reverse(invoice(card, 3).code(), payment.code());
-        assertThat(movementService.find(movementCode).amountPaid()).isEqualByComparingTo("60.00");
+        // a DEBIT keeps its paid amount negative, as the movement amount
+        assertThat(movementService.find(movementCode).amountPaid()).isEqualByComparingTo("-60.00");
     }
 }
