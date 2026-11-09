@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -71,9 +72,13 @@ class FixedBillDueTodayIntegrationTest {
         final Map<String, Object> movement = jdbc.queryForMap(
                 "SELECT movement_date, due_date, occurrence_date, status FROM financial_movement "
                         + "WHERE recurrence_bill_code = UUID_TO_BIN(?)", billCode.toString());
-        assertThat(((Timestamp) movement.get("movement_date")).toLocalDateTime()).isEqualTo(today.atStartOfDay());
-        assertThat(((Timestamp) movement.get("due_date")).toLocalDateTime()).isEqualTo(today.atStartOfDay());
+        assertThat(toLocalDateTime(movement.get("movement_date"))).isEqualTo(today.atStartOfDay());
+        assertThat(toLocalDateTime(movement.get("due_date"))).isEqualTo(today.atStartOfDay());
         assertThat(movement.get("occurrence_date").toString()).isEqualTo(today.toString());
         assertThat(saved.getNextDueDate()).isAfter(today);
+    }
+
+    private static LocalDateTime toLocalDateTime(final Object value) {
+        return value instanceof Timestamp timestamp ? timestamp.toLocalDateTime() : (LocalDateTime) value;
     }
 }
