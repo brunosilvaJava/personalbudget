@@ -12,6 +12,8 @@ import com.bts.personalbudget.core.domain.service.fixedbill.FixedBill;
 import com.bts.personalbudget.core.domain.service.installmentbill.InstallmentBill;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.mapstruct.*;
@@ -39,14 +41,17 @@ public interface FinancialMovementMapper {
     List<FinancialMovementResponse> toResponse(List<FinancialMovement> financialMovement);
     FinancialMovementResponse toResponse(FinancialMovement financialMovement);
 
-    @Mapping(target = "recurrenceBillCode", source = "installmentBill.code")
-    @Mapping(target = "movementDate", source = "installmentBill.purchaseDate")
-    @Mapping(target = "dueDate", source = "installmentBill.nextInstallmentDate")
-    @Mapping(target = "occurrenceDate", source = "installmentBill.nextInstallmentDate")
-    @Mapping(target = "categoryCode", source = "installmentBill.categoryCode")
-    @Mapping(target = "status", source = "financialMovementStatus")
-    @Mapping(target = "amount", expression = "java(normalizeValue(installmentBill.getAmount(), installmentBill.getOperationType()))")
-    FinancialMovement toFinancialMovement(InstallmentBill installmentBill, FinancialMovementStatus financialMovementStatus);
+    /**
+     * Written by hand: the generated mapping left movementDate and dueDate null (LocalDate source,
+     * LocalDateTime target), so a generated movement was saved without dates. The competence is left
+     * to FinancialMovementService.create, which derives it from the occurrence date.
+     */
+    default FinancialMovement toFinancialMovement(InstallmentBill installmentBill, FinancialMovementStatus financialMovementStatus) {
+        return recurrenceMovement(
+                installmentBill.getOperationType(), installmentBill.getDescription(), installmentBill.getAmount(),
+                installmentBill.getPurchaseDate(), installmentBill.getNextInstallmentDate(),
+                financialMovementStatus, installmentBill.getCode(), installmentBill.getCategoryCode());
+    }
 
     default List<FinancialMovement> toFinancialMovementList(List<InstallmentBill> installmentBillList, FinancialMovementStatus financialMovementStatus) {
         return installmentBillList.stream()
@@ -54,14 +59,26 @@ public interface FinancialMovementMapper {
                 .toList();
     }
 
-    @Mapping(target = "recurrenceBillCode", source = "fixedBill.code")
-    @Mapping(target = "movementDate", source = "fixedBill.nextDueDate")
-    @Mapping(target = "dueDate", source = "fixedBill.nextDueDate")
-    @Mapping(target = "occurrenceDate", source = "fixedBill.nextDueDate")
-    @Mapping(target = "categoryCode", source = "fixedBill.categoryCode")
-    @Mapping(target = "status", source = "financialMovementStatus")
-    @Mapping(target = "amount", expression = "java(normalizeValue(fixedBill.getAmount(), fixedBill.getOperationType()))")
-    FinancialMovement toFinancialMovement(FixedBill fixedBill, FinancialMovementStatus financialMovementStatus);
+    /** Written by hand for the same reason as the installment one above. */
+    default FinancialMovement toFinancialMovement(FixedBill fixedBill, FinancialMovementStatus financialMovementStatus) {
+        return recurrenceMovement(
+                fixedBill.getOperationType(), fixedBill.getDescription(), fixedBill.getAmount(),
+                fixedBill.getNextDueDate(), fixedBill.getNextDueDate(),
+                financialMovementStatus, fixedBill.getCode(), fixedBill.getCategoryCode());
+    }
+
+    private FinancialMovement recurrenceMovement(final OperationType operationType, final String description,
+                                                 final BigDecimal amount, final LocalDate movementDate,
+                                                 final LocalDate occurrenceDate, final FinancialMovementStatus status,
+                                                 final UUID recurrenceBillCode, final UUID categoryCode) {
+        return new FinancialMovement(null, operationType, description, normalizeValue(amount, operationType), null,
+                atStartOfDay(movementDate), atStartOfDay(occurrenceDate), null, status, Boolean.TRUE,
+                recurrenceBillCode, occurrenceDate, categoryCode, null, Boolean.FALSE);
+    }
+
+    private LocalDateTime atStartOfDay(final LocalDate date) {
+        return date == null ? null : date.atStartOfDay();
+    }
 
     default List<FinancialMovement> toFinancialMovementListFromFixedBill(List<FixedBill> fixedBillList, FinancialMovementStatus financialMovementStatus) {
         return fixedBillList.stream()

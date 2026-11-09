@@ -84,6 +84,11 @@ class FinancialMovementMapperCompetenceTest {
 
         assertThat(movement.movementDate()).isEqualTo(java.time.LocalDateTime.of(2026, 11, 10, 0, 0));
         assertThat(movement.dueDate()).isEqualTo(java.time.LocalDateTime.of(2026, 11, 10, 0, 0));
+        assertThat(movement.recurrenceBillCode()).isEqualTo(fixedBill.getCode());
+        assertThat(movement.occurrenceDate()).isEqualTo(java.time.LocalDate.of(2026, 11, 10));
+        assertThat(movement.status()).isEqualTo(FinancialMovementStatus.PENDING);
+        assertThat(movement.flagActive()).isTrue();
+        assertThat(movement.amount()).isEqualByComparingTo(fixedBill.getAmount().negate());
     }
 
     @Test
@@ -96,5 +101,18 @@ class FinancialMovementMapperCompetenceTest {
         assertThat(movement.operationType()).isEqualTo(OperationType.DEBIT);
         assertThat(movement.occurrenceDate()).isEqualTo(installmentBill.getNextInstallmentDate());
         assertThat(movement.competenceDate()).isNull();
+    }
+
+    @Test
+    void shouldCarryPurchaseAndInstallmentDatesOfInstallmentBill() {
+        final InstallmentBill installmentBill = InstallmentBillFactory.buildModel();
+
+        final FinancialMovement movement =
+                mapper.toFinancialMovement(installmentBill, FinancialMovementStatus.PENDING);
+
+        assertThat(movement.movementDate()).isEqualTo(installmentBill.getPurchaseDate().atStartOfDay());
+        assertThat(movement.dueDate()).isEqualTo(installmentBill.getNextInstallmentDate().atStartOfDay());
+        assertThat(movement.recurrenceBillCode()).isEqualTo(installmentBill.getCode());
+        assertThat(movement.flagActive()).isTrue();
     }
 }
