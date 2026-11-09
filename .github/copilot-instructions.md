@@ -69,7 +69,7 @@ Onde as coisas ficam: `controller/{feature}/` (controller e DTOs, com `config/{F
 
 ## Banco e migrations
 
-- Flyway: `V{n}__{descricao}.sql` em `src/main/resources/db/migration/`. A `master` tem V1 a V15; confira sempre o maior número antes de criar a próxima (a próxima livre é V16).
+- Flyway: `V{n}__{descricao}.sql` em `src/main/resources/db/migration/`. A `master` tem V1 a V25; confira sempre o maior número antes de criar a próxima (a próxima livre é V26).
 - Nunca edite uma migration já aplicada. Mudanças de esquema são expansivas: coluna anulável → backfill → conferência → `NOT NULL` em migration posterior.
 - Regras de unicidade condicional usam coluna gerada (nula fora do estado ativo) com `UNIQUE`, mais `CHECK` para invariantes.
 
