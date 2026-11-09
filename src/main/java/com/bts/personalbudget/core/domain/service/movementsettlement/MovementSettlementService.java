@@ -1,12 +1,15 @@
 package com.bts.personalbudget.core.domain.service.movementsettlement;
 
+import com.bts.personalbudget.core.domain.entity.AccountEntity;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.entity.MovementSettlementEntity;
+import com.bts.personalbudget.core.domain.enumerator.AccountStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleMovementGuard;
 import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.MovementSettlementMapper;
+import com.bts.personalbudget.repository.AccountRepository;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import com.bts.personalbudget.repository.MovementSettlementRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -33,6 +36,7 @@ public class MovementSettlementService {
 
     private final FinancialMovementRepository movementRepository;
     private final MovementSettlementRepository settlementRepository;
+    private final AccountRepository accountRepository;
     private final MovementSettlementMapper mapper;
     private final PayCycleMovementGuard payCycleMovementGuard;
     private final Clock clock;
@@ -47,6 +51,7 @@ public class MovementSettlementService {
         }
         payCycleMovementGuard.lock();
         final FinancialMovementEntity movement = findMovementForUpdate(movementCode);
+        final AccountEntity account = resolveAccount(settlement.accountCode(), settlement.effectiveDate());
         final BigDecimal paidBefore = paidAmount(movement);
         final BigDecimal total = movement.getAmount().abs();
         if (paidBefore.add(settlement.amount()).compareTo(total) > 0) {
@@ -55,6 +60,7 @@ public class MovementSettlementService {
 
         final MovementSettlementEntity entity = mapper.toEntity(settlement);
         entity.setFinancialMovement(movement);
+        entity.setAccount(account);
         entity.setAmount(settlement.amount());
         entity.setEffectiveDate(settlement.effectiveDate());
         final MovementSettlementEntity saved = settlementRepository.save(entity);
@@ -123,6 +129,28 @@ public class MovementSettlementService {
         return movementRepository.findForUpdateByCodeAndFlagActiveTrue(movementCode)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "FinancialMovementEntity not found for code " + movementCode));
+    }
+
+    /**
+     * The informed account, or the default one when none is informed. It must exist, be ACTIVE and
+     * already exist on the effective date (not before its initial balance date).
+     */
+    private AccountEntity resolveAccount(final UUID accountCode, final LocalDate effectiveDate) {
+        final AccountEntity account = accountCode == null
+                ? accountRepository.findByDefaultAccountTrue().orElseThrow(
+                        () -> new IllegalStateException("No default account configured"))
+                : accountRepository.findByCode(accountCode).orElseThrow(() -> new InvalidFieldsException(
+                        "Campos inválidos", MovementSettlement.class, Map.of("accountCode", "conta não encontrada")));
+        if (account.getStatus() != AccountStatus.ACTIVE) {
+            throw new InvalidFieldsException("Campos inválidos", MovementSettlement.class,
+                    Map.of("accountCode", "conta inativa"));
+        }
+        if (effectiveDate.isBefore(account.getInitialBalanceDate())) {
+            throw new InvalidFieldsException("Campos inválidos", MovementSettlement.class,
+                    Map.of("effectiveDate", "não pode ser anterior à data do saldo inicial da conta ("
+                            + account.getInitialBalanceDate() + ")"));
+        }
+        return account;
     }
 
     private void validateAmount(final BigDecimal amount) {

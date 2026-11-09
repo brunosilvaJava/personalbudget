@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -56,6 +57,21 @@ class MovementSettlementControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.movement_code").value(movementCode.toString()))
                 .andExpect(jsonPath("$.amount").value(30.00));
+    }
+
+    @Test
+    void shouldAcceptAccountCodeOnCreateAndExposeItOnTheResponse() throws Exception {
+        final UUID accountCode = UUID.randomUUID();
+        when(service.create(eq(movementCode), argThat(model -> accountCode.equals(model.accountCode()))))
+                .thenReturn(new MovementSettlement(settlementCode, movementCode, new BigDecimal("30.00"),
+                        LocalDate.of(2026, 11, 8), null, 0L, null, null, null, accountCode));
+
+        mvc.perform(post("/financial_movement/{code}/settlements", movementCode)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":30.00,\"effective_date\":\"2026-11-08\",\"account_code\":\""
+                                + accountCode + "\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.account_code").value(accountCode.toString()));
     }
 
     @Test

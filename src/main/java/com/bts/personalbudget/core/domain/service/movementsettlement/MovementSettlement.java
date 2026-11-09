@@ -16,8 +16,21 @@ public record MovementSettlement(
         Long version,
         OperationType operationType,
         UUID categoryCode,
-        LocalDate competenceDate
+        LocalDate competenceDate,
+        UUID accountCode
 ) implements BalanceCalcData {
+
+    /**
+     * Without an account: the service resolves the default one when recording, and a settlement
+     * built outside the persistence mapping has none to show.
+     */
+    public MovementSettlement(final UUID code, final UUID movementCode, final BigDecimal amount,
+                              final LocalDate effectiveDate, final LocalDateTime reversedAt, final Long version,
+                              final OperationType operationType, final UUID categoryCode,
+                              final LocalDate competenceDate) {
+        this(code, movementCode, amount, effectiveDate, reversedAt, version, operationType, categoryCode,
+                competenceDate, null);
+    }
 
     @Override
     public LocalDate findBalanceCalcDate() {

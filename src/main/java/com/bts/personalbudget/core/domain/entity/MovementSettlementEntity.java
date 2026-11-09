@@ -42,6 +42,10 @@ public class MovementSettlementEntity extends AuditingEntity implements Serializ
     @JoinColumn(name = "financial_movement_id", nullable = false, updatable = false)
     private FinancialMovementEntity financialMovement;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "account_id", nullable = false, updatable = false)
+    private AccountEntity account;
+
     @Column(nullable = false, updatable = false)
     private BigDecimal amount;
 

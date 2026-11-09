@@ -15,10 +15,12 @@ public interface MovementSettlementControllerApiDocs {
     @Operation(summary = "Record a payment settlement",
             description = "Records an individual positive payment against a movement. The total of active settlements "
                     + "cannot exceed the movement amount. The movement becomes PAID_OUT only when fully settled; "
-                    + "partial settlements are reflected in cash on each effective_date.")
+                    + "partial settlements are reflected in cash on each effective_date. The money comes from or goes to "
+                    + "account_code; when omitted, the default account is used.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Settlement recorded"),
-            @ApiResponse(responseCode = "400", description = "Invalid settlement fields"),
+            @ApiResponse(responseCode = "400", description = "Invalid settlement fields, unknown or inactive account, "
+                    + "or effective_date before the account initial balance date"),
             @ApiResponse(responseCode = "404", description = "Movement not found"),
             @ApiResponse(responseCode = "409", description = "Settlement exceeds the remaining amount")
     })

@@ -17,6 +17,7 @@ public interface MovementSettlementRepository extends JpaRepository<MovementSett
     @Query("""
             SELECT s FROM MovementSettlementEntity s
             JOIN FETCH s.financialMovement m
+            JOIN FETCH s.account
             WHERE m.code = :movementCode
             ORDER BY s.effectiveDate ASC, s.id ASC
             """)
@@ -35,6 +36,7 @@ public interface MovementSettlementRepository extends JpaRepository<MovementSett
     @Query("""
             SELECT s FROM MovementSettlementEntity s
             JOIN FETCH s.financialMovement m
+            JOIN FETCH s.account
             WHERE m.flagActive = true
               AND s.reversedAt IS NULL
               AND s.effectiveDate BETWEEN :startDate AND :endDate
@@ -47,6 +49,7 @@ public interface MovementSettlementRepository extends JpaRepository<MovementSett
     @Query("""
             SELECT s FROM MovementSettlementEntity s
             JOIN FETCH s.financialMovement m
+            JOIN FETCH s.account
             WHERE m.flagActive = true
               AND s.reversedAt IS NULL
               AND m.competenceDate >= :from
@@ -68,4 +71,29 @@ public interface MovementSettlementRepository extends JpaRepository<MovementSett
     java.math.BigDecimal sumActiveSignedAmountsThrough(
             @Param("date") LocalDate date,
             @Param("debit") OperationType debit);
+
+    @Query("""
+            SELECT COALESCE(SUM(CASE WHEN m.operationType = :debit THEN -s.amount ELSE s.amount END), 0)
+            FROM MovementSettlementEntity s
+            JOIN s.financialMovement m
+            WHERE s.account.id = :accountId
+              AND m.flagActive = true
+              AND s.reversedAt IS NULL
+              AND s.effectiveDate BETWEEN :startDate AND :endDate
+            """)
+    java.math.BigDecimal sumActiveSignedAmountsByAccountBetween(
+            @Param("accountId") Long accountId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("debit") OperationType debit);
+
+    @Query("""
+            SELECT MIN(s.effectiveDate)
+            FROM MovementSettlementEntity s
+            JOIN s.financialMovement m
+            WHERE s.account.id = :accountId
+              AND m.flagActive = true
+              AND s.reversedAt IS NULL
+            """)
+    Optional<LocalDate> findEarliestActiveEffectiveDateByAccount(@Param("accountId") Long accountId);
 }
