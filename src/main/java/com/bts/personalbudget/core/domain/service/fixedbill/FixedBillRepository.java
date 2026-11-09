@@ -23,6 +23,11 @@ public interface FixedBillRepository extends JpaRepository<FixedBillEntity, Long
     @EntityGraph(attributePaths = {"calendarFixedBillEntityList"})
     Optional<FixedBillEntity> findByCodeAndFlagActiveTrue(UUID code);
 
+    /**
+     * Without the active filter: a bill deleted before answers the repeated DELETE with 204 instead of 404.
+     */
+    Optional<FixedBillEntity> findByCode(UUID code);
+
     List<FixedBillEntity> findAllByNextDueDateAndStatusAndFlagActive(LocalDate nextDueDate, FixedBillStatus fixedBillStatus, Boolean flagActive);
 
     /**

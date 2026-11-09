@@ -234,7 +234,12 @@ public class FixedBillService {
     @Transactional
     public void delete(final UUID code) {
         log.info("m=delete, code={}", code);
-        final FixedBillEntity fixedBillEntity = findEntity(code);
+        final FixedBillEntity fixedBillEntity = fixedBillRepository.findByCode(code)
+                .orElseThrow(() -> new EntityNotFoundException("FixedBillEntity not found for code " + code));
+        if (!Boolean.TRUE.equals(fixedBillEntity.getFlagActive())) {
+            log.info("m=delete, code={}, msg=already_deleted", code);
+            return;
+        }
         fixedBillEntity.delete();
     }
 
