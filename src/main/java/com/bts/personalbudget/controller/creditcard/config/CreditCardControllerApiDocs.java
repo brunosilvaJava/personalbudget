@@ -1,5 +1,6 @@
 package com.bts.personalbudget.controller.creditcard.config;
 
+import com.bts.personalbudget.controller.creditcard.CreditCardLimitResponse;
 import com.bts.personalbudget.controller.creditcard.CreditCardRequest;
 import com.bts.personalbudget.controller.creditcard.CreditCardResponse;
 import com.bts.personalbudget.controller.creditcard.CreditCardUpdateRequest;
@@ -38,6 +39,16 @@ public interface CreditCardControllerApiDocs {
             @ApiResponse(responseCode = "404", description = "Card not found")
     })
     ResponseEntity<CreditCardResponse> findByCode(UUID code);
+
+    @Operation(summary = "Limit of a credit card",
+            description = "Used is the unpaid part of every active installment of the card, future ones included. "
+                    + "Available is credit_limit - used, or null when the card has no limit; it is negative when the "
+                    + "limit was lowered under what is used. Paying an invoice or deleting a purchase releases it.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Limit calculated"),
+            @ApiResponse(responseCode = "404", description = "Card not found")
+    })
+    ResponseEntity<CreditCardLimitResponse> limit(UUID code);
 
     @Operation(summary = "Update a credit card",
             description = "Fields left out are kept. The limit and the default account can be replaced but not "

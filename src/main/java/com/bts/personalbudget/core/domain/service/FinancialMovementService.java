@@ -6,6 +6,7 @@ import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
+import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleMovementGuard;
@@ -206,6 +207,7 @@ public class FinancialMovementService {
         log.info("m=update, financialMovement={}", financialMovement);
         payCycleMovementGuard.lock();
         final FinancialMovementEntity financialMovementEntity = findEntity(financialMovement.code());
+        rejectCardInstallment(financialMovementEntity);
         if (changesClosedBudget(financialMovement, financialMovementEntity)) {
             payCycleMovementGuard.requireEditable(financialMovementEntity.getCompetenceDate());
             payCycleMovementGuard.requireEditable(proposedCompetence(financialMovement, financialMovementEntity));
@@ -390,8 +392,20 @@ public class FinancialMovementService {
             log.info("m=delete, code={}, msg=already_deleted", code);
             return;
         }
+        rejectCardInstallment(financialMovementEntity);
         payCycleMovementGuard.requireEditable(financialMovementEntity.getCompetenceDate());
         financialMovementEntity.delete();
+    }
+
+    /**
+     * An installment of a card purchase belongs to its purchase: its amount, dates and existence
+     * follow the purchase (PATCH or DELETE /card_purchase/{code}), never the movement on its own.
+     */
+    private void rejectCardInstallment(final FinancialMovementEntity entity) {
+        if (entity.getCardPurchaseId() != null) {
+            throw new ConflictException(
+                    "Esta movimentação é a parcela de uma compra de cartão; altere ou exclua a compra");
+        }
     }
 
     @Transactional

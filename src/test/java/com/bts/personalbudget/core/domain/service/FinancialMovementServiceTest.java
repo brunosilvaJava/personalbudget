@@ -293,6 +293,22 @@ class FinancialMovementServiceTest {
     }
 
     @Test
+    void shouldRefuseToUpdateOrDeleteAnInstallmentOfACardPurchaseOnItsOwn() {
+        final FinancialMovementEntity installment = pendingEntity(OperationType.DEBIT, new BigDecimal("-30.00"));
+        installment.setCardPurchaseId(10L);
+        installment.setCardInvoiceId(200L);
+        installment.setInstallmentNumber(1);
+        when(repository.findByCodeAndFlagActiveTrue(installment.getCode())).thenReturn(Optional.of(installment));
+        when(repository.findByCode(installment.getCode())).thenReturn(Optional.of(installment));
+
+        assertThrows(ConflictException.class, () -> financialMovementService.update(
+                toUpdate(onlyCategory(installment.getCode(), OTHER_CATEGORY_CODE))));
+        assertThrows(ConflictException.class, () -> financialMovementService.delete(installment.getCode()));
+
+        assertTrue(installment.getFlagActive());
+    }
+
+    @Test
     void shouldReturnNotFoundWhenDeletingUnknownFinancialMovement() {
         final UUID code = UUID.randomUUID();
         when(repository.findByCode(code)).thenReturn(Optional.empty());

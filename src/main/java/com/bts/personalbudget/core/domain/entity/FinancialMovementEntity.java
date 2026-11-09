@@ -108,6 +108,19 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
     @Column(name = "category_code")
     private UUID categoryCode;
 
+    /**
+     * Set only on an installment of a card purchase (all three columns together): plain columns,
+     * like the category. The purchase owns the installment, so it is not edited on its own.
+     */
+    @Column(name = "card_purchase_id", updatable = false)
+    private Long cardPurchaseId;
+
+    @Column(name = "card_invoice_id")
+    private Long cardInvoiceId;
+
+    @Column(name = "installment_number")
+    private Integer installmentNumber;
+
     @PrePersist
     public void prePersist() {
         if (code == null) {
