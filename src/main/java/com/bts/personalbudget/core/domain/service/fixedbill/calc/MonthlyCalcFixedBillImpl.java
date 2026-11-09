@@ -15,6 +15,10 @@ public class MonthlyCalcFixedBillImpl implements CalcFixedBill {
     @Override
     public LocalDate calcNextDueDate(final FixedBill fixedBill,
                                      final LocalDate baseDate) {
+        if (fixedBill.getDays() == null || fixedBill.getDays().isEmpty()) {
+            log.error("m=calcNextDueDate, code={}, error=NullOrEmptyDaysList, recurrenceType=MONTHLY", fixedBill.getCode());
+            throw new IllegalArgumentException("Monthly fixed bill must have at least one day configured. Code: " + fixedBill.getCode());
+        }
         final List<Integer> sortedDays = fixedBill.getDays().stream().sorted().toList();
         LocalDate nextDueDate = LocalDate.of(baseDate.getYear(), baseDate.getMonth(), baseDate.getDayOfMonth());
         int nexDueDay = 0;

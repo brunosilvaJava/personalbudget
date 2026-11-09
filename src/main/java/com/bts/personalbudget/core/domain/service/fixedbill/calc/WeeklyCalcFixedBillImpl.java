@@ -17,6 +17,10 @@ public class WeeklyCalcFixedBillImpl implements CalcFixedBill {
     @Override
     public LocalDate calcNextDueDate(final FixedBill fixedBill,
                                      final LocalDate baseDate) {
+        if (fixedBill.getDays() == null || fixedBill.getDays().isEmpty()) {
+            log.error("m=calcNextDueDate, code={}, error=NullOrEmptyDaysList, recurrenceType=WEEKLY", fixedBill.getCode());
+            throw new IllegalArgumentException("Weekly fixed bill must have at least one day configured. Code: " + fixedBill.getCode());
+        }
         LocalDate nextDueDate = LocalDate.of(baseDate.getYear(), baseDate.getMonth(), baseDate.getDayOfMonth());
         final List<Integer> dueDayList = fixedBill.getDays().stream().sorted().toList();
         final int baseDay = nextDueDate.getDayOfWeek().getValue() + 1;
