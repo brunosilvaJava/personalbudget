@@ -12,6 +12,8 @@ import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleMovementGuard;
 import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
+import com.bts.personalbudget.repository.CardInvoiceRepository;
+import com.bts.personalbudget.repository.CardPurchaseRepository;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
 import com.bts.personalbudget.repository.FinancialMovementSpecifications;
 import com.bts.personalbudget.repository.IncomeOccurrenceRepository;
@@ -33,7 +35,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.LATE;
 import static com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus.PAID_OUT;
@@ -51,6 +55,8 @@ public class FinancialMovementService {
     private final Clock clock;
     private final PayCycleMovementGuard payCycleMovementGuard;
     private final MovementSettlementService movementSettlementService;
+    private final CardPurchaseRepository cardPurchaseRepository;
+    private final CardInvoiceRepository cardInvoiceRepository;
 
     /**
      * The category is validated only for a movement the user creates. One generated from a
@@ -194,12 +200,44 @@ public class FinancialMovementService {
                         withoutCategory),
                 pageable);
 
-        return pagedEntities.map(mapper::toModel);
+        final CardLinks links = cardLinks(pagedEntities.getContent());
+        return pagedEntities.map(entity -> toModelWithCardLink(entity, links));
     }
 
     public FinancialMovement find(final UUID code) {
         log.info("m=find, code={}", code);
-        return mapper.toModel(findEntity(code));
+        final FinancialMovementEntity entity = findEntity(code);
+        return toModelWithCardLink(entity, cardLinks(List.of(entity)));
+    }
+
+    private record CardLinks(Map<Long, UUID> purchaseCodes, Map<Long, UUID> invoiceCodes) {
+    }
+
+    /**
+     * The public codes of the purchases and invoices that the installments in the list belong to,
+     * in one query each. Nothing is queried when no movement in the list is a card installment.
+     */
+    private CardLinks cardLinks(final List<FinancialMovementEntity> entities) {
+        final Set<Long> purchaseIds = entities.stream().map(FinancialMovementEntity::getCardPurchaseId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        final Set<Long> invoiceIds = entities.stream().map(FinancialMovementEntity::getCardInvoiceId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        return new CardLinks(
+                purchaseIds.isEmpty() ? Map.of() : codesById(cardPurchaseRepository.findCodesByIdIn(purchaseIds)),
+                invoiceIds.isEmpty() ? Map.of() : codesById(cardInvoiceRepository.findCodesByIdIn(invoiceIds)));
+    }
+
+    private static Map<Long, UUID> codesById(final List<Object[]> rows) {
+        return rows.stream().collect(Collectors.toMap(row -> (Long) row[0], row -> (UUID) row[1]));
+    }
+
+    private FinancialMovement toModelWithCardLink(final FinancialMovementEntity entity, final CardLinks links) {
+        final FinancialMovement model = mapper.toModel(entity);
+        if (entity.getCardPurchaseId() == null) {
+            return model;
+        }
+        return model.withCardLink(links.purchaseCodes().get(entity.getCardPurchaseId()),
+                links.invoiceCodes().get(entity.getCardInvoiceId()));
     }
 
     @Transactional
@@ -427,6 +465,19 @@ public class FinancialMovementService {
                         endDate.atTime(23, 59, 59),
                         PENDING,
                         LATE));
+    }
+
+    /** Every unpaid movement due up to {@code endDate} (overdue ones included), for the cash forecast. */
+    public List<FinancialMovement> findOpenDueThrough(final LocalDate endDate) {
+        log.info("m=findOpenDueThrough, endDate={}", endDate);
+        return mapper.toModel(repository.findUnpaidDueThrough(endDate.atTime(23, 59, 59), PENDING, LATE));
+    }
+
+    /** The unpaid card installments due after {@code afterDate}, for the cash forecast. */
+    public List<FinancialMovement> findOpenCardInstallmentsDueAfter(final LocalDate afterDate) {
+        log.info("m=findOpenCardInstallmentsDueAfter, afterDate={}", afterDate);
+        return mapper.toModel(repository.findUnpaidCardInstallmentsDueAfter(
+                afterDate.atTime(23, 59, 59), PENDING, LATE));
     }
 
     public BigDecimal findBalance(final LocalDate date) {

@@ -80,6 +80,12 @@ class FinancialMovementServiceTest {
     private PayCycleMovementGuard payCycleMovementGuard;
 
     @Mock
+    private com.bts.personalbudget.repository.CardPurchaseRepository cardPurchaseRepository;
+
+    @Mock
+    private com.bts.personalbudget.repository.CardInvoiceRepository cardInvoiceRepository;
+
+    @Mock
     private com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService movementSettlementService;
 
     @Spy
@@ -157,6 +163,40 @@ class FinancialMovementServiceTest {
 //        assertNotNull(financialMovements);
 //        assertFalse(financialMovements.isEmpty());
 //    }
+
+    @Test
+    void shouldShowThePurchaseAndInvoiceCodesOnACardInstallment() {
+        final FinancialMovementEntity installment = FinancialMovementFactory.buildEntity();
+        installment.setCardPurchaseId(10L);
+        installment.setCardInvoiceId(201L);
+        installment.setInstallmentNumber(2);
+        final UUID purchaseCode = UUID.randomUUID();
+        final UUID invoiceCode = UUID.randomUUID();
+        when(repository.findByCodeAndFlagActiveTrue(installment.getCode())).thenReturn(Optional.of(installment));
+        when(cardPurchaseRepository.findCodesByIdIn(java.util.Set.of(10L)))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{10L, purchaseCode}));
+        when(cardInvoiceRepository.findCodesByIdIn(java.util.Set.of(201L)))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{201L, invoiceCode}));
+
+        final FinancialMovement found = financialMovementService.find(installment.getCode());
+
+        org.assertj.core.api.Assertions.assertThat(found.cardPurchaseCode()).isEqualTo(purchaseCode);
+        org.assertj.core.api.Assertions.assertThat(found.cardInvoiceCode()).isEqualTo(invoiceCode);
+        org.assertj.core.api.Assertions.assertThat(found.installmentNumber()).isEqualTo(2);
+    }
+
+    @Test
+    void shouldNotQueryTheCardRepositoriesForAnOrdinaryMovement() {
+        final FinancialMovementEntity entity = FinancialMovementFactory.buildEntity();
+        when(repository.findByCodeAndFlagActiveTrue(entity.getCode())).thenReturn(Optional.of(entity));
+
+        final FinancialMovement found = financialMovementService.find(entity.getCode());
+
+        org.assertj.core.api.Assertions.assertThat(found.cardPurchaseCode()).isNull();
+        org.assertj.core.api.Assertions.assertThat(found.cardInvoiceCode()).isNull();
+        org.assertj.core.api.Assertions.assertThat(found.installmentNumber()).isNull();
+        org.mockito.Mockito.verifyNoInteractions(cardPurchaseRepository, cardInvoiceRepository);
+    }
 
     @Test
     void shouldFindFinancialMovement() {

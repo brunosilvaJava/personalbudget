@@ -34,7 +34,10 @@ public record FinancialMovement(
         LocalDate occurrenceDate,
         UUID categoryCode,
         LocalDate competenceDate,
-        Boolean competenceOverridden
+        Boolean competenceOverridden,
+        UUID cardPurchaseCode,
+        UUID cardInvoiceCode,
+        Integer installmentNumber
 ) implements BalanceCalcData {
 
     private static final String MSG_FIELD_NULL_OR_EMPTY = "deve ser informado um valor válido quando o status for ";
@@ -57,6 +60,32 @@ public record FinancialMovement(
     ) {
         this(null, operationType, description, amount, null, movementDate, dueDate, null,
                 status, Boolean.TRUE, recurrenceBillCode, occurrenceDate, null, null, null);
+    }
+
+    /**
+     * Without the card link (purchase, invoice and installment number), which is read-only on a
+     * movement: it is set by the card purchase that generated the installment, never by a client.
+     */
+    public FinancialMovement(
+            UUID code,
+            OperationType operationType,
+            String description,
+            BigDecimal amount,
+            BigDecimal amountPaid,
+            LocalDateTime movementDate,
+            LocalDateTime dueDate,
+            LocalDateTime payDate,
+            FinancialMovementStatus status,
+            Boolean flagActive,
+            UUID recurrenceBillCode,
+            LocalDate occurrenceDate,
+            UUID categoryCode,
+            LocalDate competenceDate,
+            Boolean competenceOverridden
+    ) {
+        this(code, operationType, description, amount, amountPaid, movementDate, dueDate, payDate,
+                status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode, competenceDate,
+                competenceOverridden, null, null, null);
     }
 
     /**
@@ -92,13 +121,20 @@ public record FinancialMovement(
     public FinancialMovement withCompetence(final LocalDate newCompetenceDate, final boolean overridden) {
         return new FinancialMovement(code, operationType, description, amount, amountPaid, movementDate,
                 dueDate, payDate, status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
-                newCompetenceDate, overridden);
+                newCompetenceDate, overridden, cardPurchaseCode, cardInvoiceCode, installmentNumber);
+    }
+
+    /** The codes of the purchase and invoice an installment belongs to; set when a movement is read. */
+    public FinancialMovement withCardLink(final UUID newCardPurchaseCode, final UUID newCardInvoiceCode) {
+        return new FinancialMovement(code, operationType, description, amount, amountPaid, movementDate,
+                dueDate, payDate, status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
+                competenceDate, competenceOverridden, newCardPurchaseCode, newCardInvoiceCode, installmentNumber);
     }
 
     public FinancialMovement withStatus(final FinancialMovementStatus newStatus) {
         return new FinancialMovement(code, operationType, description, amount, amountPaid, movementDate,
                 dueDate, payDate, newStatus, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
-                competenceDate, competenceOverridden);
+                competenceDate, competenceOverridden, cardPurchaseCode, cardInvoiceCode, installmentNumber);
     }
 
     public FinancialMovement withPaymentSummary(final BigDecimal newAmountPaid,
@@ -106,7 +142,7 @@ public record FinancialMovement(
                                                final FinancialMovementStatus newStatus) {
         return new FinancialMovement(code, operationType, description, amount, newAmountPaid, movementDate,
                 dueDate, newPayDate, newStatus, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
-                competenceDate, competenceOverridden);
+                competenceDate, competenceOverridden, cardPurchaseCode, cardInvoiceCode, installmentNumber);
     }
 
     @Override

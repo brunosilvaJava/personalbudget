@@ -128,6 +128,9 @@ class CardPurchaseIntegrationTest {
         assertThat(movement.dueDate().toLocalDate()).isEqualTo(LocalDate.of(2094, 5, 5));
         assertThat(movement.movementDate().toLocalDate()).isEqualTo(PURCHASE_DATE);
         assertThat(movement.competenceOverridden()).isTrue();
+        assertThat(movement.cardPurchaseCode()).isEqualTo(created.code());
+        assertThat(movement.cardInvoiceCode()).isEqualTo(created.installmentList().get(1).invoiceCode());
+        assertThat(movement.installmentNumber()).isEqualTo(2);
 
         final CreditCardLimit limit = cardService.limit(card.code());
         assertThat(limit.used()).isEqualByComparingTo("300.00");
