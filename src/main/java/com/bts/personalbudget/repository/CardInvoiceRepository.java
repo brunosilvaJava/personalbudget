@@ -45,4 +45,8 @@ public interface CardInvoiceRepository extends JpaRepository<CardInvoiceEntity, 
             WHERE i.id IN :ids
             """)
     List<CardInvoiceEntity> findAllWithCardByIdIn(@Param("ids") Collection<Long> ids);
+
+    /** Pairs of {id, code} for the given ids, so a response can show the public code of a link. */
+    @Query("SELECT e.id, e.code FROM CardInvoiceEntity e WHERE e.id IN :ids")
+    List<Object[]> findCodesByIdIn(@Param("ids") Collection<Long> ids);
 }
