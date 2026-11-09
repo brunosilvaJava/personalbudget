@@ -29,7 +29,7 @@ public class InstallmentBillCreateTest {
         assertNotNull(newInstallmentBill.getCode());
         assertEquals(InstallmentBillStatus.PENDING, newInstallmentBill.getStatus());
         assertEquals(0, newInstallmentBill.getInstallmentCount());
-        assertEquals(purchaseDate.plusDays(30), newInstallmentBill.getNextInstallmentDate());
+        assertEquals(purchaseDate.plusMonths(1), newInstallmentBill.getNextInstallmentDate());
         assertEquals(operationType, newInstallmentBill.getOperationType());
         assertEquals(purchaseDate, newInstallmentBill.getPurchaseDate());
         assertEquals(description, newInstallmentBill.getDescription());
@@ -49,7 +49,7 @@ public class InstallmentBillCreateTest {
         assertNotNull(newInstallmentBill.getCode());
         assertEquals(InstallmentBillStatus.PENDING, newInstallmentBill.getStatus());
         assertEquals(0, newInstallmentBill.getInstallmentCount());
-        assertEquals(LocalDate.now().plusDays(30), newInstallmentBill.getNextInstallmentDate());
+        assertEquals(LocalDate.now().plusMonths(1), newInstallmentBill.getNextInstallmentDate());
         assertEquals(operationType, newInstallmentBill.getOperationType());
         assertEquals(LocalDate.now(), newInstallmentBill.getPurchaseDate());
         assertEquals(description, newInstallmentBill.getDescription());
@@ -84,7 +84,7 @@ public class InstallmentBillCreateTest {
         final var response = InstallmentBillMapper.INSTANCE.toResponse(installmentBill);
 
         assertEquals(0, response.installmentCount());
-        assertEquals(purchaseDate.plusDays(30), response.nextInstallmentDate());
+        assertEquals(purchaseDate.plusMonths(1), response.nextInstallmentDate());
     }
 
     @Test

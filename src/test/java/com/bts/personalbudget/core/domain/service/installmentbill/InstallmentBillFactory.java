@@ -60,9 +60,11 @@ public class InstallmentBillFactory {
 
     public static InstallmentBill buildModel(LocalDate nextInstallmentDate, OperationType operationType, String value) {
         BigDecimal amount = new BigDecimal(value);
-        LocalDate baseDate = nextInstallmentDate.minusDays(30);
-        return new InstallmentBill(null, operationType, "test",
-                amount, InstallmentBillStatus.PENDING, null, 1,
-                null, baseDate, baseDate);
+        // The purchase is the month before, so the first installment falls on nextInstallmentDate.
+        // A code keeps the constructor from recalculating the date.
+        LocalDate purchaseDate = nextInstallmentDate.minusMonths(1);
+        return new InstallmentBill(java.util.UUID.randomUUID(), operationType, "test",
+                amount, InstallmentBillStatus.PENDING, purchaseDate, 1,
+                0, null, nextInstallmentDate);
     }
 }
