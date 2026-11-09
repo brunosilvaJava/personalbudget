@@ -99,4 +99,14 @@ public class AccountController implements AccountControllerApiDocs {
         log.info("m=balance, code={}, date={}", code, date);
         return ResponseEntity.ok(accountMapper.toResponse(accountService.balance(code, date)));
     }
+
+    @Override
+    @GetMapping("/{code}/statement")
+    public ResponseEntity<AccountStatementResponse> statement(
+            @PathVariable final UUID code,
+            @RequestParam("start_date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) final LocalDate startDate,
+            @RequestParam("end_date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) final LocalDate endDate) {
+        log.info("m=statement, code={}, startDate={}, endDate={}", code, startDate, endDate);
+        return ResponseEntity.ok(accountMapper.toResponse(accountService.statement(code, startDate, endDate)));
+    }
 }

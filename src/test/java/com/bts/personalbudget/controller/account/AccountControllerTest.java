@@ -1,8 +1,11 @@
 package com.bts.personalbudget.controller.account;
 
+import com.bts.personalbudget.core.domain.enumerator.AccountStatementEntryType;
 import com.bts.personalbudget.core.domain.factory.AccountFactory;
 import com.bts.personalbudget.core.domain.service.account.AccountBalance;
 import com.bts.personalbudget.core.domain.service.account.AccountService;
+import com.bts.personalbudget.core.domain.service.account.AccountStatement;
+import com.bts.personalbudget.core.domain.service.account.AccountStatementEntry;
 import com.bts.personalbudget.core.domain.service.account.AccountsBalance;
 import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.ControllerExceptionHandler;
@@ -11,6 +14,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -137,5 +141,32 @@ class AccountControllerTest {
                 .andExpect(jsonPath("$.accounts.length()").value(2))
                 .andExpect(jsonPath("$.accounts[1].transfers_total").value(20.00))
                 .andExpect(jsonPath("$.total").value(100.00));
+    }
+
+    @Test
+    void shouldReturnTheStatementInSnakeCase() throws Exception {
+        final LocalDate start = LocalDate.of(2026, 11, 1);
+        final LocalDate end = LocalDate.of(2026, 11, 30);
+        final UUID transferCode = UUID.randomUUID();
+        when(service.statement(AccountFactory.ACCOUNT_CODE, start, end)).thenReturn(new AccountStatement(
+                AccountFactory.ACCOUNT_CODE, start, end, new BigDecimal("1000.00"), new BigDecimal("800.00"),
+                List.of(new AccountStatementEntry(AccountStatementEntryType.TRANSFER_OUT, LocalDate.of(2026, 11, 7),
+                        new BigDecimal("-200.00"), new BigDecimal("800.00"), "Reserva", null, null, null, null,
+                        transferCode, AccountFactory.OTHER_ACCOUNT_CODE))));
+
+        mvc.perform(get("/account/{code}/statement", AccountFactory.ACCOUNT_CODE)
+                        .param("start_date", "2026-11-01")
+                        .param("end_date", "2026-11-30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.account_code").value(AccountFactory.ACCOUNT_CODE.toString()))
+                .andExpect(jsonPath("$.start_date").value("2026-11-01"))
+                .andExpect(jsonPath("$.opening_balance").value(1000.00))
+                .andExpect(jsonPath("$.closing_balance").value(800.00))
+                .andExpect(jsonPath("$.entries[0].type").value("TRANSFER_OUT"))
+                .andExpect(jsonPath("$.entries[0].amount").value(-200.00))
+                .andExpect(jsonPath("$.entries[0].transfer_code").value(transferCode.toString()))
+                .andExpect(jsonPath("$.entries[0].counterpart_account_code")
+                        .value(AccountFactory.OTHER_ACCOUNT_CODE.toString()))
+                .andExpect(jsonPath("$.entries[0].movement_code").doesNotExist());
     }
 }

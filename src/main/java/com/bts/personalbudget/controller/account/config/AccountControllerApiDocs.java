@@ -4,6 +4,7 @@ import com.bts.personalbudget.controller.account.AccountBalanceResponse;
 import com.bts.personalbudget.controller.account.AccountsBalanceResponse;
 import com.bts.personalbudget.controller.account.AccountRequest;
 import com.bts.personalbudget.controller.account.AccountResponse;
+import com.bts.personalbudget.controller.account.AccountStatementResponse;
 import com.bts.personalbudget.controller.account.AccountUpdateRequest;
 import com.bts.personalbudget.core.domain.enumerator.AccountStatus;
 import io.swagger.v3.oas.annotations.Operation;
@@ -92,4 +93,21 @@ public interface AccountControllerApiDocs {
     ResponseEntity<AccountBalanceResponse> balance(
             UUID code,
             @Parameter(description = "Date of the balance, yyyy-MM-dd. Defaults to today") LocalDate date);
+
+    @Operation(summary = "Account statement in a period",
+            description = "The initial balance (when its date is in the period), the active settlements and the active "
+                    + "transfers of the account, oldest first, each with the balance right after it. opening_balance "
+                    + "is the balance at the end of the day before start_date. Both dates are inclusive; at most 366 "
+                    + "days. Reversed settlements and transfers are left out, as in the balance.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Statement calculated",
+                    content = @Content(schema = @Schema(implementation = AccountStatementResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Missing dates, end_date before start_date or a period "
+                    + "longer than 366 days"),
+            @ApiResponse(responseCode = "404", description = "Account not found")
+    })
+    ResponseEntity<AccountStatementResponse> statement(
+            UUID code,
+            @Parameter(description = "First day, yyyy-MM-dd (inclusive)") LocalDate startDate,
+            @Parameter(description = "Last day, yyyy-MM-dd (inclusive)") LocalDate endDate);
 }

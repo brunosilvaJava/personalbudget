@@ -1,5 +1,6 @@
 package com.bts.personalbudget.core.domain.repository;
 
+import com.bts.personalbudget.core.domain.enumerator.AccountStatementEntryType;
 import com.bts.personalbudget.core.domain.enumerator.AccountType;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
@@ -8,6 +9,8 @@ import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.account.AccountBalance;
 import com.bts.personalbudget.core.domain.service.account.AccountService;
+import com.bts.personalbudget.core.domain.service.account.AccountStatement;
+import com.bts.personalbudget.core.domain.service.account.AccountStatementEntry;
 import com.bts.personalbudget.core.domain.service.accounttransfer.AccountTransfer;
 import com.bts.personalbudget.core.domain.service.accounttransfer.AccountTransferService;
 import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlement;
@@ -163,6 +166,47 @@ class AccountIntegrationTest {
         assertThat(accountService.balance(wallet.code(), date).balance()).isEqualByComparingTo("50.00");
         assertThat(transferService.find(LocalDate.of(2092, 1, 1), date, savings.code()))
                 .extracting(AccountTransfer::code).containsExactly(transfer.code());
+    }
+
+    @Test
+    void shouldListTheStatementWithTheRunningBalanceLeavingReversedSettlementsOut() {
+        final Account wallet = accountService.create(new Account(null, "Extrato " + UUID.randomUUID(),
+                AccountType.CASH, new BigDecimal("100.00"), LocalDate.of(2093, 1, 1), null, false));
+        final Account savings = accountService.create(new Account(null, "Cofre " + UUID.randomUUID(),
+                AccountType.SAVINGS, BigDecimal.ZERO, LocalDate.of(2093, 1, 1), null, false));
+        final FinancialMovement expense = createMovement(OperationType.DEBIT, "80.00");
+        final FinancialMovement income = createMovement(OperationType.CREDIT, "40.00");
+        settlementService.create(expense.code(), settlement("30.00", LocalDate.of(2093, 1, 5), wallet.code()));
+        final MovementSettlement reversed =
+                settlementService.create(expense.code(), settlement("50.00", LocalDate.of(2093, 1, 6), wallet.code()));
+        settlementService.reverse(expense.code(), reversed.code());
+        settlementService.create(income.code(), settlement("40.00", LocalDate.of(2093, 1, 10), wallet.code()));
+        final AccountTransfer transfer = transferService.create(new AccountTransfer(null, wallet.code(),
+                savings.code(), new BigDecimal("20.00"), LocalDate.of(2093, 1, 7), "Reserva", null, null));
+        transferCodes.add(transfer.code());
+
+        final AccountStatement january =
+                accountService.statement(wallet.code(), LocalDate.of(2093, 1, 1), LocalDate.of(2093, 1, 31));
+
+        assertThat(january.openingBalance()).isEqualByComparingTo("0");
+        assertThat(january.entries()).extracting(AccountStatementEntry::type).containsExactly(
+                AccountStatementEntryType.INITIAL_BALANCE, AccountStatementEntryType.SETTLEMENT,
+                AccountStatementEntryType.TRANSFER_OUT, AccountStatementEntryType.SETTLEMENT);
+        assertThat(january.entries()).extracting(AccountStatementEntry::balance)
+                .usingElementComparator(BigDecimal::compareTo)
+                .containsExactly(new BigDecimal("100"), new BigDecimal("70"), new BigDecimal("50"),
+                        new BigDecimal("90"));
+        assertThat(january.entries().get(1).movementCode()).isEqualTo(expense.code());
+        assertThat(january.entries().get(2).counterpartAccountCode()).isEqualTo(savings.code());
+        assertThat(january.closingBalance()).isEqualByComparingTo(
+                accountService.balance(wallet.code(), LocalDate.of(2093, 1, 31)).balance());
+
+        final AccountStatement fromTheSixth =
+                accountService.statement(wallet.code(), LocalDate.of(2093, 1, 6), LocalDate.of(2093, 1, 31));
+
+        assertThat(fromTheSixth.openingBalance()).isEqualByComparingTo("70.00");
+        assertThat(fromTheSixth.entries()).hasSize(2);
+        assertThat(fromTheSixth.closingBalance()).isEqualByComparingTo(january.closingBalance());
     }
 
     private FinancialMovement createMovement(final OperationType type, final String amount) {

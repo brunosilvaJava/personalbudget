@@ -68,4 +68,18 @@ public interface AccountTransferRepository extends JpaRepository<AccountTransfer
               AND t.reversedAt IS NULL
             """)
     Optional<LocalDate> findEarliestActiveEffectiveDateByAccount(@Param("accountId") Long accountId);
+
+    /** Active transfers in or out of one account in a period, oldest first. For the statement. */
+    @Query("""
+            SELECT t FROM AccountTransferEntity t
+            JOIN FETCH t.fromAccount
+            JOIN FETCH t.toAccount
+            WHERE (t.fromAccount.id = :accountId OR t.toAccount.id = :accountId)
+              AND t.reversedAt IS NULL
+              AND t.effectiveDate BETWEEN :startDate AND :endDate
+            ORDER BY t.effectiveDate ASC, t.id ASC
+            """)
+    List<AccountTransferEntity> findActiveByAccountBetween(@Param("accountId") Long accountId,
+                                                          @Param("startDate") LocalDate startDate,
+                                                          @Param("endDate") LocalDate endDate);
 }
