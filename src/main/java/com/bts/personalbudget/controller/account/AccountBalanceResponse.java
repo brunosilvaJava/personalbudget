@@ -26,7 +26,12 @@ public record AccountBalanceResponse(
                 + "from the initial balance date through the date", example = "-320.50")
         BigDecimal settlementsTotal,
 
-        @Schema(description = "initial_balance + settlements_total", example = "1179.50")
+        @JsonProperty("transfers_total")
+        @Schema(description = "Net active transfers of the account (incoming positive, outgoing negative) "
+                + "from the initial balance date through the date", example = "200.00")
+        BigDecimal transfersTotal,
+
+        @Schema(description = "initial_balance + settlements_total + transfers_total", example = "1379.50")
         BigDecimal balance
 ) {
 }

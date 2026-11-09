@@ -1,6 +1,7 @@
 package com.bts.personalbudget.controller.account.config;
 
 import com.bts.personalbudget.controller.account.AccountBalanceResponse;
+import com.bts.personalbudget.controller.account.AccountsBalanceResponse;
 import com.bts.personalbudget.controller.account.AccountRequest;
 import com.bts.personalbudget.controller.account.AccountResponse;
 import com.bts.personalbudget.controller.account.AccountUpdateRequest;
@@ -72,9 +73,17 @@ public interface AccountControllerApiDocs {
     })
     ResponseEntity<AccountResponse> activate(UUID code);
 
+    @Operation(summary = "Balance of all accounts on a date",
+            description = "One balance per account (ACTIVE and INACTIVE, default first) plus their total. Transfers "
+                    + "between accounts cancel out in the total.")
+    @ApiResponse(responseCode = "200", description = "Balances calculated")
+    ResponseEntity<AccountsBalanceResponse> balances(
+            @Parameter(description = "Date of the balance, yyyy-MM-dd. Defaults to today") LocalDate date);
+
     @Operation(summary = "Account balance on a date",
-            description = "Initial balance plus the active settlements of the account from the initial balance date "
-                    + "through the date (inclusive); credits add and debits subtract. Before the initial balance "
+            description = "Initial balance plus the active settlements and the net active transfers of the account from "
+                    + "the initial balance date through the date (inclusive); credits and incoming transfers add, "
+                    + "debits and outgoing transfers subtract. Before the initial balance "
                     + "date the balance is zero. Cash reports (/balance/daily, /dashboard) are not changed.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Balance calculated"),

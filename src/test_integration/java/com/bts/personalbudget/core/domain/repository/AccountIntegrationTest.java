@@ -8,6 +8,8 @@ import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.account.AccountBalance;
 import com.bts.personalbudget.core.domain.service.account.AccountService;
+import com.bts.personalbudget.core.domain.service.accounttransfer.AccountTransfer;
+import com.bts.personalbudget.core.domain.service.accounttransfer.AccountTransferService;
 import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlement;
 import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
 import java.math.BigDecimal;
@@ -43,12 +45,20 @@ class AccountIntegrationTest {
     private MovementSettlementService settlementService;
 
     @Autowired
+    private AccountTransferService transferService;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     private final ConcurrentLinkedQueue<UUID> movementCodes = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<UUID> transferCodes = new ConcurrentLinkedQueue<>();
 
     @AfterEach
     void cleanUp() {
+        UUID transferCode;
+        while ((transferCode = transferCodes.poll()) != null) {
+            jdbc.update("DELETE FROM account_transfer WHERE code = UUID_TO_BIN(?)", transferCode.toString());
+        }
         UUID movementCode;
         while ((movementCode = movementCodes.poll()) != null) {
             jdbc.update("DELETE FROM movement_settlement WHERE financial_movement_id IN "
@@ -123,6 +133,36 @@ class AccountIntegrationTest {
             // The default account is shared with the other integration tests: give it back.
             accountService.update(original.code(), null, null, null, null, true);
         }
+    }
+
+    @Test
+    void shouldMoveMoneyBetweenAccountsKeepTheTotalAndRestoreBothBalancesOnReversal() {
+        final LocalDate date = LocalDate.of(2092, 1, 31);
+        final Account savings = accountService.create(new Account(null, "Poupança " + UUID.randomUUID(),
+                AccountType.SAVINGS, new BigDecimal("1000.00"), LocalDate.of(2092, 1, 1), null, false));
+        final Account wallet = accountService.create(new Account(null, "Carteira " + UUID.randomUUID(),
+                AccountType.CASH, new BigDecimal("50.00"), LocalDate.of(2092, 1, 1), null, false));
+        final BigDecimal totalBefore = accountService.balances(date).total();
+
+        final AccountTransfer transfer = transferService.create(new AccountTransfer(null, savings.code(),
+                wallet.code(), new BigDecimal("300.00"), LocalDate.of(2092, 1, 10), "Dinheiro vivo", null, null));
+        transferCodes.add(transfer.code());
+
+        final AccountBalance savingsBalance = accountService.balance(savings.code(), date);
+        assertThat(savingsBalance.transfersTotal()).isEqualByComparingTo("-300.00");
+        assertThat(savingsBalance.balance()).isEqualByComparingTo("700.00");
+        assertThat(accountService.balance(wallet.code(), date).balance()).isEqualByComparingTo("350.00");
+        assertThat(accountService.balance(wallet.code(), LocalDate.of(2092, 1, 9)).balance())
+                .isEqualByComparingTo("50.00");
+        assertThat(accountService.balances(date).total()).isEqualByComparingTo(totalBefore);
+
+        final AccountTransfer reversed = transferService.reverse(transfer.code());
+
+        assertThat(reversed.reversedAt()).isNotNull();
+        assertThat(accountService.balance(savings.code(), date).balance()).isEqualByComparingTo("1000.00");
+        assertThat(accountService.balance(wallet.code(), date).balance()).isEqualByComparingTo("50.00");
+        assertThat(transferService.find(LocalDate.of(2092, 1, 1), date, savings.code()))
+                .extracting(AccountTransfer::code).containsExactly(transfer.code());
     }
 
     private FinancialMovement createMovement(final OperationType type, final String amount) {

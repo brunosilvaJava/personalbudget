@@ -1,11 +1,13 @@
 package com.bts.personalbudget.mapper;
 
 import com.bts.personalbudget.controller.account.AccountBalanceResponse;
+import com.bts.personalbudget.controller.account.AccountsBalanceResponse;
 import com.bts.personalbudget.controller.account.AccountRequest;
 import com.bts.personalbudget.controller.account.AccountResponse;
 import com.bts.personalbudget.core.domain.entity.AccountEntity;
 import com.bts.personalbudget.core.domain.model.Account;
 import com.bts.personalbudget.core.domain.service.account.AccountBalance;
+import com.bts.personalbudget.core.domain.service.account.AccountsBalance;
 import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -38,4 +40,6 @@ public interface AccountMapper {
     List<AccountResponse> toResponseList(List<Account> accounts);
 
     AccountBalanceResponse toResponse(AccountBalance balance);
+
+    AccountsBalanceResponse toResponse(AccountsBalance balances);
 }
