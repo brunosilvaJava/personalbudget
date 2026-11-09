@@ -60,8 +60,32 @@ public record FinancialMovementResponse (
 
         @Schema(description = "true when the competence was informed by the client and is not recalculated automatically", example = "false")
         @JsonProperty("competence_overridden")
-        Boolean competenceOverridden
+        Boolean competenceOverridden,
+
+        @Schema(description = "Code of the card purchase this movement is an installment of; null for any other movement. Such a movement is changed through the purchase, never alone", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("card_purchase_code")
+        UUID cardPurchaseCode,
+
+        @Schema(description = "Code of the card invoice the installment falls in; null for any other movement", example = "123e4567-e89b-12d3-a456-426614174000")
+        @JsonProperty("card_invoice_code")
+        UUID cardInvoiceCode,
+
+        @Schema(description = "Installment number k of the card purchase (1-based); null for any other movement", example = "2")
+        @JsonProperty("installment_number")
+        Integer installmentNumber
 ) {
+    /** Without the card link, for a movement that is not a card installment. */
+    public FinancialMovementResponse(final UUID code, final OperationType operationType, final String description,
+                                     final BigDecimal amount, final BigDecimal amountPaid,
+                                     final LocalDateTime movementDate, final LocalDateTime dueDate,
+                                     final FinancialMovementStatus status, final UUID recurrenceBillCode,
+                                     final LocalDate occurrenceDate, final UUID categoryCode,
+                                     final LocalDate competenceDate, final Boolean competenceOverridden) {
+        this(code, operationType, description, amount, amountPaid, movementDate, dueDate, status,
+                recurrenceBillCode, occurrenceDate, categoryCode, competenceDate, competenceOverridden,
+                null, null, null);
+    }
+
     public FinancialMovementResponse {
         if (operationType == OperationType.DEBIT) {
             if (amount != null && amount.compareTo(ZERO) < 0) {
