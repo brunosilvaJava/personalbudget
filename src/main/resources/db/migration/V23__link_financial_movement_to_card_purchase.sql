@@ -10,6 +10,7 @@ ALTER TABLE financial_movement
     ADD CONSTRAINT fk_financial_movement_card_invoice FOREIGN KEY (card_invoice_id) REFERENCES card_invoice (id),
     ADD CONSTRAINT chk_financial_movement_card_link CHECK (
         (card_purchase_id IS NULL AND card_invoice_id IS NULL AND installment_number IS NULL)
-        OR (card_purchase_id IS NOT NULL AND card_invoice_id IS NOT NULL AND installment_number >= 1)),
+        OR (card_purchase_id IS NOT NULL AND card_invoice_id IS NOT NULL
+            AND installment_number IS NOT NULL AND installment_number >= 1)),
     ADD INDEX idx_financial_movement_card_purchase (card_purchase_id),
     ADD INDEX idx_financial_movement_card_invoice (card_invoice_id);
