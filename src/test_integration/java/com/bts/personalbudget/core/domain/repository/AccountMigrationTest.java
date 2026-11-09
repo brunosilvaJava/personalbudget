@@ -21,7 +21,7 @@ class AccountMigrationTest {
     @BeforeAll
     static void migrateWithLegacySettlements() throws SQLException {
         MYSQL.start();
-        flyway("18").migrate();
+        flyway("17").migrate();
         try (Connection connection = connection(); Statement statement = connection.createStatement()) {
             statement.executeUpdate("""
                     INSERT INTO financial_movement (
