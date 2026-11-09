@@ -24,7 +24,7 @@ class CardPurchaseMigrationTest {
         MYSQL.start();
         Flyway.configure()
                 .dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
-                .target("23")
+                .target("24")
                 .load()
                 .migrate();
         try (Connection connection = connection(); Statement statement = connection.createStatement()) {
@@ -77,6 +77,25 @@ class CardPurchaseMigrationTest {
             assertThrows(SQLException.class, () -> statement.executeUpdate(movement("NULL", invoiceId + "", "1")));
             assertThrows(SQLException.class, () -> statement.executeUpdate(movement(purchaseId + "", invoiceId + "", "0")));
         }
+    }
+
+    @Test
+    void shouldAllowOneActivePaymentPerInvoiceAndManyReversedOnesAndRejectNonPositiveAmounts() throws SQLException {
+        try (Connection connection = connection(); Statement statement = connection.createStatement()) {
+            statement.executeUpdate(invoice("2031-01-01", "2031-01-25", "2031-02-05"));
+            assertDoesNotThrow(() -> statement.executeUpdate(payment("2031-01-01", "100.00", "NULL")));
+            assertThrows(SQLException.class, () -> statement.executeUpdate(payment("2031-01-01", "50.00", "NULL")));
+            assertDoesNotThrow(() -> statement.executeUpdate(payment("2031-01-01", "100.00", "NOW()")));
+            assertDoesNotThrow(() -> statement.executeUpdate(payment("2031-01-01", "100.00", "NOW()")));
+            assertThrows(SQLException.class, () -> statement.executeUpdate(payment("2031-01-01", "0.00", "NOW()")));
+        }
+    }
+
+    private static String payment(final String referenceMonth, final String amount, final String reversedAt) {
+        return "INSERT INTO card_invoice_payment (code, card_invoice_id, account_id, payment_date, amount, "
+                + "reversed_at) VALUES (UNHEX(REPLACE(UUID(), '-', '')), "
+                + "(SELECT id FROM card_invoice WHERE reference_month = '" + referenceMonth + "'), "
+                + "(SELECT id FROM account WHERE is_default = 1), '2031-02-05', " + amount + ", " + reversedAt + ")";
     }
 
     private static String invoice(final String referenceMonth, final String closing, final String due) {

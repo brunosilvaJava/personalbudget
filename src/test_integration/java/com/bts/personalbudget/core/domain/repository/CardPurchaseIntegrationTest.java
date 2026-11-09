@@ -7,14 +7,13 @@ import com.bts.personalbudget.core.domain.model.FinancialMovement;
 import com.bts.personalbudget.core.domain.model.FinancialMovementUpdate;
 import com.bts.personalbudget.core.domain.service.FinancialMovementService;
 import com.bts.personalbudget.core.domain.service.cardinvoice.CardInvoice;
+import com.bts.personalbudget.core.domain.service.cardinvoice.CardInvoicePaymentService;
 import com.bts.personalbudget.core.domain.service.cardinvoice.CardInvoiceService;
 import com.bts.personalbudget.core.domain.service.cardpurchase.CardInstallment;
 import com.bts.personalbudget.core.domain.service.cardpurchase.CardPurchase;
 import com.bts.personalbudget.core.domain.service.cardpurchase.CardPurchaseService;
 import com.bts.personalbudget.core.domain.service.creditcard.CreditCardLimit;
 import com.bts.personalbudget.core.domain.service.creditcard.CreditCardService;
-import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlement;
-import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
 import com.bts.personalbudget.exception.ConflictException;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
@@ -68,7 +67,7 @@ class CardPurchaseIntegrationTest {
     private FinancialMovementService movementService;
 
     @Autowired
-    private MovementSettlementService settlementService;
+    private CardInvoicePaymentService paymentService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -89,6 +88,8 @@ class CardPurchaseIntegrationTest {
                     + "JOIN credit_card c ON c.id = p.credit_card_id WHERE c.code = UUID_TO_BIN(?)", text);
             jdbc.update("DELETE FROM card_purchase WHERE credit_card_id = "
                     + "(SELECT id FROM credit_card WHERE code = UUID_TO_BIN(?))", text);
+            jdbc.update("DELETE FROM card_invoice_payment WHERE card_invoice_id IN (SELECT id FROM card_invoice "
+                    + "WHERE credit_card_id = (SELECT id FROM credit_card WHERE code = UUID_TO_BIN(?)))", text);
             jdbc.update("DELETE FROM card_invoice WHERE credit_card_id = "
                     + "(SELECT id FROM credit_card WHERE code = UUID_TO_BIN(?))", text);
             jdbc.update("DELETE FROM credit_card WHERE code = UUID_TO_BIN(?)", text);
@@ -263,9 +264,8 @@ class CardPurchaseIntegrationTest {
     void shouldRefuseRetroactivePurchaseInAPaidInvoiceAndFreezeThePaidPurchase() {
         final CreditCard card = createCard("1000.00");
         final CardPurchase created = purchase(card, PURCHASE_DATE, 1, "100.00");
-        final UUID movementCode = created.installmentList().get(0).movementCode();
-        settlementService.create(movementCode, new MovementSettlement(null, null, new BigDecimal("100.00"),
-                LocalDate.of(2094, 4, 5), null, null, null, null, null, null));
+        paymentService.pay(invoiceService.find(card.code(), YearMonth.of(2094, 3)).get(0).code(), null,
+                LocalDate.of(2094, 4, 5));
 
         assertThat(invoiceService.find(card.code(), YearMonth.of(2094, 3)).get(0).state())
                 .isEqualTo(CardInvoiceState.PAID);

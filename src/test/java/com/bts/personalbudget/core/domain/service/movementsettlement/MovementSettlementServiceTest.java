@@ -1,6 +1,7 @@
 package com.bts.personalbudget.core.domain.service.movementsettlement;
 
 import com.bts.personalbudget.core.domain.entity.AccountEntity;
+import com.bts.personalbudget.core.domain.entity.CardInvoicePaymentEntity;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.AccountStatus;
 import com.bts.personalbudget.core.domain.factory.AccountFactory;
@@ -256,6 +257,91 @@ class MovementSettlementServiceTest {
                 settlementWithAccount("10.00", account.getCode(), LocalDate.of(2026, 10, 31))));
 
         verify(settlementRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRefuseAnIndividualPaymentOfACardInstallment() {
+        final FinancialMovementEntity movement = movement(OperationType.DEBIT, "-100.00", "0.00");
+        movement.setCardPurchaseId(10L);
+        when(movementRepository.findForUpdateByCodeAndFlagActiveTrue(movement.getCode()))
+                .thenReturn(Optional.of(movement));
+
+        assertThrows(ConflictException.class, () -> service.create(movement.getCode(), settlement("10.00")));
+
+        verify(settlementRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRefuseToReverseAloneASettlementGeneratedByAnInvoicePayment() {
+        final FinancialMovementEntity movement = movement(OperationType.DEBIT, "-100.00", "-100.00");
+        final MovementSettlementEntity settlement = MovementSettlementEntity.builder()
+                .id(2L)
+                .code(UUID.randomUUID())
+                .financialMovement(movement)
+                .invoicePayment(CardInvoicePaymentEntity.builder().id(900L).build())
+                .amount(new BigDecimal("100.00"))
+                .effectiveDate(LocalDate.of(2026, 11, 5))
+                .version(0L)
+                .build();
+        when(movementRepository.findForUpdateByCodeAndFlagActiveTrue(movement.getCode()))
+                .thenReturn(Optional.of(movement));
+        when(settlementRepository.findForUpdateByCodeAndMovementId(settlement.getCode(), movement.getId()))
+                .thenReturn(Optional.of(settlement));
+
+        assertThrows(ConflictException.class, () -> service.reverse(movement.getCode(), settlement.getCode()));
+
+        assertThat(settlement.getReversedAt()).isNull();
+        assertThat(movement.getStatus()).isEqualTo(FinancialMovementStatus.PENDING);
+    }
+
+    @Test
+    void shouldSettleOnlyWhatIsStillOwedForAnInvoicePaymentAndMarkTheInstallmentPaidOut() {
+        final FinancialMovementEntity movement = movement(OperationType.DEBIT, "-100.00", "-60.00");
+        final CardInvoicePaymentEntity payment = CardInvoicePaymentEntity.builder().id(900L)
+                .code(UUID.randomUUID()).build();
+        when(settlementRepository.save(any(MovementSettlementEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        final MovementSettlementEntity saved = service.settleRemainingForInvoicePayment(
+                movement, AccountFactory.buildEntity(), LocalDate.of(2026, 11, 8), payment);
+
+        assertThat(saved.getAmount()).isEqualByComparingTo("40.00");
+        assertThat(saved.getInvoicePayment()).isSameAs(payment);
+        assertThat(movement.getAmountPaid()).isEqualByComparingTo("-100.00");
+        assertThat(movement.getStatus()).isEqualTo(FinancialMovementStatus.PAID_OUT);
+    }
+
+    @Test
+    void shouldSkipAnInstallmentThatHasNothingLeftForAnInvoicePayment() {
+        final FinancialMovementEntity movement = movement(OperationType.DEBIT, "-100.00", "-100.00");
+
+        final MovementSettlementEntity saved = service.settleRemainingForInvoicePayment(
+                movement, AccountFactory.buildEntity(), LocalDate.of(2026, 11, 8),
+                CardInvoicePaymentEntity.builder().code(UUID.randomUUID()).build());
+
+        assertThat(saved).isNull();
+        verify(settlementRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldReverseAnInvoicePaymentSettlementAndRestoreTheInstallmentToLate() {
+        final FinancialMovementEntity movement = movement(OperationType.DEBIT, "-100.00", "-100.00");
+        movement.setStatus(FinancialMovementStatus.PAID_OUT);
+        movement.setDueDate(LocalDateTime.of(2026, 11, 1, 0, 0));
+        final MovementSettlementEntity settlement = MovementSettlementEntity.builder()
+                .id(2L)
+                .code(UUID.randomUUID())
+                .financialMovement(movement)
+                .amount(new BigDecimal("100.00"))
+                .effectiveDate(LocalDate.of(2026, 11, 5))
+                .version(0L)
+                .build();
+
+        service.reverseForInvoicePayment(settlement);
+
+        assertThat(settlement.getReversedAt()).isEqualTo(LocalDateTime.of(2026, 11, 8, 9, 0));
+        assertThat(movement.getAmountPaid()).isEqualByComparingTo("0");
+        assertThat(movement.getStatus()).isEqualTo(FinancialMovementStatus.LATE);
     }
 
     private static MovementSettlement settlementWithAccount(final String amount, final UUID accountCode,

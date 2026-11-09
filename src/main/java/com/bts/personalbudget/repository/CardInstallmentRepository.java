@@ -2,10 +2,12 @@ package com.bts.personalbudget.repository;
 
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -37,6 +39,14 @@ public interface CardInstallmentRepository extends JpaRepository<FinancialMoveme
             ORDER BY fm.cardPurchaseId ASC, fm.installmentNumber ASC
             """)
     List<FinancialMovementEntity> findActiveByInvoiceId(@Param("invoiceId") Long invoiceId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT fm FROM FinancialMovementEntity fm
+            WHERE fm.cardInvoiceId = :invoiceId AND fm.flagActive = true
+            ORDER BY fm.id ASC
+            """)
+    List<FinancialMovementEntity> findForUpdateActiveByInvoiceId(@Param("invoiceId") Long invoiceId);
 
     @Query("""
             SELECT fm FROM FinancialMovementEntity fm

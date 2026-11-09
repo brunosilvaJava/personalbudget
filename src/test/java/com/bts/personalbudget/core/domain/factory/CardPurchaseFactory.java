@@ -6,12 +6,15 @@ import com.bts.personalbudget.core.domain.entity.CreditCardEntity;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.entity.CardInvoicePaymentEntity;
 import com.bts.personalbudget.core.domain.service.cardinvoice.CardInvoice;
+import com.bts.personalbudget.core.domain.service.cardinvoice.CardInvoicePayment;
 import com.bts.personalbudget.core.domain.service.cardpurchase.CardInstallment;
 import com.bts.personalbudget.core.domain.service.cardpurchase.CardPurchase;
 import com.bts.personalbudget.core.domain.enumerator.CardInvoiceState;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
@@ -26,6 +29,7 @@ public final class CardPurchaseFactory {
     public static final UUID PURCHASE_CODE = UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
     public static final UUID INVOICE_CODE = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
     public static final LocalDate PURCHASE_DATE = LocalDate.of(2026, 11, 9);
+    public static final UUID PAYMENT_CODE = UUID.fromString("99999999-9999-9999-9999-999999999999");
     public static final BigDecimal INSTALLMENT_AMOUNT = new BigDecimal("100.00");
 
     private CardPurchaseFactory() {
@@ -100,5 +104,22 @@ public final class CardPurchaseFactory {
         return new CardInvoice(INVOICE_CODE, CreditCardFactory.CARD_CODE, YearMonth.of(2026, 11),
                 LocalDate.of(2026, 11, 25), LocalDate.of(2026, 12, 5), CardInvoiceState.OPEN,
                 new BigDecimal("100.00"), BigDecimal.ZERO, installments);
+    }
+
+    public static CardInvoicePayment buildPaymentModel(final LocalDateTime reversedAt) {
+        return new CardInvoicePayment(PAYMENT_CODE, INVOICE_CODE, AccountFactory.ACCOUNT_CODE,
+                LocalDate.of(2026, 12, 5), new BigDecimal("140.00"), reversedAt, 0L);
+    }
+
+    public static CardInvoicePaymentEntity buildPaymentEntity(final CardInvoiceEntity invoice) {
+        return CardInvoicePaymentEntity.builder()
+                .id(900L)
+                .code(PAYMENT_CODE)
+                .invoice(invoice)
+                .account(AccountFactory.buildEntity())
+                .paymentDate(LocalDate.of(2026, 12, 5))
+                .amount(new BigDecimal("140.00"))
+                .version(0L)
+                .build();
     }
 }

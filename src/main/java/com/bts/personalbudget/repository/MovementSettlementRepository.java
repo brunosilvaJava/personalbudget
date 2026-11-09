@@ -35,6 +35,15 @@ public interface MovementSettlementRepository extends JpaRepository<MovementSett
 
     @Query("""
             SELECT s FROM MovementSettlementEntity s
+            JOIN FETCH s.financialMovement
+            WHERE s.invoicePayment.id = :paymentId
+              AND s.reversedAt IS NULL
+            ORDER BY s.id ASC
+            """)
+    List<MovementSettlementEntity> findActiveByInvoicePaymentId(@Param("paymentId") Long paymentId);
+
+    @Query("""
+            SELECT s FROM MovementSettlementEntity s
             JOIN FETCH s.financialMovement m
             JOIN FETCH s.account
             WHERE m.flagActive = true
