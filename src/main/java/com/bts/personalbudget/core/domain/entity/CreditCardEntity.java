@@ -22,8 +22,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 @Getter
 @Setter
@@ -44,11 +42,9 @@ public class CreditCardEntity extends AuditingEntity implements Serializable {
     @Column(nullable = false, length = 50)
     private String name;
 
-    @JdbcTypeCode(SqlTypes.TINYINT)
     @Column(name = "closing_day", nullable = false)
     private int closingDay;
 
-    @JdbcTypeCode(SqlTypes.TINYINT)
     @Column(name = "due_day", nullable = false)
     private int dueDay;
 
