@@ -6,6 +6,7 @@ import com.bts.personalbudget.core.domain.service.account.AccountService;
 import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.ControllerExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -46,7 +47,8 @@ class AccountControllerTest {
     void setUp() {
         mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new ControllerExceptionHandler())
-                .setMessageConverters(new MappingJackson2HttpMessageConverter(new ObjectMapper().findAndRegisterModules()))
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(new ObjectMapper().findAndRegisterModules()
+                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)))
                 .build();
     }
 
