@@ -84,6 +84,7 @@ public class CategoryRepositoryTest {
                 new SeededCategory("Outros", "Impostos e taxas", OperationType.DEBIT),
                 new SeededCategory("Outros", "Doações", OperationType.DEBIT),
                 new SeededCategory("Outros", "Outros", OperationType.DEBIT),
+                new SeededCategory("Outros", "Perdas com terceiros", OperationType.DEBIT),
                 new SeededCategory("Receitas", "Salário", OperationType.CREDIT),
                 new SeededCategory("Receitas", "Renda extra", OperationType.CREDIT),
                 new SeededCategory("Receitas", "Rendimentos", OperationType.CREDIT),

@@ -3,6 +3,7 @@ package com.bts.personalbudget.controller.thirdparty.config;
 import com.bts.personalbudget.controller.thirdparty.ReceiptRequest;
 import com.bts.personalbudget.controller.thirdparty.ReceivableResponse;
 import com.bts.personalbudget.controller.thirdparty.ReceivableUpdateRequest;
+import com.bts.personalbudget.controller.thirdparty.ReceivableWriteOffRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -16,7 +17,7 @@ public interface ReceivableControllerApiDocs {
 
     @Operation(summary = "List the receivables of a third party",
             description = "One receivable per card installment of a purchase marked as theirs, oldest due date "
-                    + "first. status is PENDING, LATE or PAID_OUT.")
+                    + "first. status is PENDING, LATE, PAID_OUT or WRITTEN_OFF.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Receivables"),
             @ApiResponse(responseCode = "404", description = "Third party not found")
@@ -45,4 +46,20 @@ public interface ReceivableControllerApiDocs {
             @ApiResponse(responseCode = "409", description = "The amount is greater than what is open")
     })
     ResponseEntity<List<ReceivableResponse>> receive(UUID thirdPartyCode, ReceiptRequest request);
+
+    @Operation(summary = "Write off a receivable",
+            description = "For a third party that will not pay. No cash moves: what is still open becomes the "
+                    + "user's own expense, in the fixed category \"Perdas com terceiros\", in the competence of the "
+                    + "given date, and the receivable is closed (status WRITTEN_OFF). The date must belong to a "
+                    + "cycle that is not closed. The whole open balance is written off; to forgive only part, "
+                    + "receive the rest first.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Receivable written off"),
+            @ApiResponse(responseCode = "400", description = "Missing date"),
+            @ApiResponse(responseCode = "404", description = "Third party or receivable not found"),
+            @ApiResponse(responseCode = "409", description = "The write-off date belongs to a closed cycle, or "
+                    + "nothing is open on the receivable")
+    })
+    ResponseEntity<ReceivableResponse> writeOff(UUID thirdPartyCode, UUID receivableCode,
+                                                ReceivableWriteOffRequest request);
 }
