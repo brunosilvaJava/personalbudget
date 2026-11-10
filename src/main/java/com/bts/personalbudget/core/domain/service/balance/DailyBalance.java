@@ -20,6 +20,27 @@ public class DailyBalance {
     private BigDecimal pendingTotalRevenue;
     private BigDecimal pendingTotalExpense;
     private BigDecimal projectedClosingBalance;
+    private BigDecimal passThroughIn;
+    private BigDecimal passThroughOut;
+    private BigDecimal pendingPassThroughIn;
+    private BigDecimal pendingPassThroughOut;
+
+    /** Compatibility constructor used by the existing factories and serialized-contract tests. */
+    public DailyBalance(final LocalDate date, final BigDecimal openingBalance, final BigDecimal totalRevenue,
+                        final BigDecimal totalExpense, final BigDecimal closingBalance,
+                        final BigDecimal projectedOpeningBalance, final BigDecimal pendingTotalRevenue,
+                        final BigDecimal pendingTotalExpense, final BigDecimal projectedClosingBalance) {
+        this.date = date;
+        this.openingBalance = openingBalance;
+        this.totalRevenue = totalRevenue;
+        this.totalExpense = totalExpense;
+        this.closingBalance = closingBalance;
+        this.projectedOpeningBalance = projectedOpeningBalance;
+        this.pendingTotalRevenue = pendingTotalRevenue;
+        this.pendingTotalExpense = pendingTotalExpense;
+        this.projectedClosingBalance = projectedClosingBalance;
+        verifyValues();
+    }
 
     public DailyBalance(LocalDate date, BigDecimal openingBalance, BigDecimal projectedOpeningBalance) {
         this.date = date;
@@ -44,8 +65,22 @@ public class DailyBalance {
         defineProjectedClosingBalance();
     }
 
+    public void addPassThroughIn(final BigDecimal value) {
+        verifyValues();
+        passThroughIn = passThroughIn.add(value);
+        defineClosingBalance();
+        defineProjectedClosingBalance();
+    }
+
+    public void addPassThroughOut(final BigDecimal value) {
+        verifyValues();
+        passThroughOut = passThroughOut.add(value);
+        defineClosingBalance();
+        defineProjectedClosingBalance();
+    }
+
     private void defineClosingBalance() {
-        closingBalance = openingBalance.add(totalRevenue.add(totalExpense));
+        closingBalance = openingBalance.add(totalRevenue.add(totalExpense).add(passThroughIn).add(passThroughOut));
     }
 
     public void addProjectedRevenue(final BigDecimal value) {
@@ -60,9 +95,22 @@ public class DailyBalance {
         defineProjectedClosingBalance();
     }
 
+    public void addProjectedPassThroughIn(final BigDecimal value) {
+        verifyValues();
+        pendingPassThroughIn = pendingPassThroughIn.add(value);
+        defineProjectedClosingBalance();
+    }
+
+    public void addProjectedPassThroughOut(final BigDecimal value) {
+        verifyValues();
+        pendingPassThroughOut = pendingPassThroughOut.add(value);
+        defineProjectedClosingBalance();
+    }
+
     private void defineProjectedClosingBalance() {
-        final BigDecimal balanceDay = totalRevenue.add(totalExpense);
-        projectedClosingBalance = balanceDay.add(projectedOpeningBalance.add(pendingTotalRevenue.add(pendingTotalExpense)));
+        final BigDecimal balanceDay = totalRevenue.add(totalExpense).add(passThroughIn).add(passThroughOut);
+        projectedClosingBalance = balanceDay.add(projectedOpeningBalance.add(
+                pendingTotalRevenue.add(pendingTotalExpense).add(pendingPassThroughIn).add(pendingPassThroughOut)));
     }
 
     private void verifyValues() {
@@ -84,6 +132,10 @@ public class DailyBalance {
         if (pendingTotalExpense == null) {
             pendingTotalExpense = BigDecimal.ZERO;
         }
+        if (passThroughIn == null) passThroughIn = BigDecimal.ZERO;
+        if (passThroughOut == null) passThroughOut = BigDecimal.ZERO;
+        if (pendingPassThroughIn == null) pendingPassThroughIn = BigDecimal.ZERO;
+        if (pendingPassThroughOut == null) pendingPassThroughOut = BigDecimal.ZERO;
     }
 
     @Override

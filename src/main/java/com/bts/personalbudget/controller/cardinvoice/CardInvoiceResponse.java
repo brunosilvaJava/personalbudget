@@ -45,6 +45,10 @@ public record CardInvoiceResponse(
         BigDecimal paidAmount,
 
         @Schema(description = "The installments that fall in the invoice")
-        List<CardInstallmentResponse> installments
+        List<CardInstallmentResponse> installments,
+
+        @JsonProperty("holder_total_list") List<CardInvoiceHolderTotalResponse> holderTotalList,
+        @JsonProperty("own_total_amount") BigDecimal ownTotalAmount,
+        @JsonProperty("third_party_total_amount") BigDecimal thirdPartyTotalAmount
 ) {
 }

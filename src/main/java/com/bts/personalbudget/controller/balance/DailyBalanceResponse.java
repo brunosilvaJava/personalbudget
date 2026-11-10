@@ -14,8 +14,16 @@ public record DailyBalanceResponse(
         Balance balance,
 
         @Schema(description = "Projected balance: paid plus pending and late movements and recurrence occurrences")
-        Projected projected
+        Projected projected,
+
+        @JsonProperty("pass_through_in") BigDecimal passThroughIn,
+        @JsonProperty("pass_through_out") BigDecimal passThroughOut,
+        @JsonProperty("pending_pass_through_in") BigDecimal pendingPassThroughIn,
+        @JsonProperty("pending_pass_through_out") BigDecimal pendingPassThroughOut
 ) {
+    public DailyBalanceResponse(final LocalDate date, final Balance balance, final Projected projected) {
+        this(date, balance, projected, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
     public record Balance(
             @Schema(description = "Balance at the start of the day", example = "1500.00")
             BigDecimal opening,

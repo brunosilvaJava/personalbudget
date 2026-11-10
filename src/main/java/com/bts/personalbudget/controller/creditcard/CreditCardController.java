@@ -67,8 +67,14 @@ public class CreditCardController implements CreditCardControllerApiDocs {
     public ResponseEntity<CreditCardResponse> update(@PathVariable final UUID code,
                                                      @RequestBody @Valid final CreditCardUpdateRequest request) {
         log.info("m=update, code={}, request={}", code, request);
-        final CreditCard card = service.update(code, request.name(), request.closingDay(), request.dueDay(),
-                request.creditLimit(), request.defaultAccountCode());
+        final boolean hasThirdPartyChange = request.defaultThirdPartyCode() != null
+                || Boolean.TRUE.equals(request.clearDefaultThirdParty());
+        final CreditCard card = hasThirdPartyChange
+                ? service.update(code, request.name(), request.closingDay(), request.dueDay(),
+                        request.creditLimit(), request.defaultAccountCode(), request.defaultThirdPartyCode(),
+                        Boolean.TRUE.equals(request.clearDefaultThirdParty()))
+                : service.update(code, request.name(), request.closingDay(), request.dueDay(),
+                        request.creditLimit(), request.defaultAccountCode());
         return ResponseEntity.ok(mapper.toResponse(card));
     }
 

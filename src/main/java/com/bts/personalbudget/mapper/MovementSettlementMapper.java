@@ -19,6 +19,7 @@ public interface MovementSettlementMapper {
     @Mapping(target = "categoryCode", source = "financialMovement.categoryCode")
     @Mapping(target = "competenceDate", source = "financialMovement.competenceDate")
     @Mapping(target = "accountCode", source = "account.code")
+    @Mapping(target = "passThrough", expression = "java(entity.getFinancialMovement().getThirdParty() != null)")
     MovementSettlement toModel(MovementSettlementEntity entity);
 
     List<MovementSettlement> toModelList(List<MovementSettlementEntity> entities);

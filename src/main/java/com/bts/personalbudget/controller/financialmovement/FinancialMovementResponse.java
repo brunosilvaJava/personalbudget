@@ -73,6 +73,10 @@ public record FinancialMovementResponse (
         @Schema(description = "Installment number k of the card purchase (1-based); null for any other movement", example = "2")
         @JsonProperty("installment_number")
         Integer installmentNumber
+        ,
+
+        @JsonProperty("third_party_code")
+        UUID thirdPartyCode
 ) {
     /** Without the card link, for a movement that is not a card installment. */
     public FinancialMovementResponse(final UUID code, final OperationType operationType, final String description,
@@ -83,7 +87,21 @@ public record FinancialMovementResponse (
                                      final LocalDate competenceDate, final Boolean competenceOverridden) {
         this(code, operationType, description, amount, amountPaid, movementDate, dueDate, status,
                 recurrenceBillCode, occurrenceDate, categoryCode, competenceDate, competenceOverridden,
-                null, null, null);
+                null, null, null, null);
+    }
+
+    /** Compatibility constructor for clients that already receive the card link. */
+    public FinancialMovementResponse(final UUID code, final OperationType operationType, final String description,
+                                     final BigDecimal amount, final BigDecimal amountPaid,
+                                     final LocalDateTime movementDate, final LocalDateTime dueDate,
+                                     final FinancialMovementStatus status, final UUID recurrenceBillCode,
+                                     final LocalDate occurrenceDate, final UUID categoryCode,
+                                     final LocalDate competenceDate, final Boolean competenceOverridden,
+                                     final UUID cardPurchaseCode, final UUID cardInvoiceCode,
+                                     final Integer installmentNumber) {
+        this(code, operationType, description, amount, amountPaid, movementDate, dueDate, status,
+                recurrenceBillCode, occurrenceDate, categoryCode, competenceDate, competenceOverridden,
+                cardPurchaseCode, cardInvoiceCode, installmentNumber, null);
     }
 
     public FinancialMovementResponse {

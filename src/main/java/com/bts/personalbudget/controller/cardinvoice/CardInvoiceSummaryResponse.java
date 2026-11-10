@@ -40,6 +40,10 @@ public record CardInvoiceSummaryResponse(
 
         @JsonProperty("paid_amount")
         @Schema(description = "Part of the total already paid", example = "0.00")
-        BigDecimal paidAmount
+        BigDecimal paidAmount,
+
+        @JsonProperty("holder_total_list") java.util.List<CardInvoiceHolderTotalResponse> holderTotalList,
+        @JsonProperty("own_total_amount") BigDecimal ownTotalAmount,
+        @JsonProperty("third_party_total_amount") BigDecimal thirdPartyTotalAmount
 ) {
 }

@@ -19,6 +19,7 @@ public interface CreditCardMapper {
     CreditCard toModel(CreditCardRequest request);
 
     @Mapping(target = "defaultAccountCode", source = "defaultAccount.code")
+    @Mapping(target = "defaultThirdPartyCode", source = "defaultThirdParty.code")
     CreditCard toModel(CreditCardEntity entity);
 
     List<CreditCard> toModelList(List<CreditCardEntity> entities);
@@ -31,6 +32,7 @@ public interface CreditCardMapper {
     @Mapping(target = "code", ignore = true)
     @Mapping(target = "version", ignore = true)
     @Mapping(target = "defaultAccount", ignore = true)
+    @Mapping(target = "defaultThirdParty", ignore = true)
     @Mapping(target = "status", constant = "ACTIVE")
     CreditCardEntity toEntity(CreditCard card);
 

@@ -3,14 +3,21 @@ package com.bts.personalbudget.core.domain.service.cardpurchase;
 import com.bts.personalbudget.core.domain.entity.CardInvoiceEntity;
 import com.bts.personalbudget.core.domain.entity.CardPurchaseEntity;
 import com.bts.personalbudget.core.domain.entity.CreditCardEntity;
+import com.bts.personalbudget.core.domain.entity.CreditCardHolderEntity;
+import com.bts.personalbudget.core.domain.entity.CreditCardPlasticEntity;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
+import com.bts.personalbudget.core.domain.entity.ThirdPartyEntity;
+import com.bts.personalbudget.core.domain.enumerator.CreditCardHolderStatus;
+import com.bts.personalbudget.core.domain.enumerator.CreditCardPlasticStatus;
 import com.bts.personalbudget.core.domain.enumerator.CreditCardStatus;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
+import com.bts.personalbudget.core.domain.enumerator.ThirdPartyStatus;
 import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.core.domain.service.creditcard.CardInvoiceCalculator;
 import com.bts.personalbudget.core.domain.service.creditcard.CardInvoiceCalculator.InvoiceSlot;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleMovementGuard;
+import com.bts.personalbudget.core.domain.service.thirdparty.ThirdPartyResolver;
 import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.CardPurchaseMapper;
@@ -18,6 +25,9 @@ import com.bts.personalbudget.repository.CardInstallmentRepository;
 import com.bts.personalbudget.repository.CardInvoiceRepository;
 import com.bts.personalbudget.repository.CardPurchaseRepository;
 import com.bts.personalbudget.repository.CreditCardRepository;
+import com.bts.personalbudget.repository.CreditCardHolderRepository;
+import com.bts.personalbudget.repository.CreditCardPlasticRepository;
+import com.bts.personalbudget.repository.ThirdPartyRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -60,6 +70,9 @@ public class CardPurchaseService {
     private final CardInvoiceRepository invoiceRepository;
     private final CardInstallmentRepository installmentRepository;
     private final CreditCardRepository cardRepository;
+    private final CreditCardHolderRepository holderRepository;
+    private final CreditCardPlasticRepository plasticRepository;
+    private final ThirdPartyRepository thirdPartyRepository;
     private final CardPurchaseMapper mapper;
     private final CategoryService categoryService;
     private final PayCycleMovementGuard payCycleMovementGuard;
@@ -84,6 +97,12 @@ public class CardPurchaseService {
             throw invalid("cardCode", "cartão inativo");
         }
 
+        final CardUse cardUse = resolveCardUse(card, purchase.cardHolderCode(), purchase.cardLastDigits());
+        final ThirdPartyEntity thirdParty = resolveThirdParty(ThirdPartyResolver.resolve(purchase.thirdPartyCode(),
+                purchase.ownExpense(), cardUse.plastic() == null || cardUse.plastic().getDefaultThirdParty() == null
+                        ? null : cardUse.plastic().getDefaultThirdParty().getCode(),
+                card.getDefaultThirdParty() == null ? null : card.getDefaultThirdParty().getCode()));
+
         final List<CardInvoiceEntity> invoices = resolveInvoices(card, purchase.purchaseDate(), purchase.installments());
         requireEditableCompetences(invoices);
         requireWithinLimit(card, total(purchase.installmentAmount(), purchase.installments()), BigDecimal.ZERO);
@@ -95,6 +114,9 @@ public class CardPurchaseService {
                 .installments(purchase.installments())
                 .installmentAmount(purchase.installmentAmount())
                 .categoryCode(purchase.categoryCode())
+                .cardHolder(cardUse.holder())
+                .cardLastDigits(cardUse.lastDigits())
+                .thirdParty(thirdParty)
                 .build());
         final List<FinancialMovementEntity> movements = new ArrayList<>();
         for (int k = 1; k <= purchase.installments(); k++) {
@@ -142,8 +164,19 @@ public class CardPurchaseService {
     public CardPurchase update(final UUID code, final String description, final LocalDate purchaseDate,
                                final Integer installments, final BigDecimal installmentAmount,
                                final UUID categoryCode) {
-        log.info("m=update, code={}, description={}, purchaseDate={}, installments={}, installmentAmount={}, "
-                + "categoryCode={}", code, description, purchaseDate, installments, installmentAmount, categoryCode);
+        return update(code, description, purchaseDate, installments, installmentAmount, categoryCode,
+                null, null, null, null);
+    }
+
+    @Transactional
+    public CardPurchase update(final UUID code, final String description, final LocalDate purchaseDate,
+                               final Integer installments, final BigDecimal installmentAmount,
+                               final UUID categoryCode, final UUID cardHolderCode, final String cardLastDigits,
+                               final UUID thirdPartyCode, final Boolean ownExpense) {
+        log.info("m=update, code={}, description={}, purchaseDate={}, installments={}, installmentAmount={}, categoryCode={}, "
+                        + "cardHolderCode={}, cardLastDigits={}, thirdPartyCode={}, ownExpense={}",
+                code, description, purchaseDate, installments, installmentAmount, categoryCode, cardHolderCode,
+                cardLastDigits, thirdPartyCode, ownExpense);
         payCycleMovementGuard.lock();
         final CardPurchaseEntity purchase = purchaseRepository.findActiveByCode(code)
                 .orElseThrow(() -> notFound(code));
@@ -161,7 +194,16 @@ public class CardPurchaseService {
                 || newAmount.compareTo(purchase.getInstallmentAmount()) != 0;
         final boolean categoryChanged = categoryCode != null && !categoryCode.equals(purchase.getCategoryCode());
         final boolean descriptionChanged = !newDescription.equals(purchase.getDescription());
-        if (!scheduleChanged && !categoryChanged && !descriptionChanged) {
+        final boolean cardUseChanged = cardHolderCode != null || cardLastDigits != null;
+        final boolean thirdPartyRequested = thirdPartyCode != null || ownExpense != null;
+        final CardUse newCardUse = cardUseChanged ? resolveCardUse(card, cardHolderCode, cardLastDigits) : null;
+        final ThirdPartyEntity resolvedThirdParty = thirdPartyRequested ? resolveThirdParty(ThirdPartyResolver.resolve(
+                thirdPartyCode, ownExpense, newCardUse == null || newCardUse.plastic() == null
+                        || newCardUse.plastic().getDefaultThirdParty() == null ? null
+                        : newCardUse.plastic().getDefaultThirdParty().getCode(),
+                card.getDefaultThirdParty() == null ? null : card.getDefaultThirdParty().getCode())) : null;
+        final boolean thirdPartyChanged = thirdPartyRequested && !sameThirdParty(purchase.getThirdParty(), resolvedThirdParty);
+        if (!scheduleChanged && !categoryChanged && !descriptionChanged && !cardUseChanged && !thirdPartyChanged) {
             log.info("m=update, message=NoChangesDetected, code={}", code);
             return assemble(List.of(purchase)).get(0);
         }
@@ -173,7 +215,7 @@ public class CardPurchaseService {
             throw new ConflictException(
                     "A compra tem parcela já paga; data, parcelas e valor não podem mais ser alterados");
         }
-        if (scheduleChanged || categoryChanged) {
+        if (scheduleChanged || categoryChanged || thirdPartyChanged) {
             current.forEach(movement -> payCycleMovementGuard.requireEditable(movement.getCompetenceDate()));
         }
 
@@ -193,6 +235,13 @@ public class CardPurchaseService {
         if (categoryChanged) {
             purchase.setCategoryCode(categoryCode);
         }
+        if (cardUseChanged) {
+            purchase.setCardHolder(newCardUse.holder());
+            purchase.setCardLastDigits(newCardUse.lastDigits());
+        }
+        if (thirdPartyChanged) {
+            purchase.setThirdParty(resolvedThirdParty);
+        }
 
         final List<FinancialMovementEntity> result = new ArrayList<>();
         final List<FinancialMovementEntity> created = new ArrayList<>();
@@ -201,6 +250,7 @@ public class CardPurchaseService {
                 final FinancialMovementEntity movement = current.get(k - 1);
                 movement.setDescription(installmentDescription(newDescription, k, newCount));
                 movement.setCategoryCode(purchase.getCategoryCode());
+                if (thirdPartyChanged) movement.setThirdParty(resolvedThirdParty);
                 if (scheduleChanged) {
                     applySchedule(movement, newDate, newAmount, invoices.get(k - 1));
                 }
@@ -310,6 +360,7 @@ public class CardPurchaseService {
                 .categoryCode(purchase.getCategoryCode())
                 .cardPurchaseId(purchase.getId())
                 .installmentNumber(number)
+                .thirdParty(purchase.getThirdParty())
                 .competenceOverridden(true)
                 .build();
         applySchedule(movement, purchase.getPurchaseDate(), purchase.getInstallmentAmount(), invoice);
@@ -387,6 +438,53 @@ public class CardPurchaseService {
     private static BigDecimal total(final BigDecimal installmentAmount, final int installments) {
         return installmentAmount.multiply(BigDecimal.valueOf(installments));
     }
+
+    private CardUse resolveCardUse(final CreditCardEntity card, final UUID holderCode, final String lastDigits) {
+        final CreditCardPlasticEntity plastic;
+        final CreditCardHolderEntity holder;
+        if (lastDigits != null) {
+            if (!lastDigits.matches("\\d{4}")) throw invalid("cardLastDigits", "deve conter exatamente 4 dígitos");
+            plastic = plasticRepository.findByCardIdAndLastDigits(card.getId(), lastDigits)
+                    .orElseThrow(() -> invalid("cardLastDigits", "plástico não encontrado neste cartão"));
+            if (plastic.getStatus() == CreditCardPlasticStatus.INACTIVE) {
+                throw new ConflictException("Plástico inativo");
+            }
+            holder = plastic.getHolder();
+            if (holderCode != null && !holderCode.equals(holder.getCode())) {
+                throw invalid("cardHolderCode", "não corresponde ao plástico informado");
+            }
+        } else {
+            plastic = null;
+            holder = holderCode == null && holderRepository == null ? null
+                    : holderCode == null ? holderRepository.findTitularByCardId(card.getId())
+                    .orElseThrow(() -> new IllegalStateException("Cartão sem TITULAR"))
+                    : holderRepository.findByCode(holderCode)
+                            .orElseThrow(() -> invalid("cardHolderCode", "titular não encontrado"));
+            if (holder != null && !holder.getCard().getId().equals(card.getId())) {
+                throw invalid("cardHolderCode", "não pertence ao cartão informado");
+            }
+        }
+        if (holder != null && holder.getStatus() != CreditCardHolderStatus.ACTIVE) {
+            throw invalid("cardHolderCode", "titular inativo");
+        }
+        return new CardUse(holder, plastic, plastic == null ? null : plastic.getLastDigits());
+    }
+
+    private ThirdPartyEntity resolveThirdParty(final UUID code) {
+        if (code == null) return null;
+        final ThirdPartyEntity thirdParty = thirdPartyRepository.findByCode(code)
+                .orElseThrow(() -> invalid("thirdPartyCode", "terceiro não encontrado"));
+        if (thirdParty.getStatus() != ThirdPartyStatus.ACTIVE) {
+            throw invalid("thirdPartyCode", "terceiro inativo");
+        }
+        return thirdParty;
+    }
+
+    private static boolean sameThirdParty(final ThirdPartyEntity a, final ThirdPartyEntity b) {
+        return a == null ? b == null : b != null && a.getId().equals(b.getId());
+    }
+
+    private record CardUse(CreditCardHolderEntity holder, CreditCardPlasticEntity plastic, String lastDigits) { }
 
     private static String installmentDescription(final String description, final int number, final int count) {
         return description + " (" + number + "/" + count + ")";

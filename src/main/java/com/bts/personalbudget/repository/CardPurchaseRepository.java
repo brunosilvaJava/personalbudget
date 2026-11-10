@@ -17,6 +17,8 @@ public interface CardPurchaseRepository extends JpaRepository<CardPurchaseEntity
     @Query("""
             SELECT p FROM CardPurchaseEntity p
             JOIN FETCH p.card
+            LEFT JOIN FETCH p.cardHolder
+            LEFT JOIN FETCH p.thirdParty
             WHERE p.code = :code AND p.flagActive = true
             """)
     Optional<CardPurchaseEntity> findActiveByCode(@Param("code") UUID code);
@@ -24,6 +26,8 @@ public interface CardPurchaseRepository extends JpaRepository<CardPurchaseEntity
     @Query("""
             SELECT p FROM CardPurchaseEntity p
             JOIN FETCH p.card c
+            LEFT JOIN FETCH p.cardHolder
+            LEFT JOIN FETCH p.thirdParty
             WHERE p.flagActive = true
               AND p.purchaseDate BETWEEN :startDate AND :endDate
               AND (:cardCode IS NULL OR c.code = :cardCode)
@@ -36,6 +40,8 @@ public interface CardPurchaseRepository extends JpaRepository<CardPurchaseEntity
     @Query("""
             SELECT p FROM CardPurchaseEntity p
             JOIN FETCH p.card
+            LEFT JOIN FETCH p.cardHolder
+            LEFT JOIN FETCH p.thirdParty
             WHERE p.id IN :ids
             """)
     List<CardPurchaseEntity> findAllWithCardByIdIn(@Param("ids") Collection<Long> ids);

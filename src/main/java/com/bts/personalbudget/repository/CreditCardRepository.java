@@ -18,6 +18,7 @@ public interface CreditCardRepository extends JpaRepository<CreditCardEntity, Lo
     @Query("""
             SELECT c FROM CreditCardEntity c
             LEFT JOIN FETCH c.defaultAccount
+            LEFT JOIN FETCH c.defaultThirdParty
             WHERE c.code = :code
             """)
     Optional<CreditCardEntity> findByCode(@Param("code") UUID code);
@@ -33,6 +34,7 @@ public interface CreditCardRepository extends JpaRepository<CreditCardEntity, Lo
     @Query("""
             SELECT c FROM CreditCardEntity c
             LEFT JOIN FETCH c.defaultAccount
+            LEFT JOIN FETCH c.defaultThirdParty
             WHERE c.status IN :statuses
             ORDER BY c.name ASC
             """)

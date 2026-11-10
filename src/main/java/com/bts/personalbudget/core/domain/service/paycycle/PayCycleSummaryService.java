@@ -68,11 +68,13 @@ public class PayCycleSummaryService {
         }
         final Map<CategoryKey, Amounts> amountsByCategory = new HashMap<>();
         movements.stream()
+                .filter(movement -> movement.thirdPartyCode() == null)
                 .filter(movement -> movement.findStatus() != BalanceCalcData.PaymentStatus.DONE)
                 .forEach(movement -> add(
                         amountsByCategory, totals, movement.getOperationType(), movement.getCategoryCode(),
                         movement.getBalanceCalcValue(), false));
-        movementSettlementService.findByMovementCompetenceInterval(from, toExclusive).forEach(settlement -> add(
+        movementSettlementService.findByMovementCompetenceInterval(from, toExclusive).stream()
+                .filter(settlement -> !settlement.passThrough()).forEach(settlement -> add(
                 amountsByCategory, totals, settlement.operationType(), settlement.categoryCode(),
                 settlement.getBalanceCalcValue(), true));
         projectedBills.forEach(occurrence -> add(
