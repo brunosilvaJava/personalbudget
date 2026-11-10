@@ -11,6 +11,8 @@ import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.core.domain.service.category.CategoryService;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleMovementGuard;
 import com.bts.personalbudget.core.domain.service.movementsettlement.MovementSettlementService;
+import com.bts.personalbudget.core.domain.service.thirdparty.ReceivableWriteOff;
+import com.bts.personalbudget.core.domain.service.thirdparty.ReceivableWriteOffService;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.repository.CardInvoiceRepository;
 import com.bts.personalbudget.repository.CardPurchaseRepository;
@@ -57,6 +59,7 @@ public class FinancialMovementService {
     private final MovementSettlementService movementSettlementService;
     private final CardPurchaseRepository cardPurchaseRepository;
     private final CardInvoiceRepository cardInvoiceRepository;
+    private final ReceivableWriteOffService receivableWriteOffService;
 
     /**
      * The category is validated only for a movement the user creates. One generated from a
@@ -169,6 +172,16 @@ public class FinancialMovementService {
     public List<FinancialMovement> findByCompetenceInterval(final LocalDate from, final LocalDate toExclusive) {
         log.info("m=findByCompetenceInterval, from={}, toExclusive={}", from, toExclusive);
         return mapper.toModel(repository.findActiveByCompetenceDateInterval(from, toExclusive));
+    }
+
+    /**
+     * Receivables the user gave up on, dated in {@code [from, toExclusive)}. They are not movements: no
+     * cash moves, but each one is an own expense of the competence of its date.
+     */
+    public List<ReceivableWriteOff> findReceivableWriteOffsByEffectiveInterval(
+            final LocalDate from, final LocalDate toExclusive) {
+        log.info("m=findReceivableWriteOffsByEffectiveInterval, from={}, toExclusive={}", from, toExclusive);
+        return receivableWriteOffService.findByEffectiveInterval(from, toExclusive);
     }
 
     public Page<FinancialMovement> find(
