@@ -12,7 +12,8 @@ public class ThirdPartyMapper {
         return new ThirdParty(entity.getCode(), entity.getName(), entity.getStatus());
     }
     public ThirdPartyResponse toResponse(final ThirdParty model) {
-        return new ThirdPartyResponse(model.code(), model.name(), model.status());
+        return new ThirdPartyResponse(model.code(), model.name(), model.status(), model.openAmount(),
+                model.lateAmount(), model.openCount());
     }
     public List<ThirdPartyResponse> toResponseList(final List<ThirdParty> models) {
         return models.stream().map(this::toResponse).toList();

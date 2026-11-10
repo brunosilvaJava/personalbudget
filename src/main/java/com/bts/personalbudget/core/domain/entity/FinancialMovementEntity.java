@@ -128,6 +128,16 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
     @JoinColumn(name = "third_party_id")
     private ThirdPartyEntity thirdParty;
 
+    /** Source card installment of a reimbursement receivable; null for every other movement. */
+    @Column(name = "receivable_source_movement_id")
+    private Long receivableSourceMovementId;
+
+    @Column(name = "written_off_amount")
+    private BigDecimal writtenOffAmount;
+
+    @Column(name = "written_off_date")
+    private LocalDate writtenOffDate;
+
     @PrePersist
     public void prePersist() {
         if (code == null) {

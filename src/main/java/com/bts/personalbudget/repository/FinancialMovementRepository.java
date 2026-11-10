@@ -121,6 +121,40 @@ public interface FinancialMovementRepository
             @Param("toExclusive") LocalDate toExclusive
     );
 
+    @Query("""
+            SELECT fm FROM FinancialMovementEntity fm
+            WHERE fm.receivableSourceMovementId = :sourceMovementId AND fm.flagActive = true
+            """)
+    Optional<FinancialMovementEntity> findActiveReceivableBySourceMovementId(
+            @Param("sourceMovementId") Long sourceMovementId);
+
+    @Query("""
+            SELECT fm FROM FinancialMovementEntity fm
+            LEFT JOIN FETCH fm.thirdParty
+            WHERE fm.thirdParty.id = :thirdPartyId AND fm.receivableSourceMovementId IS NOT NULL
+              AND fm.flagActive = true
+            ORDER BY fm.dueDate ASC, fm.id ASC
+            """)
+    List<FinancialMovementEntity> findActiveReceivablesByThirdPartyId(@Param("thirdPartyId") Long thirdPartyId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT fm FROM FinancialMovementEntity fm
+            WHERE fm.thirdParty.id = :thirdPartyId AND fm.receivableSourceMovementId IS NOT NULL
+              AND fm.flagActive = true
+            ORDER BY fm.dueDate ASC, fm.id ASC
+            """)
+    List<FinancialMovementEntity> findActiveReceivablesForUpdateByThirdPartyId(
+            @Param("thirdPartyId") Long thirdPartyId);
+
+    @Query("""
+            SELECT COUNT(fm) > 0 FROM FinancialMovementEntity fm
+            WHERE fm.thirdParty.id = :thirdPartyId AND fm.receivableSourceMovementId IS NOT NULL
+              AND fm.flagActive = true
+              AND ABS(fm.amount) > ABS(COALESCE(fm.amountPaid, 0)) + COALESCE(fm.writtenOffAmount, 0)
+            """)
+    boolean existsOpenReceivableByThirdPartyId(@Param("thirdPartyId") Long thirdPartyId);
+
     /** Every unpaid movement due up to {@code endDate}, overdue ones included. */
     @Query("""
             SELECT fm FROM FinancialMovementEntity fm WHERE fm.flagActive = true

@@ -74,6 +74,7 @@ public final class FinancialMovementSpecifications {
                 predicates.add(root.get("categoryCode").in(categoryCodes));
             } else if (withoutCategory) {
                 predicates.add(criteriaBuilder.isNull(root.get("categoryCode")));
+                predicates.add(criteriaBuilder.isNull(root.get("receivableSourceMovementId")));
             }
 
             if (thirdPartyCode != null) {

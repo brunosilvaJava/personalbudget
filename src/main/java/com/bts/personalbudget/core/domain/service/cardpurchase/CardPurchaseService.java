@@ -18,6 +18,7 @@ import com.bts.personalbudget.core.domain.service.creditcard.CardInvoiceCalculat
 import com.bts.personalbudget.core.domain.service.creditcard.CardInvoiceCalculator.InvoiceSlot;
 import com.bts.personalbudget.core.domain.service.paycycle.PayCycleMovementGuard;
 import com.bts.personalbudget.core.domain.service.thirdparty.ThirdPartyResolver;
+import com.bts.personalbudget.core.domain.service.thirdparty.ReceivableService;
 import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.CardPurchaseMapper;
@@ -73,6 +74,7 @@ public class CardPurchaseService {
     private final CreditCardHolderRepository holderRepository;
     private final CreditCardPlasticRepository plasticRepository;
     private final ThirdPartyRepository thirdPartyRepository;
+    private final ReceivableService receivableService;
     private final CardPurchaseMapper mapper;
     private final CategoryService categoryService;
     private final PayCycleMovementGuard payCycleMovementGuard;
@@ -123,6 +125,9 @@ public class CardPurchaseService {
             movements.add(newInstallment(entity, invoices.get(k - 1), k));
         }
         installmentRepository.saveAll(movements);
+        if (entity.getThirdParty() != null && receivableService != null) {
+            movements.forEach(receivableService::syncForInstallment);
+        }
         return mapper.assemblePurchase(entity, toInstallments(entity, movements, invoices));
     }
 
@@ -182,6 +187,8 @@ public class CardPurchaseService {
                 .orElseThrow(() -> notFound(code));
         final CreditCardEntity card = lockCard(purchase);
         final List<FinancialMovementEntity> current = installmentRepository.findActiveByPurchaseId(purchase.getId());
+        final Map<Long, LocalDate> previousDueDates = current.stream().collect(Collectors.toMap(
+                FinancialMovementEntity::getId, movement -> movement.getDueDate().toLocalDate()));
 
         final String newDescription = description == null ? purchase.getDescription() : normalizeDescription(description);
         final LocalDate newDate = purchaseDate == null ? purchase.getPurchaseDate() : purchaseDate;
@@ -214,6 +221,9 @@ public class CardPurchaseService {
         if (scheduleChanged && current.stream().anyMatch(CardPurchaseService::hasPayment)) {
             throw new ConflictException(
                     "A compra tem parcela já paga; data, parcelas e valor não podem mais ser alterados");
+        }
+        if (thirdPartyChanged && receivableService != null) {
+            receivableService.requireNoReceived(current);
         }
         if (scheduleChanged || categoryChanged || thirdPartyChanged) {
             current.forEach(movement -> payCycleMovementGuard.requireEditable(movement.getCompetenceDate()));
@@ -265,6 +275,10 @@ public class CardPurchaseService {
             current.get(k - 1).delete();
         }
         installmentRepository.saveAll(created);
+        if (purchase.getThirdParty() != null && receivableService != null) {
+            result.forEach(movement -> receivableService.syncForInstallment(
+                    movement, previousDueDates.get(movement.getId())));
+        }
         return mapper.assemblePurchase(purchase, toInstallments(purchase, result, invoices));
     }
 
@@ -279,6 +293,9 @@ public class CardPurchaseService {
         final List<FinancialMovementEntity> installments = installmentRepository.findActiveByPurchaseId(purchase.getId());
         if (installments.stream().anyMatch(CardPurchaseService::hasPayment)) {
             throw new ConflictException("A compra tem parcela já paga e não pode ser excluída");
+        }
+        if (receivableService != null && installments.stream().anyMatch(movement -> movement.getThirdParty() != null)) {
+            receivableService.deleteForInstallments(installments);
         }
         installments.forEach(movement -> payCycleMovementGuard.requireEditable(movement.getCompetenceDate()));
         installments.forEach(FinancialMovementEntity::delete);
