@@ -13,6 +13,7 @@ import com.bts.personalbudget.core.domain.service.fixedbill.calc.MonthlyCalcFixe
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.WeeklyCalcFixedBillImpl;
 import com.bts.personalbudget.core.domain.service.fixedbill.calc.YearlyCalcFixedBillImpl;
 import com.bts.personalbudget.exception.InvalidFieldsException;
+import jakarta.persistence.EntityNotFoundException;
 import com.bts.personalbudget.mapper.FinancialMovementMapper;
 import com.bts.personalbudget.mapper.FixedBillMapper;
 
@@ -984,6 +985,40 @@ public class FixedBillServiceTest {
                                       final LocalDate endDate) {
         return fixedBillService.update(code, new FixedBillUpdate(operationType, description, amount,
                 recurrenceType, days, referenceYear, status, startDate, endDate, null));
+    }
+
+    @Test
+    void shouldDeleteFixedBillWhenItIsActive() {
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        UUID code = fixedBillEntityMock.getCode();
+
+        when(fixedBillRepository.findByCode(code)).thenReturn(Optional.of(fixedBillEntityMock));
+
+        fixedBillService.delete(code);
+
+        assertEquals(Boolean.FALSE, fixedBillEntityMock.getFlagActive());
+    }
+
+    @Test
+    void shouldIgnoreRepeatedDeleteWhenFixedBillIsAlreadyDeleted() {
+        FixedBillEntity fixedBillEntityMock = FixedBillFactory.buildFixedBillEntity(FixedBillFactory.PARAMS);
+        fixedBillEntityMock.setFlagActive(Boolean.FALSE);
+        UUID code = fixedBillEntityMock.getCode();
+
+        when(fixedBillRepository.findByCode(code)).thenReturn(Optional.of(fixedBillEntityMock));
+
+        fixedBillService.delete(code);
+
+        assertEquals(Boolean.FALSE, fixedBillEntityMock.getFlagActive());
+    }
+
+    @Test
+    void shouldThrowNotFoundWhenDeletingFixedBillThatNeverExisted() {
+        UUID code = UUID.randomUUID();
+
+        when(fixedBillRepository.findByCode(code)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> fixedBillService.delete(code));
     }
 
 }
