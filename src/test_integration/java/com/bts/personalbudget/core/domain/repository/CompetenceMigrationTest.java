@@ -64,7 +64,8 @@ class CompetenceMigrationTest {
                     SET movement_date = '2025-03-01 10:00:00', due_date = '2025-06-20 00:00:00'
                     WHERE description = 'EDITED_DUE'""");
         }
-        flyway(null).migrate();
+        // Stops before V27: the released duplicate keeps competence NULL, which V27 rejects by design.
+        flyway("25").migrate();
     }
 
     @AfterAll

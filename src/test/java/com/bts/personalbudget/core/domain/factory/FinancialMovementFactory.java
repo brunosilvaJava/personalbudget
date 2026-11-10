@@ -60,6 +60,7 @@ public class FinancialMovementFactory {
                 .amount(amountPaid.equals(BigDecimal.ZERO) ? new BigDecimal(data.get(AMOUNT)): amountPaid)
                 .amountPaid(amountPaid)
                 .movementDate(LocalDateTime.parse(data.get(MOVEMENT_DATE)))
+                .competenceDate(LocalDateTime.parse(data.get(MOVEMENT_DATE)).toLocalDate())
                 .dueDate(LocalDateTime.parse(data.get(DUE_DATE)))
                 .payDate(LocalDateTime.parse(data.get(PAY_DATE)))
                 .status(FinancialMovementStatus.valueOf(data.get(STATUS)))

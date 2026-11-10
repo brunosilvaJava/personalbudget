@@ -5,70 +5,69 @@
 --   LATE      → due_date < hoje, pay_date NULL, amount_paid = 0
 --   DEBIT     → amount e amount_paid armazenados como negativos (conforme setAmount/setAmountPaid da entidade)
 --   CREDIT    → amount e amount_paid positivos
+--   competence_date = movement_date (movimento avulso, sem recorrência)
 
 INSERT IGNORE INTO financialbudgetdb.financial_movement
     (id, code, operation_type, description,
-     amount, amount_paid, movement_date, due_date,
+     amount, amount_paid, movement_date, competence_date, due_date,
      pay_date, status, flag_active, created_date, last_modified_date)
 VALUES
     -- passado: pago
     (1, UNHEX(REPLACE(UUID(), '-', '')), 'CREDIT', 'Salário',
      500000, 500000,
-     DATE_SUB(CURDATE(), INTERVAL 14 DAY), DATE_SUB(CURDATE(), INTERVAL 14 DAY),
-     DATE_SUB(CURDATE(), INTERVAL 14 DAY),
-     'PAID_OUT', 1, NOW(), NOW()),
+     DATE_SUB(CURDATE(), INTERVAL 14 DAY), DATE_SUB(CURDATE(), INTERVAL 14 DAY), DATE_SUB(CURDATE(), INTERVAL 14 DAY),
+     DATE_SUB(CURDATE(), INTERVAL 14 DAY), 'PAID_OUT', 1, NOW(), NOW()),
 
     -- futuro: pendente
     (2, UNHEX(REPLACE(UUID(), '-', '')), 'DEBIT', 'Conta de luz',
      -15000, 0,
-     CURDATE(), DATE_ADD(CURDATE(), INTERVAL 15 DAY),
+     CURDATE(), CURDATE(), DATE_ADD(CURDATE(), INTERVAL 15 DAY),
      NULL, 'PENDING', 1, NOW(), NOW()),
 
     (3, UNHEX(REPLACE(UUID(), '-', '')), 'DEBIT', 'Conta de internet',
      -9900, 0,
-     CURDATE(), DATE_ADD(CURDATE(), INTERVAL 10 DAY),
+     CURDATE(), CURDATE(), DATE_ADD(CURDATE(), INTERVAL 10 DAY),
      NULL, 'PENDING', 1, NOW(), NOW()),
 
     -- passado: atrasado
     (4, UNHEX(REPLACE(UUID(), '-', '')), 'DEBIT', 'Aluguel mês anterior',
      -120000, 0,
-     DATE_SUB(CURDATE(), INTERVAL 30 DAY), DATE_SUB(CURDATE(), INTERVAL 15 DAY),
+     DATE_SUB(CURDATE(), INTERVAL 30 DAY), DATE_SUB(CURDATE(), INTERVAL 30 DAY), DATE_SUB(CURDATE(), INTERVAL 15 DAY),
      NULL, 'LATE', 1, NOW(), NOW()),
 
     -- atrasados: vencidos antes de hoje
     (8, UNHEX(REPLACE(UUID(), '-', '')), 'DEBIT', 'Cartão de crédito',
      -85000, 0,
-     DATE_SUB(CURDATE(), INTERVAL 20 DAY), DATE_SUB(CURDATE(), INTERVAL 3 DAY),
+     DATE_SUB(CURDATE(), INTERVAL 20 DAY), DATE_SUB(CURDATE(), INTERVAL 20 DAY), DATE_SUB(CURDATE(), INTERVAL 3 DAY),
      NULL, 'LATE', 1, NOW(), NOW()),
 
     (9, UNHEX(REPLACE(UUID(), '-', '')), 'DEBIT', 'Plano de saúde',
      -42000, 0,
-     DATE_SUB(CURDATE(), INTERVAL 15 DAY), DATE_SUB(CURDATE(), INTERVAL 7 DAY),
+     DATE_SUB(CURDATE(), INTERVAL 15 DAY), DATE_SUB(CURDATE(), INTERVAL 15 DAY), DATE_SUB(CURDATE(), INTERVAL 7 DAY),
      NULL, 'LATE', 1, NOW(), NOW()),
 
     (10, UNHEX(REPLACE(UUID(), '-', '')), 'CREDIT', 'Reembolso pendente',
      25000, 0,
-     DATE_SUB(CURDATE(), INTERVAL 10 DAY), DATE_SUB(CURDATE(), INTERVAL 2 DAY),
+     DATE_SUB(CURDATE(), INTERVAL 10 DAY), DATE_SUB(CURDATE(), INTERVAL 10 DAY), DATE_SUB(CURDATE(), INTERVAL 2 DAY),
      NULL, 'LATE', 1, NOW(), NOW()),
 
     -- passado: pago
     (5, UNHEX(REPLACE(UUID(), '-', '')), 'DEBIT', 'Supermercado',
      -35000, -35000,
-     DATE_SUB(CURDATE(), INTERVAL 5 DAY), DATE_SUB(CURDATE(), INTERVAL 5 DAY),
-     DATE_SUB(CURDATE(), INTERVAL 5 DAY),
-     'PAID_OUT', 1, NOW(), NOW()),
+     DATE_SUB(CURDATE(), INTERVAL 5 DAY), DATE_SUB(CURDATE(), INTERVAL 5 DAY), DATE_SUB(CURDATE(), INTERVAL 5 DAY),
+     DATE_SUB(CURDATE(), INTERVAL 5 DAY), 'PAID_OUT', 1, NOW(), NOW()),
 
     -- hoje: crédito pago
     (6, UNHEX(REPLACE(UUID(), '-', '')), 'CREDIT', 'Freelance recebido',
      80000, 80000,
      CURDATE(), CURDATE(), CURDATE(),
-     'PAID_OUT', 1, NOW(), NOW()),
+     CURDATE(), 'PAID_OUT', 1, NOW(), NOW()),
 
     -- hoje: débito pago
     (7, UNHEX(REPLACE(UUID(), '-', '')), 'DEBIT', 'Restaurante',
      -4500, -4500,
      CURDATE(), CURDATE(), CURDATE(),
-     'PAID_OUT', 1, NOW(), NOW());
+     CURDATE(), 'PAID_OUT', 1, NOW(), NOW());
 
 -- fixed_bill
 -- Regras:

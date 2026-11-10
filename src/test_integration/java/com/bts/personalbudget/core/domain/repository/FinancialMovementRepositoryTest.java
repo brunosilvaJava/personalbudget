@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -30,8 +31,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+// Rolls back each test: the rows use today's date as competence and would otherwise leak into
+// the cycle summaries of other test classes that share the same MySQL container.
 @Testcontainers
 @SpringBootTest
+@Transactional
 public class FinancialMovementRepositoryTest {
 
     @Container
