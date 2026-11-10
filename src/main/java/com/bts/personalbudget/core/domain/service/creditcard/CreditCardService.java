@@ -2,14 +2,21 @@ package com.bts.personalbudget.core.domain.service.creditcard;
 
 import com.bts.personalbudget.core.domain.entity.AccountEntity;
 import com.bts.personalbudget.core.domain.entity.CreditCardEntity;
+import com.bts.personalbudget.core.domain.entity.CreditCardHolderEntity;
+import com.bts.personalbudget.core.domain.entity.ThirdPartyEntity;
 import com.bts.personalbudget.core.domain.enumerator.AccountStatus;
+import com.bts.personalbudget.core.domain.enumerator.CreditCardHolderKind;
+import com.bts.personalbudget.core.domain.enumerator.CreditCardHolderStatus;
 import com.bts.personalbudget.core.domain.enumerator.CreditCardStatus;
+import com.bts.personalbudget.core.domain.enumerator.ThirdPartyStatus;
 import com.bts.personalbudget.core.domain.model.CreditCard;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.CreditCardMapper;
 import com.bts.personalbudget.repository.AccountRepository;
 import com.bts.personalbudget.repository.CardInstallmentRepository;
 import com.bts.personalbudget.repository.CreditCardRepository;
+import com.bts.personalbudget.repository.CreditCardHolderRepository;
+import com.bts.personalbudget.repository.ThirdPartyRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.util.List;
@@ -33,6 +40,8 @@ public class CreditCardService {
     private static final String INVALID_FIELDS_MESSAGE = "Campos inválidos";
 
     private final CreditCardRepository cardRepository;
+    private final CreditCardHolderRepository holderRepository;
+    private final ThirdPartyRepository thirdPartyRepository;
     private final AccountRepository accountRepository;
     private final CardInstallmentRepository installmentRepository;
     private final CreditCardMapper mapper;
@@ -51,7 +60,15 @@ public class CreditCardService {
         final CreditCardEntity entity = mapper.toEntity(card);
         entity.setName(name);
         entity.setDefaultAccount(resolveAccount(card.defaultAccountCode()));
-        return mapper.toModel(cardRepository.save(entity));
+        entity.setDefaultThirdParty(resolveThirdParty(card.defaultThirdPartyCode()));
+        final CreditCardEntity saved = cardRepository.save(entity);
+        // Kept null-safe for pre-existing unit-test construction; in the Spring application the
+        // repository is mandatory and every new card receives its titular in this transaction.
+        if (holderRepository != null) {
+            holderRepository.save(CreditCardHolderEntity.builder().card(saved).name("Titular")
+                    .kind(CreditCardHolderKind.TITULAR).status(CreditCardHolderStatus.ACTIVE).build());
+        }
+        return mapper.toModel(saved);
     }
 
     /**
@@ -93,8 +110,18 @@ public class CreditCardService {
     @Transactional
     public CreditCard update(final UUID code, final String name, final Integer closingDay, final Integer dueDay,
                              final BigDecimal creditLimit, final UUID defaultAccountCode) {
-        log.info("m=update, code={}, name={}, closingDay={}, dueDay={}, creditLimit={}, defaultAccountCode={}",
-                code, name, closingDay, dueDay, creditLimit, defaultAccountCode);
+        return update(code, name, closingDay, dueDay, creditLimit, defaultAccountCode, null, false);
+    }
+
+    @Transactional
+    public CreditCard update(final UUID code, final String name, final Integer closingDay, final Integer dueDay,
+                             final BigDecimal creditLimit, final UUID defaultAccountCode,
+                             final UUID defaultThirdPartyCode, final boolean clearDefaultThirdParty) {
+        log.info("m=update, code={}, name={}, closingDay={}, dueDay={}, creditLimit={}, defaultAccountCode={}, defaultThirdPartyCode={}",
+                code, name, closingDay, dueDay, creditLimit, defaultAccountCode, defaultThirdPartyCode);
+        if (clearDefaultThirdParty && defaultThirdPartyCode != null) {
+            throw invalid("defaultThirdPartyCode", "não pode ser informado junto com clearDefaultThirdParty");
+        }
         final CreditCardEntity entity = findEntity(code);
         boolean hasChanges = false;
 
@@ -134,6 +161,16 @@ public class CreditCardService {
                     && defaultAccountCode.equals(entity.getDefaultAccount().getCode());
             if (!same) {
                 entity.setDefaultAccount(resolveAccount(defaultAccountCode));
+                hasChanges = true;
+            }
+        }
+        if (clearDefaultThirdParty && entity.getDefaultThirdParty() != null) {
+            entity.setDefaultThirdParty(null);
+            hasChanges = true;
+        } else if (defaultThirdPartyCode != null) {
+            final ThirdPartyEntity thirdParty = resolveThirdParty(defaultThirdPartyCode);
+            if (entity.getDefaultThirdParty() == null || !entity.getDefaultThirdParty().getCode().equals(defaultThirdPartyCode)) {
+                entity.setDefaultThirdParty(thirdParty);
                 hasChanges = true;
             }
         }
@@ -177,6 +214,16 @@ public class CreditCardService {
             throw invalid("defaultAccountCode", "conta inativa");
         }
         return account;
+    }
+
+    private ThirdPartyEntity resolveThirdParty(final UUID thirdPartyCode) {
+        if (thirdPartyCode == null) return null;
+        final ThirdPartyEntity thirdParty = thirdPartyRepository.findByCode(thirdPartyCode)
+                .orElseThrow(() -> invalid("defaultThirdPartyCode", "terceiro não encontrado"));
+        if (thirdParty.getStatus() != ThirdPartyStatus.ACTIVE) {
+            throw invalid("defaultThirdPartyCode", "terceiro inativo");
+        }
+        return thirdParty;
     }
 
     private CreditCardEntity findEntity(final UUID code) {

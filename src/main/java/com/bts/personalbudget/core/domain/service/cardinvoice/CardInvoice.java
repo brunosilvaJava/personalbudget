@@ -21,6 +21,19 @@ public record CardInvoice(
         CardInvoiceState state,
         BigDecimal totalAmount,
         BigDecimal paidAmount,
-        List<CardInstallment> installments
+        List<CardInstallment> installments,
+        List<HolderTotal> holderTotalList,
+        BigDecimal ownTotalAmount,
+        BigDecimal thirdPartyTotalAmount
 ) {
+    public CardInvoice(final UUID code, final UUID cardCode, final YearMonth referenceMonth, final LocalDate closingDate,
+                       final LocalDate dueDate, final CardInvoiceState state, final BigDecimal totalAmount,
+                       final BigDecimal paidAmount, final List<CardInstallment> installments) {
+        this(code, cardCode, referenceMonth, closingDate, dueDate, state, totalAmount, paidAmount, installments,
+                List.of(), totalAmount, BigDecimal.ZERO);
+    }
+
+    public record HolderTotal(UUID holderCode, String holderName,
+                              com.bts.personalbudget.core.domain.enumerator.CreditCardHolderKind kind,
+                              BigDecimal totalAmount) { }
 }

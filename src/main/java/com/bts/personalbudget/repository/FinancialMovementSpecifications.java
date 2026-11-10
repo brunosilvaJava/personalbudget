@@ -37,6 +37,19 @@ public final class FinancialMovementSpecifications {
                                                                 final LocalDateTime endDate,
                                                                 final List<UUID> categoryCodes,
                                                                 final boolean withoutCategory) {
+        return filter(description, operationTypes, statuses, startDate, endDate, categoryCodes, withoutCategory,
+                null, false);
+    }
+
+    public static Specification<FinancialMovementEntity> filter(final String description,
+                                                                final List<OperationType> operationTypes,
+                                                                final List<FinancialMovementStatus> statuses,
+                                                                final LocalDateTime startDate,
+                                                                final LocalDateTime endDate,
+                                                                final List<UUID> categoryCodes,
+                                                                final boolean withoutCategory,
+                                                                final UUID thirdPartyCode,
+                                                                final boolean ownOnly) {
         return (root, query, criteriaBuilder) -> {
             final List<Predicate> predicates = new ArrayList<>();
 
@@ -61,6 +74,13 @@ public final class FinancialMovementSpecifications {
                 predicates.add(root.get("categoryCode").in(categoryCodes));
             } else if (withoutCategory) {
                 predicates.add(criteriaBuilder.isNull(root.get("categoryCode")));
+            }
+
+            if (thirdPartyCode != null) {
+                predicates.add(criteriaBuilder.equal(root.get("thirdParty").get("code"), thirdPartyCode));
+            }
+            if (ownOnly) {
+                predicates.add(criteriaBuilder.isNull(root.get("thirdParty")));
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));

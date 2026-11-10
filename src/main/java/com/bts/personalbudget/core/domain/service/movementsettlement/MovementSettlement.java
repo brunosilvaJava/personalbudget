@@ -17,7 +17,8 @@ public record MovementSettlement(
         OperationType operationType,
         UUID categoryCode,
         LocalDate competenceDate,
-        UUID accountCode
+        UUID accountCode,
+        boolean passThrough
 ) implements BalanceCalcData {
 
     /**
@@ -29,7 +30,15 @@ public record MovementSettlement(
                               final OperationType operationType, final UUID categoryCode,
                               final LocalDate competenceDate) {
         this(code, movementCode, amount, effectiveDate, reversedAt, version, operationType, categoryCode,
-                competenceDate, null);
+                competenceDate, null, false);
+    }
+
+    public MovementSettlement(final UUID code, final UUID movementCode, final BigDecimal amount,
+                              final LocalDate effectiveDate, final LocalDateTime reversedAt, final Long version,
+                              final OperationType operationType, final UUID categoryCode,
+                              final LocalDate competenceDate, final UUID accountCode) {
+        this(code, movementCode, amount, effectiveDate, reversedAt, version, operationType, categoryCode,
+                competenceDate, accountCode, false);
     }
 
     @Override
@@ -55,5 +64,10 @@ public record MovementSettlement(
     @Override
     public UUID getCategoryCode() {
         return categoryCode;
+    }
+
+    @Override
+    public boolean isPassThrough() {
+        return passThrough;
     }
 }

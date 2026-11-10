@@ -58,6 +58,17 @@ public class CardPurchaseEntity extends AuditingEntity implements Serializable {
     @Column(name = "category_code")
     private UUID categoryCode;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "card_holder_id")
+    private CreditCardHolderEntity cardHolder;
+
+    @Column(name = "card_last_digits", length = 4)
+    private String cardLastDigits;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "third_party_id")
+    private ThirdPartyEntity thirdParty;
+
     @Column(name = "flag_active", nullable = false)
     private boolean flagActive;
 

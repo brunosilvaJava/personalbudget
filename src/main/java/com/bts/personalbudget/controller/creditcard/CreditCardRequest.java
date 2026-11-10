@@ -44,5 +44,9 @@ public record CreditCardRequest(
         @Schema(description = "Optional account the invoice is paid from. Must be ACTIVE",
                 example = "123e4567-e89b-12d3-a456-426614174000")
         UUID defaultAccountCode
+        ,
+
+        @JsonProperty("default_third_party_code")
+        UUID defaultThirdPartyCode
 ) {
 }

@@ -32,11 +32,13 @@ public interface FinancialMovementMapper {
 
     FinancialMovement toModel(FinancialMovementRequest request);
     FinancialMovementUpdate toUpdate(FinancialMovementUpdateRequest updateRequest, UUID code);
+    @Mapping(target = "thirdPartyCode", source = "thirdParty.code")
     FinancialMovement toModel(FinancialMovementEntity entity);
     List<FinancialMovement> toModel(List<FinancialMovementEntity> financialMovementEntities);
     @Mapping(target = "amount", expression = "java(normalizeValue(financialMovement.amount(), financialMovement.operationType()))")
     @Mapping(target = "amountPaid", expression = "java(normalizeValue(financialMovement.amountPaid(), financialMovement.operationType()))")
     @Mapping(target = "installmentNumber", ignore = true)
+    @Mapping(target = "thirdParty", ignore = true)
     FinancialMovementEntity toEntity(FinancialMovement financialMovement);
     List<FinancialMovementResponse> toResponse(List<FinancialMovement> financialMovement);
     FinancialMovementResponse toResponse(FinancialMovement financialMovement);

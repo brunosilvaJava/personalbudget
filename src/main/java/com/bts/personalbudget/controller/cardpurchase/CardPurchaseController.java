@@ -64,8 +64,14 @@ public class CardPurchaseController implements CardPurchaseControllerApiDocs {
     public ResponseEntity<CardPurchaseResponse> update(@PathVariable final UUID code,
                                                        @RequestBody @Valid final CardPurchaseUpdateRequest request) {
         log.info("m=update, code={}, request={}", code, request);
-        final CardPurchase purchase = service.update(code, request.description(), request.purchaseDate(),
-                request.installments(), request.installmentAmount(), request.categoryCode());
+        final boolean hasNewFields = request.cardHolderCode() != null || request.cardLastDigits() != null
+                || request.thirdPartyCode() != null || request.ownExpense() != null;
+        final CardPurchase purchase = hasNewFields
+                ? service.update(code, request.description(), request.purchaseDate(), request.installments(),
+                        request.installmentAmount(), request.categoryCode(), request.cardHolderCode(),
+                        request.cardLastDigits(), request.thirdPartyCode(), request.ownExpense())
+                : service.update(code, request.description(), request.purchaseDate(), request.installments(),
+                        request.installmentAmount(), request.categoryCode());
         return ResponseEntity.ok(mapper.toResponse(purchase));
     }
 

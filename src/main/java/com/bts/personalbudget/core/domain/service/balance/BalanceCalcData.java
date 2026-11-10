@@ -12,6 +12,11 @@ public interface BalanceCalcData {
     PaymentStatus findStatus();
     UUID getCategoryCode();
 
+    /** Cash that crosses the accounts but is neither personal revenue nor personal consumption. */
+    default boolean isPassThrough() {
+        return false;
+    }
+
     enum PaymentStatus {
         PENDING,
         DONE

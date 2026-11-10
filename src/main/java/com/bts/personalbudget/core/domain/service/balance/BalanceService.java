@@ -106,6 +106,19 @@ public class BalanceService {
 
     private void addCalcValue(BalanceCalcData balanceCalcData, DailyBalance dailyBalance) {
         final BigDecimal balanceCalcValue = balanceCalcData.getBalanceCalcValue();
+        if (balanceCalcData.isPassThrough()) {
+            switch (balanceCalcData.getOperationType()) {
+                case CREDIT -> {
+                    if (balanceCalcData.findStatus() == PaymentStatus.DONE) dailyBalance.addPassThroughIn(balanceCalcValue);
+                    else dailyBalance.addProjectedPassThroughIn(balanceCalcValue);
+                }
+                case DEBIT -> {
+                    if (balanceCalcData.findStatus() == PaymentStatus.DONE) dailyBalance.addPassThroughOut(balanceCalcValue);
+                    else dailyBalance.addProjectedPassThroughOut(balanceCalcValue);
+                }
+            }
+            return;
+        }
         switch (balanceCalcData.getOperationType()) {
             case CREDIT -> {
                 if (balanceCalcData.findStatus() == PaymentStatus.DONE) {

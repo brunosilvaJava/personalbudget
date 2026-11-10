@@ -47,6 +47,10 @@ class CreditCardIntegrationTest {
     void cleanUp() {
         UUID code;
         while ((code = cardCodes.poll()) != null) {
+            jdbc.update("DELETE FROM credit_card_plastic WHERE credit_card_id = "
+                    + "(SELECT id FROM credit_card WHERE code = UUID_TO_BIN(?))", code.toString());
+            jdbc.update("DELETE FROM credit_card_holder WHERE credit_card_id = "
+                    + "(SELECT id FROM credit_card WHERE code = UUID_TO_BIN(?))", code.toString());
             jdbc.update("DELETE FROM credit_card WHERE code = UUID_TO_BIN(?)", code.toString());
         }
     }

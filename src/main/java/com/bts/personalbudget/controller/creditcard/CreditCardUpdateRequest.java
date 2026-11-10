@@ -39,5 +39,12 @@ public record CreditCardUpdateRequest(
         @Schema(description = "New default payment account. Must be ACTIVE. It can be replaced but not cleared",
                 example = "123e4567-e89b-12d3-a456-426614174000")
         UUID defaultAccountCode
+        ,
+
+        @JsonProperty("default_third_party_code")
+        UUID defaultThirdPartyCode,
+
+        @JsonProperty("clear_default_third_party")
+        Boolean clearDefaultThirdParty
 ) {
 }

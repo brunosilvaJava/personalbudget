@@ -59,6 +59,10 @@ public class CreditCardEntity extends AuditingEntity implements Serializable {
     @JoinColumn(name = "default_account_id")
     private AccountEntity defaultAccount;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "default_third_party_id")
+    private ThirdPartyEntity defaultThirdParty;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "varchar")
     private CreditCardStatus status;

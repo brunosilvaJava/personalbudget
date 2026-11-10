@@ -180,9 +180,28 @@ public class FinancialMovementService {
             final List<UUID> categoryCodes,
             final boolean withoutCategory,
             final Pageable pageable) {
+        return find(description, operationTypes, statuses, startDate, endDate, categoryCodes, withoutCategory,
+                null, false, pageable);
+    }
 
-        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, categoryCodes={}, withoutCategory={}, pageable={}",
-                description, operationTypes, statuses, startDate, endDate, categoryCodes, withoutCategory, pageable);
+    public Page<FinancialMovement> find(
+            final String description,
+            final List<OperationType> operationTypes,
+            final List<FinancialMovementStatus> statuses,
+            final LocalDate startDate,
+            final LocalDate endDate,
+            final List<UUID> categoryCodes,
+            final boolean withoutCategory,
+            final UUID thirdPartyCode,
+            final boolean ownOnly,
+            final Pageable pageable) {
+
+        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, categoryCodes={}, withoutCategory={}, thirdPartyCode={}, ownOnly={}, pageable={}",
+                description, operationTypes, statuses, startDate, endDate, categoryCodes, withoutCategory, thirdPartyCode, ownOnly, pageable);
+        if (thirdPartyCode != null && ownOnly) {
+            throw new InvalidFieldsException("Campos inválidos", FinancialMovementService.class,
+                    Map.of("thirdPartyCode", "não pode ser informado junto com ownOnly"));
+        }
 
         final List<OperationType> filterOperationTypes = operationTypes != null && !operationTypes.isEmpty() ?
                 operationTypes : Arrays.stream(OperationType.values()).toList();
@@ -197,7 +216,9 @@ public class FinancialMovementService {
                         startDate.atStartOfDay(),
                         endDate.atStartOfDay().plusDays(1),
                         categoryCodes,
-                        withoutCategory),
+                        withoutCategory,
+                        thirdPartyCode,
+                        ownOnly),
                 pageable);
 
         final CardLinks links = cardLinks(pagedEntities.getContent());

@@ -17,6 +17,10 @@ public interface BalanceMapper {
     @Mapping(target = "projected.pendingTotalRevenue", source = "pendingTotalRevenue")
     @Mapping(target = "projected.pendingTotalExpense", source = "pendingTotalExpense")
     @Mapping(target = "projected.closing", source = "projectedClosingBalance")
+    @Mapping(target = "passThroughIn", source = "passThroughIn")
+    @Mapping(target = "passThroughOut", source = "passThroughOut")
+    @Mapping(target = "pendingPassThroughIn", source = "pendingPassThroughIn")
+    @Mapping(target = "pendingPassThroughOut", source = "pendingPassThroughOut")
     DailyBalanceResponse toResponse(DailyBalance dailyBalance);
     Set<DailyBalanceResponse> toResponses(Set<DailyBalance> dailyBalanceSet);
 
