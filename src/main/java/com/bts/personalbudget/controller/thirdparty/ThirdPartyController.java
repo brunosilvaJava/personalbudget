@@ -1,5 +1,6 @@
 package com.bts.personalbudget.controller.thirdparty;
 
+import com.bts.personalbudget.controller.thirdparty.config.ThirdPartyControllerApiDocs;
 import com.bts.personalbudget.core.domain.enumerator.ThirdPartyStatus;
 import com.bts.personalbudget.core.domain.service.thirdparty.ThirdPartyService;
 import com.bts.personalbudget.mapper.ThirdPartyMapper;
@@ -23,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/third_party")
-public class ThirdPartyController {
+public class ThirdPartyController implements ThirdPartyControllerApiDocs {
     private final ThirdPartyService service;
     private final ThirdPartyMapper mapper;
 

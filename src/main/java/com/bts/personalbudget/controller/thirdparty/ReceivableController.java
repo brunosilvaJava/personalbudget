@@ -1,5 +1,6 @@
 package com.bts.personalbudget.controller.thirdparty;
 
+import com.bts.personalbudget.controller.thirdparty.config.ReceivableControllerApiDocs;
 import com.bts.personalbudget.core.domain.service.thirdparty.ReceivableService;
 import com.bts.personalbudget.mapper.ReceivableMapper;
 import jakarta.validation.Valid;
@@ -20,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/third_party/{thirdPartyCode}")
-public class ReceivableController {
+public class ReceivableController implements ReceivableControllerApiDocs {
     private final ReceivableService service;
     private final ReceivableMapper mapper;
 

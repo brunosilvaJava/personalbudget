@@ -1,5 +1,6 @@
 package com.bts.personalbudget.controller.creditcardholder;
 
+import com.bts.personalbudget.controller.creditcardholder.config.CreditCardHolderControllerApiDocs;
 import com.bts.personalbudget.core.domain.enumerator.CreditCardHolderStatus;
 import com.bts.personalbudget.core.domain.service.creditcardholder.CreditCardHolderService;
 import com.bts.personalbudget.mapper.CreditCardHolderMapper;
@@ -22,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/credit_card/{cardCode}/holder")
-public class CreditCardHolderController {
+public class CreditCardHolderController implements CreditCardHolderControllerApiDocs {
     private final CreditCardHolderService service;
     private final CreditCardHolderMapper mapper;
 

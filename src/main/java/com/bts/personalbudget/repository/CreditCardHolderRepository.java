@@ -14,7 +14,11 @@ public interface CreditCardHolderRepository extends JpaRepository<CreditCardHold
     @Query("SELECT h FROM CreditCardHolderEntity h JOIN FETCH h.card WHERE h.code = :code")
     Optional<CreditCardHolderEntity> findByCode(@Param("code") UUID code);
 
-    @Query("SELECT h FROM CreditCardHolderEntity h WHERE h.card.id = :cardId ORDER BY h.kind ASC, h.name ASC")
+    @Query("""
+            SELECT h FROM CreditCardHolderEntity h WHERE h.card.id = :cardId
+            ORDER BY CASE WHEN h.kind = com.bts.personalbudget.core.domain.enumerator.CreditCardHolderKind.TITULAR
+                          THEN 0 ELSE 1 END, h.name ASC
+            """)
     List<CreditCardHolderEntity> findByCardId(@Param("cardId") Long cardId);
 
     @Query("""

@@ -133,7 +133,12 @@ public class PayCycleClosureService {
     }
 
     private List<FinancialMovement> findMovements(final PayCycle cycle) {
-        return movementService.findByCompetenceInterval(cycle.startDate(), cycle.endDate());
+        // A receivable is money owed by a third party, not a pending obligation of the user: a late
+        // receivable must not block the closure. The third party's card installment (a debt to the
+        // bank) stays in the list and still blocks when it is late.
+        return movementService.findByCompetenceInterval(cycle.startDate(), cycle.endDate()).stream()
+                .filter(movement -> movement.receivableSourceCode() == null)
+                .toList();
     }
 
     private static List<FinancialMovement> findLateMovements(final List<FinancialMovement> movements) {

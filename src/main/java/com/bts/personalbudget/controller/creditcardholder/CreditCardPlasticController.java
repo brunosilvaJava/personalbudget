@@ -1,5 +1,6 @@
 package com.bts.personalbudget.controller.creditcardholder;
 
+import com.bts.personalbudget.controller.creditcardholder.config.CreditCardPlasticControllerApiDocs;
 import com.bts.personalbudget.core.domain.service.creditcardholder.CreditCardHolderService;
 import com.bts.personalbudget.mapper.CreditCardHolderMapper;
 import jakarta.validation.Valid;
@@ -21,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/credit_card/{cardCode}/plastic")
-public class CreditCardPlasticController {
+public class CreditCardPlasticController implements CreditCardPlasticControllerApiDocs {
     private final CreditCardHolderService service;
     private final CreditCardHolderMapper mapper;
 

@@ -10,5 +10,5 @@ import java.util.UUID;
 public record CreditCardPlasticRequest(
         @JsonProperty("holder_code") @NotNull UUID holderCode,
         @JsonProperty("last_digits") @NotBlank @Pattern(regexp = "\\d{4}") String lastDigits,
-        @NotNull CreditCardPlasticKind kind) {
+        CreditCardPlasticKind kind) {
 }
