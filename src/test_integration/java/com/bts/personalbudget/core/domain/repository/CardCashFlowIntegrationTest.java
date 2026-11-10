@@ -81,6 +81,10 @@ class CardCashFlowIntegrationTest {
                     + "WHERE credit_card_id = (SELECT id FROM credit_card WHERE code = UUID_TO_BIN(?)))", text);
             jdbc.update("DELETE FROM card_invoice WHERE credit_card_id = "
                     + "(SELECT id FROM credit_card WHERE code = UUID_TO_BIN(?))", text);
+            jdbc.update("DELETE FROM credit_card_plastic WHERE credit_card_id = "
+                    + "(SELECT id FROM credit_card WHERE code = UUID_TO_BIN(?))", text);
+            jdbc.update("DELETE FROM credit_card_holder WHERE credit_card_id = "
+                    + "(SELECT id FROM credit_card WHERE code = UUID_TO_BIN(?))", text);
             jdbc.update("DELETE FROM credit_card WHERE code = UUID_TO_BIN(?)", text);
         }
     }
