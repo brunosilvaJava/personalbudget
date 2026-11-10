@@ -68,18 +68,24 @@ public class FinancialMovementController implements FinancialMovementControllerA
             @RequestParam("end_date") LocalDate endDate,
             @RequestParam(value = "category_code", required = false) List<UUID> categoryCodes,
             @RequestParam(value = "without_category", defaultValue = "false") boolean withoutCategory,
+            @RequestParam(value = "third_party_code", required = false) UUID thirdPartyCode,
+            @RequestParam(value = "own_only", defaultValue = "false") boolean ownOnly,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(value = "sort_by", defaultValue = "movement_date") String sortBy,
             @RequestParam(value = "sort_direction", defaultValue = "DESC") String sortDirection) {
 
-        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, categoryCodes={}, withoutCategory={}, page={}, size={}, sortBy={}, sortDirection={}",
-                description, operationTypes, statuses, startDate, endDate, categoryCodes, withoutCategory, page, size, sortBy, sortDirection);
+        log.info("m=find, description={}, operationTypes={}, statuses={}, startDate={}, endDate={}, categoryCodes={}, withoutCategory={}, thirdPartyCode={}, ownOnly={}, page={}, size={}, sortBy={}, sortDirection={}",
+                description, operationTypes, statuses, startDate, endDate, categoryCodes, withoutCategory, thirdPartyCode, ownOnly, page, size, sortBy, sortDirection);
 
         Pageable pageable = PageRequest.of(page, size, SortFieldResolver.resolve(sortBy, sortDirection, SORT_FIELDS));
 
-        Page<FinancialMovement> pagedResult = service.find(
-                description, operationTypes, statuses, startDate, endDate, categoryCodes, withoutCategory, pageable);
+        final boolean hasThirdPartyFilter = thirdPartyCode != null || ownOnly;
+        Page<FinancialMovement> pagedResult = hasThirdPartyFilter
+                ? service.find(description, operationTypes, statuses, startDate, endDate, categoryCodes,
+                        withoutCategory, thirdPartyCode, ownOnly, pageable)
+                : service.find(description, operationTypes, statuses, startDate, endDate, categoryCodes,
+                        withoutCategory, pageable);
 
         PagedFinancialMovementResponse response = new PagedFinancialMovementResponse(
                 mapper.toResponse(pagedResult.getContent()),

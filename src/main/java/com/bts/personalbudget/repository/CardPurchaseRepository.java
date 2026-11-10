@@ -17,6 +17,8 @@ public interface CardPurchaseRepository extends JpaRepository<CardPurchaseEntity
     @Query("""
             SELECT p FROM CardPurchaseEntity p
             JOIN FETCH p.card
+            LEFT JOIN FETCH p.cardHolder
+            LEFT JOIN FETCH p.thirdParty
             WHERE p.code = :code AND p.flagActive = true
             """)
     Optional<CardPurchaseEntity> findActiveByCode(@Param("code") UUID code);
@@ -24,6 +26,8 @@ public interface CardPurchaseRepository extends JpaRepository<CardPurchaseEntity
     @Query("""
             SELECT p FROM CardPurchaseEntity p
             JOIN FETCH p.card c
+            LEFT JOIN FETCH p.cardHolder
+            LEFT JOIN FETCH p.thirdParty
             WHERE p.flagActive = true
               AND p.purchaseDate BETWEEN :startDate AND :endDate
               AND (:cardCode IS NULL OR c.code = :cardCode)
@@ -36,6 +40,8 @@ public interface CardPurchaseRepository extends JpaRepository<CardPurchaseEntity
     @Query("""
             SELECT p FROM CardPurchaseEntity p
             JOIN FETCH p.card
+            LEFT JOIN FETCH p.cardHolder
+            LEFT JOIN FETCH p.thirdParty
             WHERE p.id IN :ids
             """)
     List<CardPurchaseEntity> findAllWithCardByIdIn(@Param("ids") Collection<Long> ids);
@@ -43,4 +49,18 @@ public interface CardPurchaseRepository extends JpaRepository<CardPurchaseEntity
     /** Pairs of {id, code} for the given ids, so a response can show the public code of a link. */
     @Query("SELECT e.id, e.code FROM CardPurchaseEntity e WHERE e.id IN :ids")
     List<Object[]> findCodesByIdIn(@Param("ids") Collection<Long> ids);
+
+    @Query("SELECT p FROM CardPurchaseEntity p WHERE p.card.id = :cardId AND p.importKey = :importKey")
+    Optional<CardPurchaseEntity> findByCardIdAndImportKey(@Param("cardId") Long cardId,
+                                                           @Param("importKey") String importKey);
+
+    @Query("""
+            SELECT p FROM CardPurchaseEntity p WHERE p.card.id = :cardId AND p.flagActive = true
+              AND LOWER(p.description) = LOWER(:description) AND p.installmentAmount = :installmentAmount
+              AND p.installments = :installments
+            """)
+    List<CardPurchaseEntity> findPossibleDuplicates(@Param("cardId") Long cardId,
+                                                     @Param("description") String description,
+                                                     @Param("installmentAmount") java.math.BigDecimal installmentAmount,
+                                                     @Param("installments") int installments);
 }

@@ -52,6 +52,8 @@ public interface FinancialMovementControllerApiDocs {
             @RequestParam("end_date") LocalDate endDate,
             @RequestParam(value = "category_code", required = false) List<UUID> categoryCodes,
             @RequestParam(value = "without_category", defaultValue = "false") boolean withoutCategory,
+            @RequestParam(value = "third_party_code", required = false) UUID thirdPartyCode,
+            @RequestParam(value = "own_only", defaultValue = "false") boolean ownOnly,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(value = "sort_by", defaultValue = "movement_date") String sortBy,

@@ -37,7 +37,9 @@ public record FinancialMovement(
         Boolean competenceOverridden,
         UUID cardPurchaseCode,
         UUID cardInvoiceCode,
-        Integer installmentNumber
+        Integer installmentNumber,
+        UUID thirdPartyCode,
+        UUID receivableSourceCode
 ) implements BalanceCalcData {
 
     private static final String MSG_FIELD_NULL_OR_EMPTY = "deve ser informado um valor válido quando o status for ";
@@ -59,7 +61,8 @@ public record FinancialMovement(
             LocalDate occurrenceDate
     ) {
         this(null, operationType, description, amount, null, movementDate, dueDate, null,
-                status, Boolean.TRUE, recurrenceBillCode, occurrenceDate, null, null, null);
+                status, Boolean.TRUE, recurrenceBillCode, occurrenceDate, null, null, null,
+                null, null, null, null, null);
     }
 
     /**
@@ -85,7 +88,7 @@ public record FinancialMovement(
     ) {
         this(code, operationType, description, amount, amountPaid, movementDate, dueDate, payDate,
                 status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode, competenceDate,
-                competenceOverridden, null, null, null);
+                competenceOverridden, null, null, null, null, null);
     }
 
     /**
@@ -107,7 +110,22 @@ public record FinancialMovement(
             UUID categoryCode
     ) {
         this(code, operationType, description, amount, amountPaid, movementDate, dueDate, payDate,
-                status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode, null, null);
+                status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode, null, null,
+                null, null, null, null, null);
+    }
+
+    /** Compatibility constructor for an already-resolved card-installment link. */
+    public FinancialMovement(final UUID code, final OperationType operationType, final String description,
+                             final BigDecimal amount, final BigDecimal amountPaid, final LocalDateTime movementDate,
+                             final LocalDateTime dueDate, final LocalDateTime payDate,
+                             final FinancialMovementStatus status, final Boolean flagActive,
+                             final UUID recurrenceBillCode, final LocalDate occurrenceDate, final UUID categoryCode,
+                             final LocalDate competenceDate, final Boolean competenceOverridden,
+                             final UUID cardPurchaseCode, final UUID cardInvoiceCode,
+                             final Integer installmentNumber) {
+        this(code, operationType, description, amount, amountPaid, movementDate, dueDate, payDate, status,
+                flagActive, recurrenceBillCode, occurrenceDate, categoryCode, competenceDate, competenceOverridden,
+                cardPurchaseCode, cardInvoiceCode, installmentNumber, null, null);
     }
 
     public FinancialMovement {
@@ -121,20 +139,23 @@ public record FinancialMovement(
     public FinancialMovement withCompetence(final LocalDate newCompetenceDate, final boolean overridden) {
         return new FinancialMovement(code, operationType, description, amount, amountPaid, movementDate,
                 dueDate, payDate, status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
-                newCompetenceDate, overridden, cardPurchaseCode, cardInvoiceCode, installmentNumber);
+                newCompetenceDate, overridden, cardPurchaseCode, cardInvoiceCode, installmentNumber,
+                thirdPartyCode, receivableSourceCode);
     }
 
     /** The codes of the purchase and invoice an installment belongs to; set when a movement is read. */
     public FinancialMovement withCardLink(final UUID newCardPurchaseCode, final UUID newCardInvoiceCode) {
         return new FinancialMovement(code, operationType, description, amount, amountPaid, movementDate,
                 dueDate, payDate, status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
-                competenceDate, competenceOverridden, newCardPurchaseCode, newCardInvoiceCode, installmentNumber);
+                competenceDate, competenceOverridden, newCardPurchaseCode, newCardInvoiceCode, installmentNumber,
+                thirdPartyCode, receivableSourceCode);
     }
 
     public FinancialMovement withStatus(final FinancialMovementStatus newStatus) {
         return new FinancialMovement(code, operationType, description, amount, amountPaid, movementDate,
                 dueDate, payDate, newStatus, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
-                competenceDate, competenceOverridden, cardPurchaseCode, cardInvoiceCode, installmentNumber);
+                competenceDate, competenceOverridden, cardPurchaseCode, cardInvoiceCode, installmentNumber,
+                thirdPartyCode, receivableSourceCode);
     }
 
     public FinancialMovement withPaymentSummary(final BigDecimal newAmountPaid,
@@ -142,7 +163,15 @@ public record FinancialMovement(
                                                final FinancialMovementStatus newStatus) {
         return new FinancialMovement(code, operationType, description, amount, newAmountPaid, movementDate,
                 dueDate, newPayDate, newStatus, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
-                competenceDate, competenceOverridden, cardPurchaseCode, cardInvoiceCode, installmentNumber);
+                competenceDate, competenceOverridden, cardPurchaseCode, cardInvoiceCode, installmentNumber,
+                thirdPartyCode, receivableSourceCode);
+    }
+
+    public FinancialMovement withReceivableSource(final UUID sourceCode) {
+        return new FinancialMovement(code, operationType, description, amount, amountPaid, movementDate,
+                dueDate, payDate, status, flagActive, recurrenceBillCode, occurrenceDate, categoryCode,
+                competenceDate, competenceOverridden, cardPurchaseCode, cardInvoiceCode, installmentNumber,
+                thirdPartyCode, sourceCode);
     }
 
     @Override
@@ -185,6 +214,11 @@ public record FinancialMovement(
             case PAID_OUT -> PaymentStatus.DONE;
             default -> PaymentStatus.PENDING;
         };
+    }
+
+    @Override
+    public boolean isPassThrough() {
+        return thirdPartyCode != null;
     }
 
     private void validations(FinancialMovementStatus status,

@@ -31,6 +31,9 @@ public record CreditCardResponse(
         @Schema(description = "Account the invoice is paid from by default; null when not set")
         UUID defaultAccountCode,
 
+        @JsonProperty("default_third_party_code")
+        UUID defaultThirdPartyCode,
+
         @Schema(description = "Card status (ACTIVE or INACTIVE)", example = "ACTIVE")
         CreditCardStatus status
 ) {

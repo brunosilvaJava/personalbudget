@@ -21,6 +21,9 @@ public interface CardPurchaseMapper {
     @Mapping(target = "code", ignore = true)
     @Mapping(target = "totalAmount", ignore = true)
     @Mapping(target = "installmentList", ignore = true)
+    @Mapping(target = "cardHolderName", ignore = true)
+    @Mapping(target = "thirdPartyName", ignore = true)
+    @Mapping(target = "importKey", ignore = true)
     CardPurchase toModel(CardPurchaseRequest request);
 
     CardPurchaseResponse toResponse(CardPurchase purchase);
@@ -60,6 +63,14 @@ public interface CardPurchaseMapper {
                 purchase.getInstallmentAmount(),
                 purchase.getInstallmentAmount().multiply(BigDecimal.valueOf(purchase.getInstallments())),
                 purchase.getCategoryCode(),
-                installments);
+                installments,
+                purchase.getCardHolder() == null ? null : purchase.getCardHolder().getCode(),
+                purchase.getCardHolder() == null ? null : purchase.getCardHolder().getName(),
+                purchase.getCardLastDigits(),
+                purchase.getThirdParty() == null ? null : purchase.getThirdParty().getCode(),
+                purchase.getThirdParty() == null ? null : purchase.getThirdParty().getName(),
+                purchase.getThirdParty() == null,
+                purchase.getFirstInstallment(),
+                purchase.getImportKey());
     }
 }

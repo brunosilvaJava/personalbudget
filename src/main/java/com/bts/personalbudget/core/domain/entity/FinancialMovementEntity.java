@@ -11,6 +11,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -120,6 +123,20 @@ public class FinancialMovementEntity extends AuditingEntity implements Serializa
 
     @Column(name = "installment_number")
     private Integer installmentNumber;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "third_party_id")
+    private ThirdPartyEntity thirdParty;
+
+    /** Source card installment of a reimbursement receivable; null for every other movement. */
+    @Column(name = "receivable_source_movement_id")
+    private Long receivableSourceMovementId;
+
+    @Column(name = "written_off_amount")
+    private BigDecimal writtenOffAmount;
+
+    @Column(name = "written_off_date")
+    private LocalDate writtenOffDate;
 
     @PrePersist
     public void prePersist() {

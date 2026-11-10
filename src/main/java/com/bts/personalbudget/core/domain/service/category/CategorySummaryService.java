@@ -77,7 +77,7 @@ public class CategorySummaryService {
                                              final OperationType operationType) {
         final Map<UUID, Amounts> amountsByCategory = new HashMap<>();
         for (final BalanceCalcData data : balanceService.findBalanceCalcDataBetween(startDate, endDate)) {
-            if (data.getOperationType() != operationType) {
+            if (data.isPassThrough() || data.getOperationType() != operationType) {
                 continue;
             }
             amountsByCategory.computeIfAbsent(data.getCategoryCode(), code -> new Amounts()).add(data);

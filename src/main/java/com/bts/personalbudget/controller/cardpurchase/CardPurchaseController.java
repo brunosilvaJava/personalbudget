@@ -33,6 +33,16 @@ public class CardPurchaseController implements CardPurchaseControllerApiDocs {
 
     private final CardPurchaseService service;
     private final CardPurchaseMapper mapper;
+    private final com.bts.personalbudget.core.domain.service.cardpurchase.CardPurchaseBatchService batchService;
+    private final com.bts.personalbudget.mapper.CardPurchaseBatchMapper batchMapper;
+
+    @PostMapping("/batch")
+    public ResponseEntity<List<CardPurchaseBatchLineResponse>> batch(
+            @Valid @RequestBody final CardPurchaseBatchRequest request) {
+        log.info("m=batch, creditCardCode={}, dryRun={}, items={}", request.creditCardCode(), request.dryRun(), request.items().size());
+        return ResponseEntity.ok(batchMapper.toResponseList(batchService.process(request.creditCardCode(),
+                Boolean.TRUE.equals(request.dryRun()), request.items().stream().map(batchMapper::toModel).toList())));
+    }
 
     @Override
     @PostMapping
@@ -64,8 +74,14 @@ public class CardPurchaseController implements CardPurchaseControllerApiDocs {
     public ResponseEntity<CardPurchaseResponse> update(@PathVariable final UUID code,
                                                        @RequestBody @Valid final CardPurchaseUpdateRequest request) {
         log.info("m=update, code={}, request={}", code, request);
-        final CardPurchase purchase = service.update(code, request.description(), request.purchaseDate(),
-                request.installments(), request.installmentAmount(), request.categoryCode());
+        final boolean hasNewFields = request.cardHolderCode() != null || request.cardLastDigits() != null
+                || request.thirdPartyCode() != null || request.ownExpense() != null;
+        final CardPurchase purchase = hasNewFields
+                ? service.update(code, request.description(), request.purchaseDate(), request.installments(),
+                        request.installmentAmount(), request.categoryCode(), request.cardHolderCode(),
+                        request.cardLastDigits(), request.thirdPartyCode(), request.ownExpense())
+                : service.update(code, request.description(), request.purchaseDate(), request.installments(),
+                        request.installmentAmount(), request.categoryCode());
         return ResponseEntity.ok(mapper.toResponse(purchase));
     }
 

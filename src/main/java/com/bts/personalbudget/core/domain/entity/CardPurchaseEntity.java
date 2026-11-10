@@ -58,6 +58,24 @@ public class CardPurchaseEntity extends AuditingEntity implements Serializable {
     @Column(name = "category_code")
     private UUID categoryCode;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "card_holder_id")
+    private CreditCardHolderEntity cardHolder;
+
+    @Column(name = "card_last_digits", length = 4)
+    private String cardLastDigits;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "third_party_id")
+    private ThirdPartyEntity thirdParty;
+
+    @Column(name = "import_key", length = 64)
+    private String importKey;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.TINYINT)
+    @Column(name = "first_installment", nullable = false)
+    private int firstInstallment;
+
     @Column(name = "flag_active", nullable = false)
     private boolean flagActive;
 
@@ -71,6 +89,9 @@ public class CardPurchaseEntity extends AuditingEntity implements Serializable {
             code = UUID.randomUUID();
         }
         flagActive = true;
+        if (firstInstallment == 0) {
+            firstInstallment = 1;
+        }
         if (version == null) {
             version = 0L;
         }

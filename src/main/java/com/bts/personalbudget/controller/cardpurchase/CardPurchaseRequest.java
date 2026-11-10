@@ -48,6 +48,16 @@ public record CardPurchaseRequest(
 
         @JsonProperty("category_code")
         @Schema(description = "Optional DEBIT category", example = "123e4567-e89b-12d3-a456-426614174000")
-        UUID categoryCode
+        UUID categoryCode,
+
+        @JsonProperty("card_holder_code") UUID cardHolderCode,
+
+        @JsonProperty("card_last_digits") @jakarta.validation.constraints.Pattern(regexp = "\\d{4}") String cardLastDigits,
+
+        @JsonProperty("third_party_code") UUID thirdPartyCode,
+
+        @JsonProperty("own_expense") Boolean ownExpense,
+
+        @JsonProperty("first_installment") @Min(1) @Max(60) Integer firstInstallment
 ) {
 }

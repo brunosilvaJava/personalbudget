@@ -58,10 +58,11 @@ public class CardInvoiceService {
         final Map<Long, List<FinancialMovementEntity>> movements = installmentRepository
                 .findActiveByInvoiceIdIn(invoices.stream().map(CardInvoiceEntity::getId).toList()).stream()
                 .collect(Collectors.groupingBy(FinancialMovementEntity::getCardInvoiceId));
+        final Map<Long, CardPurchaseEntity> purchases = purchases(movements.values().stream().flatMap(List::stream).toList());
         final LocalDate today = LocalDate.now(clock);
         return invoices.stream()
                 .map(invoice -> mapper.assemble(invoice, movements.getOrDefault(invoice.getId(), List.of()),
-                        List.of(), today))
+                        List.of(), purchases, today))
                 .toList();
     }
 
@@ -72,14 +73,17 @@ public class CardInvoiceService {
         final CardInvoiceEntity invoice = invoiceRepository.findByCode(code)
                 .orElseThrow(() -> new EntityNotFoundException("CardInvoiceEntity not found for code " + code));
         final List<FinancialMovementEntity> movements = installmentRepository.findActiveByInvoiceId(invoice.getId());
-        final Map<Long, CardPurchaseEntity> purchases = movements.isEmpty() ? Map.of()
-                : purchaseRepository.findAllWithCardByIdIn(
-                                movements.stream().map(FinancialMovementEntity::getCardPurchaseId).distinct().toList())
-                        .stream().collect(Collectors.toMap(CardPurchaseEntity::getId, purchase -> purchase));
+        final Map<Long, CardPurchaseEntity> purchases = purchases(movements);
         final List<CardInstallment> installments = movements.stream()
                 .map(movement -> purchaseMapper.assembleInstallment(
                         movement, purchases.get(movement.getCardPurchaseId()), invoice))
                 .toList();
-        return mapper.assemble(invoice, movements, installments, LocalDate.now(clock));
+        return mapper.assemble(invoice, movements, installments, purchases, LocalDate.now(clock));
+    }
+
+    private Map<Long, CardPurchaseEntity> purchases(final List<FinancialMovementEntity> movements) {
+        return movements.isEmpty() ? Map.of() : purchaseRepository.findAllWithCardByIdIn(
+                        movements.stream().map(FinancialMovementEntity::getCardPurchaseId).distinct().toList())
+                .stream().collect(Collectors.toMap(CardPurchaseEntity::getId, purchase -> purchase));
     }
 }
