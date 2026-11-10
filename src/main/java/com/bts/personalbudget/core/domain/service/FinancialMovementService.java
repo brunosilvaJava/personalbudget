@@ -231,7 +231,8 @@ public class FinancialMovementService {
         return toModelWithCardLink(entity, cardLinks(List.of(entity)));
     }
 
-    private record CardLinks(Map<Long, UUID> purchaseCodes, Map<Long, UUID> invoiceCodes) {
+    private record CardLinks(Map<Long, UUID> purchaseCodes, Map<Long, UUID> invoiceCodes,
+                             Map<Long, UUID> receivableSourceCodes) {
     }
 
     /**
@@ -243,22 +244,34 @@ public class FinancialMovementService {
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         final Set<Long> invoiceIds = entities.stream().map(FinancialMovementEntity::getCardInvoiceId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
+        final Set<Long> sourceIds = entities.stream().map(FinancialMovementEntity::getReceivableSourceMovementId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
         return new CardLinks(
                 purchaseIds.isEmpty() ? Map.of() : codesById(cardPurchaseRepository.findCodesByIdIn(purchaseIds)),
-                invoiceIds.isEmpty() ? Map.of() : codesById(cardInvoiceRepository.findCodesByIdIn(invoiceIds)));
+                invoiceIds.isEmpty() ? Map.of() : codesById(cardInvoiceRepository.findCodesByIdIn(invoiceIds)),
+                sourceIds.isEmpty() ? Map.of() : movementCodesById(sourceIds));
     }
 
     private static Map<Long, UUID> codesById(final List<Object[]> rows) {
         return rows.stream().collect(Collectors.toMap(row -> (Long) row[0], row -> (UUID) row[1]));
     }
 
+    private Map<Long, UUID> movementCodesById(final Set<Long> ids) {
+        return repository.findAllById(ids).stream()
+                .collect(Collectors.toMap(FinancialMovementEntity::getId, FinancialMovementEntity::getCode));
+    }
+
     private FinancialMovement toModelWithCardLink(final FinancialMovementEntity entity, final CardLinks links) {
         final FinancialMovement model = mapper.toModel(entity);
-        if (entity.getCardPurchaseId() == null) {
-            return model;
+        FinancialMovement result = model;
+        if (entity.getCardPurchaseId() != null) {
+            result = result.withCardLink(links.purchaseCodes().get(entity.getCardPurchaseId()),
+                    links.invoiceCodes().get(entity.getCardInvoiceId()));
         }
-        return model.withCardLink(links.purchaseCodes().get(entity.getCardPurchaseId()),
-                links.invoiceCodes().get(entity.getCardInvoiceId()));
+        if (entity.getReceivableSourceMovementId() != null) {
+            result = result.withReceivableSource(links.receivableSourceCodes().get(entity.getReceivableSourceMovementId()));
+        }
+        return result;
     }
 
     @Transactional
@@ -465,6 +478,9 @@ public class FinancialMovementService {
             throw new ConflictException(
                     "Esta movimentação é a parcela de uma compra de cartão; altere ou exclua a compra");
         }
+        if (entity.getReceivableSourceMovementId() != null) {
+            throw new ConflictException("Este recebível só pode ter vencimento alterado pela área de terceiros");
+        }
     }
 
     @Transactional
@@ -491,7 +507,10 @@ public class FinancialMovementService {
     /** Every unpaid movement due up to {@code endDate} (overdue ones included), for the cash forecast. */
     public List<FinancialMovement> findOpenDueThrough(final LocalDate endDate) {
         log.info("m=findOpenDueThrough, endDate={}", endDate);
-        return mapper.toModel(repository.findUnpaidDueThrough(endDate.atTime(23, 59, 59), PENDING, LATE));
+        final List<FinancialMovementEntity> entities = repository.findUnpaidDueThrough(
+                endDate.atTime(23, 59, 59), PENDING, LATE);
+        final CardLinks links = cardLinks(entities);
+        return entities.stream().map(entity -> toModelWithCardLink(entity, links)).toList();
     }
 
     /** The unpaid card installments due after {@code afterDate}, for the cash forecast. */

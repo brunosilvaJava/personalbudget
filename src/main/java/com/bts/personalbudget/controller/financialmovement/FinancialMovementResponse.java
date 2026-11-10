@@ -76,7 +76,10 @@ public record FinancialMovementResponse (
         ,
 
         @JsonProperty("third_party_code")
-        UUID thirdPartyCode
+        UUID thirdPartyCode,
+
+        @JsonProperty("receivable_source_code")
+        UUID receivableSourceCode
 ) {
     /** Without the card link, for a movement that is not a card installment. */
     public FinancialMovementResponse(final UUID code, final OperationType operationType, final String description,
@@ -87,7 +90,7 @@ public record FinancialMovementResponse (
                                      final LocalDate competenceDate, final Boolean competenceOverridden) {
         this(code, operationType, description, amount, amountPaid, movementDate, dueDate, status,
                 recurrenceBillCode, occurrenceDate, categoryCode, competenceDate, competenceOverridden,
-                null, null, null, null);
+                null, null, null, null, null);
     }
 
     /** Compatibility constructor for clients that already receive the card link. */
@@ -101,7 +104,7 @@ public record FinancialMovementResponse (
                                      final Integer installmentNumber) {
         this(code, operationType, description, amount, amountPaid, movementDate, dueDate, status,
                 recurrenceBillCode, occurrenceDate, categoryCode, competenceDate, competenceOverridden,
-                cardPurchaseCode, cardInvoiceCode, installmentNumber, null);
+                cardPurchaseCode, cardInvoiceCode, installmentNumber, null, null);
     }
 
     public FinancialMovementResponse {

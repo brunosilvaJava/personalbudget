@@ -18,7 +18,7 @@ public interface ThirdPartyControllerApiDocs {
 
     @Operation(summary = "Create a third party",
             description = "Registers an ACTIVE third party. A purchase marked as theirs does not count as the "
-                    + "user's own consumption.")
+                    + "user's own consumption and generates a receivable per installment.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Third party created"),
             @ApiResponse(responseCode = "400", description = "Invalid data or name already used")
@@ -26,7 +26,8 @@ public interface ThirdPartyControllerApiDocs {
     ResponseEntity<ThirdPartyResponse> create(ThirdPartyRequest request);
 
     @Operation(summary = "List third parties",
-            description = "ACTIVE ones by default; pass status one or more times to choose others.")
+            description = "ACTIVE ones by default; pass status one or more times to choose others. Each item "
+                    + "carries the open and the late amounts still to receive.")
     @ApiResponse(responseCode = "200", description = "List of third parties")
     ResponseEntity<List<ThirdPartyResponse>> find(
             @Parameter(description = "Statuses to include; defaults to ACTIVE") List<ThirdPartyStatus> status);
@@ -54,10 +55,11 @@ public interface ThirdPartyControllerApiDocs {
     ResponseEntity<ThirdPartyResponse> activate(UUID code);
 
     @Operation(summary = "Inactivate a third party",
-            description = "Idempotent.")
+            description = "Idempotent. Refused while the third party still has receivables to receive.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Third party inactive"),
-            @ApiResponse(responseCode = "404", description = "Third party not found")
+            @ApiResponse(responseCode = "404", description = "Third party not found"),
+            @ApiResponse(responseCode = "409", description = "There are open receivables")
     })
     ResponseEntity<ThirdPartyResponse> inactivate(UUID code);
 }

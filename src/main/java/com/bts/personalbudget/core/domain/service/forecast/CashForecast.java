@@ -43,6 +43,20 @@ public record CashForecast(
         LocalDate firstNegativeDate,
         boolean negativeCashAlert,
         boolean insufficientBudgetAlert,
-        boolean projectionIncomplete
+        boolean projectionIncomplete,
+        BigDecimal receivables
 ) {
+    public CashForecast(final LocalDate today, final LocalDate until, final boolean includeLateIncome,
+                        final BigDecimal cashBalance, final BigDecimal expectedIncome, final BigDecimal lateIncome,
+                        final BigDecimal obligations, final BigDecimal cardInvoices, final BigDecimal projectedCash,
+                        final UUID envelopeCycleCode, final BigDecimal envelopeReserve, final BigDecimal cardBeyondHorizon,
+                        final BigDecimal freeAfterReserves, final BigDecimal lowestProjectedCash,
+                        final LocalDate lowestProjectedCashDate, final LocalDate firstNegativeDate,
+                        final boolean negativeCashAlert, final boolean insufficientBudgetAlert,
+                        final boolean projectionIncomplete) {
+        this(today, until, includeLateIncome, cashBalance, expectedIncome, lateIncome, obligations, cardInvoices,
+                projectedCash, envelopeCycleCode, envelopeReserve, cardBeyondHorizon, freeAfterReserves,
+                lowestProjectedCash, lowestProjectedCashDate, firstNegativeDate, negativeCashAlert,
+                insufficientBudgetAlert, projectionIncomplete, BigDecimal.ZERO);
+    }
 }

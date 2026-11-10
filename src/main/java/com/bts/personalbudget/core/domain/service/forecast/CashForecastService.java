@@ -65,14 +65,18 @@ public class CashForecastService {
         final List<ProjectedOccurrence> projected = balanceService.findBalanceCalcDataBetween(today, horizon).stream()
                 .filter(ProjectedOccurrence.class::isInstance).map(ProjectedOccurrence.class::cast).toList();
 
-        final BigDecimal expectedIncome = sum(open, isCredit().and(movement -> !isOverdue(movement, today)))
+        final Predicate<FinancialMovement> isReceivable = movement -> movement.receivableSourceCode() != null;
+        final BigDecimal expectedIncome = sum(open, isCredit().and(isReceivable.negate())
+                .and(movement -> !isOverdue(movement, today)))
                 .add(sumProjected(projected, OperationType.CREDIT));
-        final BigDecimal lateIncome = sum(open, isCredit().and(movement -> isOverdue(movement, today)));
+        final BigDecimal lateIncome = sum(open, isCredit().and(isReceivable.negate())
+                .and(movement -> isOverdue(movement, today)));
+        final BigDecimal receivables = sum(open, isReceivable);
         final BigDecimal obligations = sum(open, isDebit().and(movement -> !isCardInstallment(movement)))
                 .add(sumProjected(projected, OperationType.DEBIT));
         final BigDecimal cardInvoices = sum(open, isDebit().and(CashForecastService::isCardInstallment));
         final BigDecimal countedLateIncome = includeLateIncome ? lateIncome : BigDecimal.ZERO;
-        final BigDecimal projectedCash = cashBalance.add(expectedIncome).add(countedLateIncome)
+        final BigDecimal projectedCash = cashBalance.add(expectedIncome).add(countedLateIncome).add(receivables)
                 .subtract(obligations).subtract(cardInvoices);
 
         final CycleEnvelopes envelopes = currentCycle == null ? null
@@ -88,7 +92,7 @@ public class CashForecastService {
                 currentCycle == null ? null : currentCycle.cycle().code(), envelopeReserve, cardBeyondHorizon,
                 freeAfterReserves, lowest.value(), lowest.date(), lowest.firstNegativeDate(),
                 lowest.firstNegativeDate() != null, freeAfterReserves.signum() < 0,
-                envelopes != null && envelopes.projectionIncomplete());
+                envelopes != null && envelopes.projectionIncomplete(), receivables);
     }
 
     private record Lowest(BigDecimal value, LocalDate date, LocalDate firstNegativeDate) {

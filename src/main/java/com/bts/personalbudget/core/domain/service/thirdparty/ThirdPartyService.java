@@ -5,8 +5,12 @@ import com.bts.personalbudget.core.domain.enumerator.ThirdPartyStatus;
 import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.mapper.ThirdPartyMapper;
+import com.bts.personalbudget.repository.FinancialMovementRepository;
 import com.bts.personalbudget.repository.ThirdPartyRepository;
 import jakarta.persistence.EntityNotFoundException;
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -20,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ThirdPartyService {
     private final ThirdPartyRepository repository;
+    private final FinancialMovementRepository movementRepository;
     private final ThirdPartyMapper mapper;
+    private final Clock clock;
 
     @Transactional
     public ThirdParty create(final String name) {
@@ -62,12 +68,29 @@ public class ThirdPartyService {
     public ThirdParty changeStatus(final UUID code, final ThirdPartyStatus status) {
         log.info("m=changeStatus, code={}, status={}", code, status);
         final ThirdPartyEntity entity = entity(code);
+        if (status == ThirdPartyStatus.INACTIVE && movementRepository.existsOpenReceivableByThirdPartyId(entity.getId())) {
+            throw new ConflictException("Terceiro com recebíveis em aberto não pode ser inativado");
+        }
         entity.setStatus(status);
         return describe(repository.save(entity));
     }
 
     private ThirdParty describe(final ThirdPartyEntity entity) {
-        return mapper.toModel(entity);
+        final LocalDate today = LocalDate.now(clock);
+        BigDecimal open = BigDecimal.ZERO;
+        BigDecimal late = BigDecimal.ZERO;
+        long count = 0;
+        for (var receivable : movementRepository.findActiveReceivablesByThirdPartyId(entity.getId())) {
+            final BigDecimal remaining = receivable.getAmount().abs()
+                    .subtract(receivable.getAmountPaid() == null ? BigDecimal.ZERO : receivable.getAmountPaid().abs())
+                    .subtract(receivable.getWrittenOffAmount() == null ? BigDecimal.ZERO : receivable.getWrittenOffAmount());
+            if (remaining.signum() > 0) {
+                open = open.add(remaining);
+                count++;
+                if (receivable.getDueDate().toLocalDate().isBefore(today)) late = late.add(remaining);
+            }
+        }
+        return new ThirdParty(entity.getCode(), entity.getName(), entity.getStatus(), open, late, count);
     }
 
     private ThirdPartyEntity entity(final UUID code) {
