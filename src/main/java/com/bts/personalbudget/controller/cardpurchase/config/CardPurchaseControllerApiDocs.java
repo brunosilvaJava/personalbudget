@@ -1,5 +1,7 @@
 package com.bts.personalbudget.controller.cardpurchase.config;
 
+import com.bts.personalbudget.controller.cardpurchase.CardPurchaseBatchLineResponse;
+import com.bts.personalbudget.controller.cardpurchase.CardPurchaseBatchRequest;
 import com.bts.personalbudget.controller.cardpurchase.CardPurchaseRequest;
 import com.bts.personalbudget.controller.cardpurchase.CardPurchaseResponse;
 import com.bts.personalbudget.controller.cardpurchase.CardPurchaseUpdateRequest;
@@ -30,6 +32,31 @@ public interface CardPurchaseControllerApiDocs {
                     + "falls in a paid invoice, or its competence is in a closed pay cycle")
     })
     ResponseEntity<CardPurchaseResponse> create(CardPurchaseRequest request);
+
+    @Operation(summary = "Register or preview a batch of card purchases",
+            description = "Imports a card statement in one call (1 to 300 lines). Each line becomes a purchase "
+                    + "exactly as POST /card_purchase would create it; first_installment lets a statement that "
+                    + "shows the middle of an installment plan start at that installment. Every line gets an "
+                    + "import_key (card, date, description, installment amount, installments and the order among "
+                    + "equal lines), so sending the same statement again never duplicates: lines already imported "
+                    + "come back as DUPLICATE and are skipped. A line that only looks like an existing purchase "
+                    + "(same card, description, installment amount and installments) comes back as "
+                    + "POSSIBLE_DUPLICATE with the codes it matches, and the import is refused with 409 until "
+                    + "that line sets accept_duplicate. With dry_run true nothing is written and every line is "
+                    + "returned with its status (NEW, DUPLICATE, POSSIBLE_DUPLICATE or ERROR) and the first "
+                    + "invoice month and due date. Without dry_run the import is all or nothing: any line in "
+                    + "error, or any rule of a single purchase (limit, paid invoice, closed pay cycle), cancels "
+                    + "the whole batch.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "One entry per line, in the order received"),
+            @ApiResponse(responseCode = "400", description = "Invalid fields, with the offending lines as "
+                    + "items[n].field"),
+            @ApiResponse(responseCode = "404", description = "Card not found"),
+            @ApiResponse(responseCode = "409", description = "A possible duplicate was not accepted, the total "
+                    + "passes the available limit, the plastic is inactive, an installment falls in a paid "
+                    + "invoice, or its competence is in a closed pay cycle")
+    })
+    ResponseEntity<List<CardPurchaseBatchLineResponse>> batch(CardPurchaseBatchRequest request);
 
     @Operation(summary = "List card purchases",
             description = "Active purchases with their installments whose purchase date is in the period (both "

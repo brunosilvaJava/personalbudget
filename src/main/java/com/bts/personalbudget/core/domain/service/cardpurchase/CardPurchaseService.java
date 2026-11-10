@@ -99,6 +99,7 @@ public class CardPurchaseService {
             throw invalid("cardCode", "cartão inativo");
         }
 
+        final int firstInstallment = effectiveFirstInstallment(purchase.firstInstallment(), purchase.installments());
         final CardUse cardUse = resolveCardUse(card, purchase.cardHolderCode(), purchase.cardLastDigits());
         final ThirdPartyEntity thirdParty = resolveThirdParty(ThirdPartyResolver.resolve(purchase.thirdPartyCode(),
                 purchase.ownExpense(), cardUse.plastic() == null || cardUse.plastic().getDefaultThirdParty() == null
@@ -107,7 +108,7 @@ public class CardPurchaseService {
 
         final List<CardInvoiceEntity> invoices = resolveInvoices(card, purchase.purchaseDate(), purchase.installments());
         requireEditableCompetences(invoices);
-        requireWithinLimit(card, total(purchase.installmentAmount(), purchase.installments()), BigDecimal.ZERO);
+        requireWithinLimit(card, total(purchase.installmentAmount(), purchase.installments() - firstInstallment + 1), BigDecimal.ZERO);
 
         final CardPurchaseEntity entity = purchaseRepository.save(CardPurchaseEntity.builder()
                 .card(card)
@@ -119,9 +120,11 @@ public class CardPurchaseService {
                 .cardHolder(cardUse.holder())
                 .cardLastDigits(cardUse.lastDigits())
                 .thirdParty(thirdParty)
+                .firstInstallment(firstInstallment)
+                .importKey(purchase.importKey())
                 .build());
         final List<FinancialMovementEntity> movements = new ArrayList<>();
-        for (int k = 1; k <= purchase.installments(); k++) {
+        for (int k = firstInstallment; k <= purchase.installments(); k++) {
             movements.add(newInstallment(entity, invoices.get(k - 1), k));
         }
         installmentRepository.saveAll(movements);
@@ -195,6 +198,9 @@ public class CardPurchaseService {
         final int newCount = installments == null ? purchase.getInstallments() : installments;
         final BigDecimal newAmount = installmentAmount == null ? purchase.getInstallmentAmount() : installmentAmount;
         validateSchedule(newDate, newCount, newAmount);
+        if (newCount < purchase.getFirstInstallment()) {
+            throw invalid("installments", "não pode ser menor que firstInstallment");
+        }
 
         final boolean scheduleChanged = !newDate.equals(purchase.getPurchaseDate())
                 || newCount != purchase.getInstallments()
@@ -255,9 +261,11 @@ public class CardPurchaseService {
 
         final List<FinancialMovementEntity> result = new ArrayList<>();
         final List<FinancialMovementEntity> created = new ArrayList<>();
-        for (int k = 1; k <= newCount; k++) {
-            if (k <= current.size()) {
-                final FinancialMovementEntity movement = current.get(k - 1);
+        final int firstInstallment = existingFirstInstallment(purchase);
+        for (int k = firstInstallment; k <= newCount; k++) {
+            final int index = k - firstInstallment;
+            if (index < current.size()) {
+                final FinancialMovementEntity movement = current.get(index);
                 movement.setDescription(installmentDescription(newDescription, k, newCount));
                 movement.setCategoryCode(purchase.getCategoryCode());
                 if (thirdPartyChanged) movement.setThirdParty(resolvedThirdParty);
@@ -271,8 +279,8 @@ public class CardPurchaseService {
                 result.add(movement);
             }
         }
-        for (int k = newCount + 1; k <= current.size(); k++) {
-            current.get(k - 1).delete();
+        for (int index = newCount - firstInstallment + 1; index < current.size(); index++) {
+            current.get(index).delete();
         }
         installmentRepository.saveAll(created);
         if (purchase.getThirdParty() != null && receivableService != null) {
@@ -495,6 +503,16 @@ public class CardPurchaseService {
             throw invalid("thirdPartyCode", "terceiro inativo");
         }
         return thirdParty;
+    }
+
+    private int effectiveFirstInstallment(final Integer firstInstallment, final int installments) {
+        final int result = firstInstallment == null ? 1 : firstInstallment;
+        if (result < 1 || result > installments) throw invalid("firstInstallment", "deve estar entre 1 e installments");
+        return result;
+    }
+
+    private static int existingFirstInstallment(final CardPurchaseEntity purchase) {
+        return purchase.getFirstInstallment() == 0 ? 1 : purchase.getFirstInstallment();
     }
 
     private static boolean sameThirdParty(final ThirdPartyEntity a, final ThirdPartyEntity b) {

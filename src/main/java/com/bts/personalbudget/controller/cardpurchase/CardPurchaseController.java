@@ -33,6 +33,16 @@ public class CardPurchaseController implements CardPurchaseControllerApiDocs {
 
     private final CardPurchaseService service;
     private final CardPurchaseMapper mapper;
+    private final com.bts.personalbudget.core.domain.service.cardpurchase.CardPurchaseBatchService batchService;
+    private final com.bts.personalbudget.mapper.CardPurchaseBatchMapper batchMapper;
+
+    @PostMapping("/batch")
+    public ResponseEntity<List<CardPurchaseBatchLineResponse>> batch(
+            @Valid @RequestBody final CardPurchaseBatchRequest request) {
+        log.info("m=batch, creditCardCode={}, dryRun={}, items={}", request.creditCardCode(), request.dryRun(), request.items().size());
+        return ResponseEntity.ok(batchMapper.toResponseList(batchService.process(request.creditCardCode(),
+                Boolean.TRUE.equals(request.dryRun()), request.items().stream().map(batchMapper::toModel).toList())));
+    }
 
     @Override
     @PostMapping

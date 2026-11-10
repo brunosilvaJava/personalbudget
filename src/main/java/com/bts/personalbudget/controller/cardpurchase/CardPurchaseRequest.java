@@ -56,6 +56,8 @@ public record CardPurchaseRequest(
 
         @JsonProperty("third_party_code") UUID thirdPartyCode,
 
-        @JsonProperty("own_expense") Boolean ownExpense
+        @JsonProperty("own_expense") Boolean ownExpense,
+
+        @JsonProperty("first_installment") @Min(1) @Max(60) Integer firstInstallment
 ) {
 }

@@ -69,6 +69,13 @@ public class CardPurchaseEntity extends AuditingEntity implements Serializable {
     @JoinColumn(name = "third_party_id")
     private ThirdPartyEntity thirdParty;
 
+    @Column(name = "import_key", length = 64)
+    private String importKey;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.TINYINT)
+    @Column(name = "first_installment", nullable = false)
+    private int firstInstallment;
+
     @Column(name = "flag_active", nullable = false)
     private boolean flagActive;
 
@@ -82,6 +89,9 @@ public class CardPurchaseEntity extends AuditingEntity implements Serializable {
             code = UUID.randomUUID();
         }
         flagActive = true;
+        if (firstInstallment == 0) {
+            firstInstallment = 1;
+        }
         if (version == null) {
             version = 0L;
         }

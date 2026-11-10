@@ -25,12 +25,14 @@ public record CardPurchase(
         String cardLastDigits,
         UUID thirdPartyCode,
         String thirdPartyName,
-        Boolean ownExpense
+        Boolean ownExpense,
+        Integer firstInstallment,
+        String importKey
 ) {
     public CardPurchase(final UUID code, final UUID cardCode, final String description, final LocalDate purchaseDate,
                         final Integer installments, final BigDecimal installmentAmount, final BigDecimal totalAmount,
                         final UUID categoryCode, final List<CardInstallment> installmentList) {
         this(code, cardCode, description, purchaseDate, installments, installmentAmount, totalAmount, categoryCode,
-                installmentList, null, null, null, null, null, null);
+                installmentList, null, null, null, null, null, null, 1, null);
     }
 }

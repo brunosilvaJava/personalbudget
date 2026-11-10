@@ -47,6 +47,7 @@ public record CardPurchaseResponse(
         @JsonProperty("card_holder_name") String cardHolderName,
         @JsonProperty("card_last_digits") String cardLastDigits,
         @JsonProperty("third_party_code") UUID thirdPartyCode,
-        @JsonProperty("third_party_name") String thirdPartyName
+        @JsonProperty("third_party_name") String thirdPartyName,
+        @JsonProperty("first_installment") Integer firstInstallment
 ) {
 }
