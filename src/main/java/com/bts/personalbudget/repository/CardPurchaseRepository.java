@@ -49,4 +49,18 @@ public interface CardPurchaseRepository extends JpaRepository<CardPurchaseEntity
     /** Pairs of {id, code} for the given ids, so a response can show the public code of a link. */
     @Query("SELECT e.id, e.code FROM CardPurchaseEntity e WHERE e.id IN :ids")
     List<Object[]> findCodesByIdIn(@Param("ids") Collection<Long> ids);
+
+    @Query("SELECT p FROM CardPurchaseEntity p WHERE p.card.id = :cardId AND p.importKey = :importKey")
+    Optional<CardPurchaseEntity> findByCardIdAndImportKey(@Param("cardId") Long cardId,
+                                                           @Param("importKey") String importKey);
+
+    @Query("""
+            SELECT p FROM CardPurchaseEntity p WHERE p.card.id = :cardId AND p.flagActive = true
+              AND LOWER(p.description) = LOWER(:description) AND p.installmentAmount = :installmentAmount
+              AND p.installments = :installments
+            """)
+    List<CardPurchaseEntity> findPossibleDuplicates(@Param("cardId") Long cardId,
+                                                     @Param("description") String description,
+                                                     @Param("installmentAmount") java.math.BigDecimal installmentAmount,
+                                                     @Param("installments") int installments);
 }

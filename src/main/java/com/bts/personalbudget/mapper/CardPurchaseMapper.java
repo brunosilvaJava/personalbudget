@@ -23,6 +23,7 @@ public interface CardPurchaseMapper {
     @Mapping(target = "installmentList", ignore = true)
     @Mapping(target = "cardHolderName", ignore = true)
     @Mapping(target = "thirdPartyName", ignore = true)
+    @Mapping(target = "importKey", ignore = true)
     CardPurchase toModel(CardPurchaseRequest request);
 
     CardPurchaseResponse toResponse(CardPurchase purchase);
@@ -68,6 +69,8 @@ public interface CardPurchaseMapper {
                 purchase.getCardLastDigits(),
                 purchase.getThirdParty() == null ? null : purchase.getThirdParty().getCode(),
                 purchase.getThirdParty() == null ? null : purchase.getThirdParty().getName(),
-                purchase.getThirdParty() == null);
+                purchase.getThirdParty() == null,
+                purchase.getFirstInstallment(),
+                purchase.getImportKey());
     }
 }
