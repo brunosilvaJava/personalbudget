@@ -4,7 +4,6 @@ import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.InstallmentBillStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
 import com.bts.personalbudget.core.domain.service.balance.BalanceCalcData;
-import com.bts.personalbudget.core.domain.service.recurrencebill.RecurrenceCalculator;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -13,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,7 +43,6 @@ public class InstallmentBill implements BalanceCalcData {
     private UUID categoryCode;
 
     private static final int INITIAL_INSTALLMENT_COUNT = 0;
-    private static final int DAYS_TO_NEXT_INSTALLMENT = 30;
 
     public InstallmentBill(UUID code, OperationType operationType, String description,
                            BigDecimal amount, InstallmentBillStatus status, LocalDate purchaseDate, Integer installmentTotal,
@@ -129,10 +128,17 @@ public class InstallmentBill implements BalanceCalcData {
             log.info("m=calculateNextInstallmentDate msg=next_installment_inaccessible, code={}", code);
             return Optional.empty();
         }
-        if (lastInstallmentDate == null) {
-            return Optional.of(purchaseDate.plusDays(DAYS_TO_NEXT_INSTALLMENT));
-        }
-        return Optional.of(lastInstallmentDate.plusDays(DAYS_TO_NEXT_INSTALLMENT));
+        return Optional.of(installmentDateOf(installmentCount + 1));
+    }
+
+    /**
+     * Date of the installment with the given number (1-based): the purchase day of the n-th month
+     * after the purchase. Counted from the purchase date, not from the previous installment, so a
+     * day the month does not have falls on its last day and the next installments go back to the
+     * purchase day.
+     */
+    private LocalDate installmentDateOf(final int installmentNumber) {
+        return purchaseDate.plusMonths(installmentNumber);
     }
 
     public boolean containsNextInstallment() {
@@ -140,19 +146,23 @@ public class InstallmentBill implements BalanceCalcData {
     }
 
     /**
-     * Dates of the installments not posted yet, from next_installment_date up to {@code endDate}
-     * (inclusive), stepping the same 30 days updateInstallment() advances by and stopping at
-     * installment_total.
+     * Dates of the installments not posted yet, up to {@code endDate} (inclusive), stopping at
+     * installment_total. The first one is next_installment_date; the others are on the purchase
+     * day of each following month, the same rule updateInstallment() applies.
      */
     public List<LocalDate> findRemainingInstallmentDatesUntil(final LocalDate endDate) {
         if (nextInstallmentDate == null || !containsNextInstallment()) {
             return List.of();
         }
-        return RecurrenceCalculator.occurrencesUntil(
-                nextInstallmentDate,
-                endDate,
-                installmentDate -> installmentDate.plusDays(DAYS_TO_NEXT_INSTALLMENT),
-                installmentTotal - installmentCount);
+        final List<LocalDate> dates = new ArrayList<>();
+        for (int number = installmentCount + 1; number <= installmentTotal; number++) {
+            final LocalDate date = number == installmentCount + 1 ? nextInstallmentDate : installmentDateOf(number);
+            if (date.isAfter(endDate)) {
+                break;
+            }
+            dates.add(date);
+        }
+        return dates;
     }
 
     @Override

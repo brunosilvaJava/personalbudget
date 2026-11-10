@@ -80,7 +80,7 @@ public class InstallmentBillServiceTest {
                 OperationType.CREDIT, "Test", BigDecimal.TEN, TODAY, 1);
         service.create(installmentBill);
         verify(repository).save(installmentBill);
-        // First installment is purchase_date + 30 days: nothing is due yet.
+        // First installment is one month after purchase_date: nothing is due yet.
         verify(repository, never()).findForUpdateByCode(any());
         verify(financialMovementService, never()).create(any(FinancialMovement.class));
     }
@@ -90,7 +90,7 @@ public class InstallmentBillServiceTest {
         final InstallmentBill installmentBill = InstallmentBillFactory.buildModel(
                 OperationType.DEBIT, "Past purchase", BigDecimal.TEN, TODAY.minusDays(45), 3);
         final UUID code = installmentBill.getCode();
-        final LocalDate firstInstallment = TODAY.minusDays(15);
+        final LocalDate firstInstallment = TODAY.minusDays(45).plusMonths(1);
         assertEquals(firstInstallment, installmentBill.getNextInstallmentDate());
 
         when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
@@ -106,10 +106,10 @@ public class InstallmentBillServiceTest {
         assertEquals(firstInstallment, captor.getValue().occurrenceDate());
 
         assertEquals(1, installmentBill.getInstallmentCount());
-        assertEquals(firstInstallment.plusDays(30), installmentBill.getNextInstallmentDate());
+        assertEquals(firstInstallment.plusMonths(1), installmentBill.getNextInstallmentDate());
         assertEquals(InstallmentBillStatus.PENDING, installmentBill.getStatus());
         assertEquals(1, created.getInstallmentCount());
-        assertEquals(firstInstallment.plusDays(30), created.getNextInstallmentDate());
+        assertEquals(firstInstallment.plusMonths(1), created.getNextInstallmentDate());
     }
 
 //    @Test
@@ -190,7 +190,7 @@ public class InstallmentBillServiceTest {
 
         final ArgumentCaptor<InstallmentBill> captor = ArgumentCaptor.forClass(InstallmentBill.class);
         verify(repository).update(captor.capture());
-        assertEquals(newPurchaseDate.plusDays(30), captor.getValue().getNextInstallmentDate());
+        assertEquals(newPurchaseDate.plusMonths(1), captor.getValue().getNextInstallmentDate());
     }
 
     @Test
@@ -239,7 +239,7 @@ public class InstallmentBillServiceTest {
 
         verify(financialMovementService, times(2)).create(any(FinancialMovement.class));
         assertEquals(2, installmentBill.getInstallmentCount());
-        assertEquals(TODAY.plusDays(20), installmentBill.getNextInstallmentDate());
+        assertEquals(TODAY.minusDays(70).plusMonths(3), installmentBill.getNextInstallmentDate());
     }
 
     @Test
@@ -266,10 +266,10 @@ public class InstallmentBillServiceTest {
     @Test
     void shouldPostOverdueInstallmentsWhenJobSkippedDays() {
         final UUID code = UUID.randomUUID();
-        final LocalDate today = LocalDate.now();
-        final LocalDate firstOverdueInstallment = today.minusDays(65);
+        final LocalDate today = TODAY;
+        final LocalDate firstOverdueInstallment = today.minusMonths(2);
         final InstallmentBill installmentBill = new InstallmentBill(code, OperationType.DEBIT, "Catch-up test",
-                BigDecimal.TEN, InstallmentBillStatus.PENDING, today.minusDays(95), 5,
+                BigDecimal.TEN, InstallmentBillStatus.PENDING, today.minusMonths(3), 5,
                 0, null, firstOverdueInstallment);
 
         when(repository.findForUpdateByCode(code)).thenReturn(installmentBill);
@@ -284,11 +284,10 @@ public class InstallmentBillServiceTest {
         final List<LocalDate> postedOccurrences = captor.getAllValues().stream()
                 .map(FinancialMovement::occurrenceDate)
                 .toList();
-        assertEquals(List.of(firstOverdueInstallment, firstOverdueInstallment.plusDays(30), firstOverdueInstallment.plusDays(60)),
-                postedOccurrences);
+        assertEquals(List.of(today.minusMonths(2), today.minusMonths(1), today), postedOccurrences);
         assertEquals(3, installmentBill.getInstallmentCount());
         assertEquals(InstallmentBillStatus.PENDING, installmentBill.getStatus());
-        assertEquals(firstOverdueInstallment.plusDays(90), installmentBill.getNextInstallmentDate());
+        assertEquals(today.plusMonths(1), installmentBill.getNextInstallmentDate());
     }
 
     @Test
