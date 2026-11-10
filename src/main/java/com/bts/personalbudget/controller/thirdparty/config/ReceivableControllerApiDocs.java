@@ -48,14 +48,17 @@ public interface ReceivableControllerApiDocs {
     ResponseEntity<List<ReceivableResponse>> receive(UUID thirdPartyCode, ReceiptRequest request);
 
     @Operation(summary = "Write off a receivable",
-            description = "No cash moves. Records the amount written off on the given date; without an amount, "
-                    + "writes off what is still open. The date must belong to a cycle that is not closed.")
+            description = "For a third party that will not pay. No cash moves: what is still open becomes the "
+                    + "user's own expense, in the fixed category \"Perdas com terceiros\", in the competence of the "
+                    + "given date, and the receivable is closed (status WRITTEN_OFF). The date must belong to a "
+                    + "cycle that is not closed. The whole open balance is written off; to forgive only part, "
+                    + "receive the rest first.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Receivable written off"),
-            @ApiResponse(responseCode = "400", description = "Invalid date, or amount not between zero and the "
-                    + "open balance"),
+            @ApiResponse(responseCode = "400", description = "Missing date"),
             @ApiResponse(responseCode = "404", description = "Third party or receivable not found"),
-            @ApiResponse(responseCode = "409", description = "The write-off date belongs to a closed cycle")
+            @ApiResponse(responseCode = "409", description = "The write-off date belongs to a closed cycle, or "
+                    + "nothing is open on the receivable")
     })
     ResponseEntity<ReceivableResponse> writeOff(UUID thirdPartyCode, UUID receivableCode,
                                                 ReceivableWriteOffRequest request);

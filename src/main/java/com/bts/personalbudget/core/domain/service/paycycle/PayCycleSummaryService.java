@@ -77,6 +77,10 @@ public class PayCycleSummaryService {
                 .filter(settlement -> !settlement.passThrough()).forEach(settlement -> add(
                 amountsByCategory, totals, settlement.operationType(), settlement.categoryCode(),
                 settlement.getBalanceCalcValue(), true));
+        // A write-off is an own expense, already incurred, of the competence of its date.
+        financialMovementService.findReceivableWriteOffsByEffectiveInterval(from, toExclusive).forEach(
+                writeOff -> add(amountsByCategory, totals, OperationType.DEBIT, writeOff.categoryCode(),
+                        writeOff.amount(), true));
         projectedBills.forEach(occurrence -> add(
                 amountsByCategory, totals, occurrence.getOperationType(), occurrence.getCategoryCode(),
                 occurrence.getBalanceCalcValue(), false));

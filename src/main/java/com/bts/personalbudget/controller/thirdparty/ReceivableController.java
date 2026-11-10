@@ -49,6 +49,6 @@ public class ReceivableController implements ReceivableControllerApiDocs {
                                                         @PathVariable final UUID receivableCode,
                                                         @Valid @RequestBody final ReceivableWriteOffRequest request) {
         return ResponseEntity.ok(mapper.toResponse(service.writeOff(thirdPartyCode, receivableCode,
-                request.effectiveDate(), request.amount())));
+                request.effectiveDate())));
     }
 }

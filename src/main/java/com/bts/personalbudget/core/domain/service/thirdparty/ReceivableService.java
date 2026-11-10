@@ -1,6 +1,8 @@
 package com.bts.personalbudget.core.domain.service.thirdparty;
 
+import com.bts.personalbudget.core.domain.entity.CategoryEntity;
 import com.bts.personalbudget.core.domain.entity.FinancialMovementEntity;
+import com.bts.personalbudget.core.domain.entity.ReceivableWriteOffEntity;
 import com.bts.personalbudget.core.domain.entity.ThirdPartyEntity;
 import com.bts.personalbudget.core.domain.enumerator.FinancialMovementStatus;
 import com.bts.personalbudget.core.domain.enumerator.OperationType;
@@ -12,7 +14,9 @@ import com.bts.personalbudget.exception.ConflictException;
 import com.bts.personalbudget.exception.InvalidFieldsException;
 import com.bts.personalbudget.repository.CardInvoiceRepository;
 import com.bts.personalbudget.repository.CardPurchaseRepository;
+import com.bts.personalbudget.repository.CategoryRepository;
 import com.bts.personalbudget.repository.FinancialMovementRepository;
+import com.bts.personalbudget.repository.ReceivableWriteOffRepository;
 import com.bts.personalbudget.repository.ThirdPartyRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
@@ -37,6 +41,8 @@ public class ReceivableService {
     private final CardInvoiceRepository invoiceRepository;
     private final MovementSettlementService settlementService;
     private final PayCycleMovementGuard payCycleMovementGuard;
+    private final CategoryRepository categoryRepository;
+    private final ReceivableWriteOffRepository writeOffRepository;
     private final Clock clock;
 
     /** Creates or brings in sync the one receivable owned by a third-party card installment. */
@@ -139,23 +145,27 @@ public class ReceivableService {
         return movementRepository.findActiveReceivablesByThirdPartyId(thirdParty.getId()).stream().map(this::describe).toList();
     }
 
+    /**
+     * Gives up on what a third party still owes. No cash moves: the open balance becomes the user's own
+     * expense, in the fixed write-off category, in the competence of {@code effectiveDate}.
+     */
     @Transactional
-    public Receivable writeOff(final UUID thirdPartyCode, final UUID receivableCode, final LocalDate effectiveDate,
-                                final BigDecimal amount) {
-        log.info("m=writeOff, thirdPartyCode={}, receivableCode={}, effectiveDate={}, amount={}",
-                thirdPartyCode, receivableCode, effectiveDate, amount);
+    public Receivable writeOff(final UUID thirdPartyCode, final UUID receivableCode, final LocalDate effectiveDate) {
+        log.info("m=writeOff, thirdPartyCode={}, receivableCode={}, effectiveDate={}",
+                thirdPartyCode, receivableCode, effectiveDate);
         if (effectiveDate == null) throw invalid("effectiveDate", "deve ser informada");
         payCycleMovementGuard.lock();
         final FinancialMovementEntity receivable = receivable(thirdPartyCode, receivableCode);
         payCycleMovementGuard.requireEditable(effectiveDate);
-        final BigDecimal remaining = remaining(receivable);
-        final BigDecimal applied = amount == null ? remaining : amount;
-        if (applied.signum() <= 0 || applied.compareTo(remaining) > 0) {
-            throw invalid("amount", "deve estar entre zero e o saldo em aberto");
-        }
-        final BigDecimal written = zero(receivable.getWrittenOffAmount()).add(applied);
-        receivable.setWrittenOffAmount(written);
+        final BigDecimal open = remaining(receivable);
+        if (open.signum() <= 0) throw new ConflictException("O recebível não tem saldo em aberto para dar baixa");
+        final CategoryEntity category = categoryRepository.findByCode(ReceivableWriteOffCategory.CODE)
+                .orElseThrow(() -> new IllegalStateException("Categoria de baixa de recebíveis não encontrada"));
+        receivable.setWrittenOffAmount(zero(receivable.getWrittenOffAmount()).add(open));
         receivable.setWrittenOffDate(effectiveDate);
+        receivable.setStatus(FinancialMovementStatus.PAID_OUT);
+        writeOffRepository.save(ReceivableWriteOffEntity.builder()
+                .receivable(receivable).category(category).amount(open).effectiveDate(effectiveDate).build());
         return describe(movementRepository.save(receivable));
     }
 
@@ -223,6 +233,9 @@ public class ReceivableService {
     private static void requireNotReceived(final FinancialMovementEntity receivable) {
         if (zero(receivable.getAmountPaid()).signum() != 0) {
             throw new ConflictException("Há valores já recebidos; estorne os recebimentos antes");
+        }
+        if (zero(receivable.getWrittenOffAmount()).signum() != 0) {
+            throw new ConflictException("O recebível teve baixa registrada e não pode ser alterado");
         }
     }
     private static String receivableDescription(final FinancialMovementEntity source) {
